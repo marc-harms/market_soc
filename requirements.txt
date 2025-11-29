@@ -1,0 +1,21 @@
+# Market SOC - Financial Self-Organized Criticality Analysis
+# Python 3.10+ required
+
+# Core data processing
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Visualization
+plotly>=5.14.0
+
+# API requests
+requests>=2.31.0
+
+# Scientific computing
+scipy>=1.10.0
+
+# Development/Testing (optional)
+pytest>=7.4.0
+black>=23.0.0
+mypy>=1.4.0
+
