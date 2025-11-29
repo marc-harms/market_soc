@@ -139,7 +139,6 @@ class PlotlyVisualizer:
                         y=0.85,
                         len=0.20,
                         thickness=15,
-                        titleside="right",
                     ),
                     showscale=True,
                 ),
