@@ -78,7 +78,7 @@ class PlotlyVisualizer:
         # Chart 3: Criticality & Trend
         self._add_criticality_trend_chart(fig, row=3)
 
-        # Update overall layout with better legend positioning
+        # Update overall layout - legends will be positioned per chart
         fig.update_layout(
             height=CHART_HEIGHT * 3,
             template=CHART_TEMPLATE,
@@ -86,17 +86,55 @@ class PlotlyVisualizer:
             title_text=f"Financial SOC Analysis - {self.symbol}",
             title_font_size=20,
             hovermode="x unified",
+            margin=dict(r=200),  # Extra right margin for legend and colorbar
+        )
+        
+        # Add legend headers as annotations above each chart
+        fig.add_annotation(
+            text="<b>Chart 1 Legend: Price with Volatility Heatmap</b>",
+            xref="paper", yref="paper",
+            x=0.5, y=0.985,
+            xanchor="center", yanchor="bottom",
+            showarrow=False,
+            font=dict(size=11, color="white"),
+            bgcolor="rgba(50,50,50,0.7)",
+            borderpad=4,
+        )
+        
+        fig.add_annotation(
+            text="<b>Chart 2 Legend: Power Law Analysis</b>",
+            xref="paper", yref="paper",
+            x=0.5, y=0.645,
+            xanchor="center", yanchor="bottom",
+            showarrow=False,
+            font=dict(size=11, color="white"),
+            bgcolor="rgba(50,50,50,0.7)",
+            borderpad=4,
+        )
+        
+        fig.add_annotation(
+            text="<b>Chart 3 Legend: Traffic Light System</b>",
+            xref="paper", yref="paper",
+            x=0.5, y=0.335,
+            xanchor="center", yanchor="bottom",
+            showarrow=False,
+            font=dict(size=11, color="white"),
+            bgcolor="rgba(50,50,50,0.7)",
+            borderpad=4,
+        )
+        
+        # Configure legend to show all items on the right
+        fig.update_layout(
             legend=dict(
                 orientation="v",
                 yanchor="top",
                 y=0.98,
                 xanchor="left",
-                x=1.05,
-                bgcolor="rgba(0,0,0,0.5)",
+                x=1.02,
+                bgcolor="rgba(30,30,30,0.8)",
                 bordercolor="rgba(255,255,255,0.3)",
                 borderwidth=1,
                 font=dict(size=10),
-                tracegroupgap=15,
             ),
         )
 
@@ -116,13 +154,16 @@ class PlotlyVisualizer:
             abs_returns.max() - abs_returns.min()
         )
 
-        # Create scatter plot with color gradient
+        # Store abs_returns_norm as instance variable for Chart 3 colorbar
+        self.abs_returns_norm = abs_returns_norm
+        
+        # Create scatter plot with color gradient (NO colorbar here)
         fig.add_trace(
             go.Scatter(
                 x=self.df.index,
                 y=self.df["close"],
                 mode="markers+lines",
-                name="Chart 1: Price (Heatmap)",
+                name="Price (color = volatility)",
                 legendgroup="chart1",
                 line=dict(width=1, color="rgba(255,255,255,0.3)"),
                 marker=dict(
@@ -133,14 +174,7 @@ class PlotlyVisualizer:
                         [0.5, "#FFFF00"],  # Yellow for medium
                         [1, COLORS["high_volatility"]],  # Red for high volatility
                     ],
-                    colorbar=dict(
-                        title="Return<br>Magnitude",
-                        x=1.15,
-                        y=0.85,
-                        len=0.20,
-                        thickness=15,
-                    ),
-                    showscale=True,
+                    showscale=False,  # No colorbar on Chart 1
                 ),
                 hovertemplate="<b>Date:</b> %{x}<br>"
                 + "<b>Price:</b> $%{y:,.2f}<br>"
@@ -188,7 +222,7 @@ class PlotlyVisualizer:
                 x=bin_centers[actual_mask],
                 y=actual_hist[actual_mask],
                 mode="markers",
-                name="Chart 2: Actual Returns (Fat Tail)",
+                name="Actual Returns (Fat Tail)",
                 legendgroup="chart2",
                 marker=dict(size=8, color=COLORS["high_volatility"]),
                 hovertemplate="<b>Return:</b> %{x:.6f}<br>"
@@ -205,7 +239,7 @@ class PlotlyVisualizer:
                 x=bin_centers[normal_mask],
                 y=normal_hist[normal_mask],
                 mode="lines",
-                name="Chart 2: Theoretical Normal",
+                name="Theoretical Normal",
                 legendgroup="chart2",
                 line=dict(width=2, color=COLORS["stable"], dash="dash"),
                 hovertemplate="<b>Return:</b> %{x:.6f}<br>"
@@ -250,7 +284,7 @@ class PlotlyVisualizer:
             go.Bar(
                 x=self.df.index,
                 y=self.df["volatility"],
-                name="Chart 3: Rolling Volatility (30d)",
+                name="Rolling Volatility (30d)",
                 legendgroup="chart3",
                 marker=dict(
                     color=colors_list,
@@ -270,7 +304,7 @@ class PlotlyVisualizer:
             go.Scatter(
                 x=self.df.index,
                 y=self.df["sma_200"],
-                name="Chart 3: SMA 200 (Trend)",
+                name="SMA 200 (Trend)",
                 legendgroup="chart3",
                 line=dict(width=2, color=COLORS["sma_line"]),
                 hovertemplate="<b>Date:</b> %{x}<br>"
@@ -287,7 +321,7 @@ class PlotlyVisualizer:
             go.Scatter(
                 x=self.df.index,
                 y=self.df["close"],
-                name="Chart 3: Price",
+                name="Price",
                 legendgroup="chart3",
                 line=dict(width=2, color=COLORS["price_line"]),
                 hovertemplate="<b>Date:</b> %{x}<br>"
@@ -297,6 +331,40 @@ class PlotlyVisualizer:
             row=row,
             col=1,
             secondary_y=True,
+        )
+        
+        # Add invisible trace for the heatmap colorbar (from Chart 1)
+        # This shows the colorbar next to Chart 3 where it logically belongs
+        fig.add_trace(
+            go.Scatter(
+                x=[self.df.index[0]],
+                y=[self.df["volatility"].iloc[0]],
+                mode="markers",
+                name="Volatility Heatmap Scale",
+                legendgroup="chart3",
+                marker=dict(
+                    size=0.1,  # Nearly invisible
+                    color=[0.5],
+                    colorscale=[
+                        [0, COLORS["stable"]],  # Blue for stable
+                        [0.5, "#FFFF00"],  # Yellow for medium
+                        [1, COLORS["high_volatility"]],  # Red for high volatility
+                    ],
+                    colorbar=dict(
+                        title="Volatility<br>Heatmap<br>(Chart 1)",
+                        x=1.18,
+                        y=0.15,
+                        len=0.25,
+                        thickness=12,
+                    ),
+                    showscale=True,
+                ),
+                showlegend=False,  # Don't show in legend
+                hoverinfo="skip",
+            ),
+            row=row,
+            col=1,
+            secondary_y=False,
         )
 
         # Add horizontal threshold lines
