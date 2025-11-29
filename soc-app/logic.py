@@ -15,6 +15,8 @@ import pandas as pd
 import numpy as np
 import requests
 import yfinance as yf
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # --- CONFIGURATION & CONSTANTS ---
 
@@ -319,4 +321,141 @@ class SOCAnalyzer:
             "trend": "BULL" if is_bullish else "BEAR",
             "stress": "HIGH" if is_high_stress else ("LOW" if is_low_stress else "MED")
         }
+
+    def get_plotly_figures(self) -> Dict[str, go.Figure]:
+        """Returns 3 separate Plotly figures for Streamlit"""
+        figures = {}
+        
+        # --- Chart 1: Volatility Clustering ---
+        fig1 = go.Figure()
+        
+        # Normalize returns for coloring
+        abs_returns = self.metrics_df["abs_returns"]
+        min_ret = abs_returns.min()
+        max_ret = abs_returns.max()
+        if max_ret > min_ret:
+            norm_returns = (abs_returns - min_ret) / (max_ret - min_ret)
+        else:
+            norm_returns = abs_returns
+        
+        fig1.add_trace(go.Scatter(
+            x=self.metrics_df.index,
+            y=self.metrics_df["close"],
+            mode="markers+lines",
+            name="Price",
+            line=dict(width=1, color="rgba(255,255,255,0.3)"),
+            marker=dict(
+                size=4,
+                color=norm_returns,
+                colorscale="Turbo",
+                showscale=True,
+                colorbar=dict(title="Magnitude")
+            )
+        ))
+        fig1.update_layout(
+            title=f"1. Volatility Clustering ({self.symbol})",
+            template="plotly_dark",
+            xaxis_title="Date",
+            yaxis_title="Price (Log)",
+            yaxis_type="log",
+            height=500
+        )
+        figures["chart1"] = fig1
+        
+        # --- Chart 2: Power Law ---
+        fig2 = go.Figure()
+        
+        # Calculate histograms
+        returns_clean = self.metrics_df["abs_returns"].dropna().values
+        returns_clean = returns_clean[returns_clean > 0]
+        
+        if len(returns_clean) > 0:
+            # Log bins
+            min_val = returns_clean.min()
+            max_val = returns_clean.max()
+            bins = np.logspace(np.log10(min_val), np.log10(max_val), 50)
+            
+            hist, _ = np.histogram(returns_clean, bins=bins)
+            bin_centers = (bins[:-1] + bins[1:]) / 2
+            
+            # Density
+            widths = bins[1:] - bins[:-1]
+            density = hist / (len(returns_clean) * widths)
+            
+            mask = density > 0
+            
+            # Theoretical Normal
+            mean_ret = self.metrics_df["returns"].mean()
+            std_ret = self.metrics_df["returns"].std()
+            # Approx PDF for positive half of normal distribution on log scale comparison
+            # (Note: This is a simplified visual comparison)
+            normal_pdf = (2 / (std_ret * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((bin_centers - mean_ret) / std_ret) ** 2)
+            
+            fig2.add_trace(go.Scatter(
+                x=bin_centers[mask], y=density[mask],
+                mode="markers", name="Actual Returns",
+                marker=dict(color="#00ccff")
+            ))
+            fig2.add_trace(go.Scatter(
+                x=bin_centers, y=normal_pdf,
+                mode="lines", name="Normal Dist",
+                line=dict(color="#00ff00", dash="dash")
+            ))
+            
+        fig2.update_layout(
+            title="2. Power Law Proof (Fat Tails)",
+            template="plotly_dark",
+            xaxis_title="Return Magnitude (Log)",
+            yaxis_title="Density (Log)",
+            xaxis_type="log",
+            yaxis_type="log",
+            height=500
+        )
+        figures["chart2"] = fig2
+        
+        # --- Chart 3: Criticality ---
+        fig3 = make_subplots(specs=[[{"secondary_y": True}]])
+        
+        # Map colors
+        color_map = {"low": "#00ff00", "medium": "#ffa500", "high": "#ff0000"}
+        colors = [color_map.get(z, "#ffa500") for z in self.metrics_df["vol_zone"]]
+        
+        fig3.add_trace(go.Bar(
+            x=self.metrics_df.index,
+            y=self.metrics_df["volatility"],
+            name="Volatility",
+            marker_color=colors,
+            marker_line_width=0
+        ), secondary_y=False)
+        
+        fig3.add_trace(go.Scatter(
+            x=self.metrics_df.index,
+            y=self.metrics_df["close"],
+            name="Price",
+            line=dict(color="white", width=1)
+        ), secondary_y=True)
+        
+        fig3.add_trace(go.Scatter(
+            x=self.metrics_df.index,
+            y=self.metrics_df["sma_200"],
+            name="SMA 200",
+            line=dict(color="yellow", width=1)
+        ), secondary_y=True)
+        
+        # Threshold lines
+        if self.calculator.vol_low_threshold:
+            fig3.add_hline(y=self.calculator.vol_low_threshold, line_dash="dot", line_color="green", secondary_y=False)
+        if self.calculator.vol_high_threshold:
+            fig3.add_hline(y=self.calculator.vol_high_threshold, line_dash="dot", line_color="red", secondary_y=False)
+            
+        fig3.update_layout(
+            title="3. Criticality & Trend",
+            template="plotly_dark",
+            height=500,
+            showlegend=True,
+            yaxis2=dict(title="Price (Log)", type="log")
+        )
+        figures["chart3"] = fig3
+        
+        return figures
 
