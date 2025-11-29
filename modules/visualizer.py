@@ -1,24 +1,20 @@
 """
 Visualization Module
-Creates interactive Plotly charts for SOC analysis
+Creates standalone HTML dashboard with custom CSS/JS layout
+Matches the specific German layout provided by user
 """
 
-from typing import Optional, List, Dict, Any
+import json
+from typing import Optional
 
 import numpy as np
 import pandas as pd
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-
-from config.settings import CHART_HEIGHT, CHART_TEMPLATE, COLORS
-
+from config.settings import COLORS
 
 class PlotlyVisualizer:
     """
-    Creates interactive Plotly visualizations for SOC analysis:
-    1. Volatility Clustering Heatmap (Price with magnitude coloring)
-    2. Power Law Proof (Log-Log Fat Tail analysis)
-    3. Criticality & Trend (Traffic Light system)
+    Creates a custom HTML dashboard with specific styling and layout.
+    Injects Python-calculated data into a template matching the user's requirements.
     """
 
     def __init__(
@@ -28,300 +24,407 @@ class PlotlyVisualizer:
         vol_low_threshold: Optional[float] = None,
         vol_high_threshold: Optional[float] = None,
     ) -> None:
-        """
-        Initialize visualizer
-
-        Args:
-            df: DataFrame with calculated SOC metrics
-            symbol: Trading symbol for chart titles
-            vol_low_threshold: Lower volatility threshold
-            vol_high_threshold: Upper volatility threshold
-        """
         self.df = df
         self.symbol = symbol
-        self.vol_low_threshold = vol_low_threshold
-        self.vol_high_threshold = vol_high_threshold
 
-    def create_interactive_dashboard(self) -> go.Figure:
+    def create_interactive_dashboard(self) -> str:
         """
-        Create a Tabbed Dashboard with 3 views.
-        Only one chart is visible at a time, selectable via buttons.
+        Generates the complete HTML string with embedded data.
+        Returns the HTML content string.
         """
-        print("Generating interactive dashboard...")
-
-        # Create a single figure with secondary Y-axis capability
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
-
-        # --- Add Traces for All Charts ---
-        # We add all traces to the same figure but toggle their visibility
+        print("Generating custom HTML dashboard...")
         
-        # Track trace indices for buttons
-        # Chart 1 Traces
-        self._add_volatility_clustering_traces(fig)
+        # Prepare Data for Injection
+        # We need to convert DataFrame columns to JSON-serializable lists
         
-        # Chart 2 Traces
-        self._add_power_law_traces(fig)
+        # 1. Main Data (Dates, Prices, Returns, Magnitudes)
+        # Filter out NaN or invalid data first
+        valid_df = self.df.dropna(subset=['close', 'returns', 'abs_returns', 'sma_200', 'volatility'])
         
-        # Chart 3 Traces
-        self._add_criticality_trend_traces(fig)
-
-        # --- Define Explanatory Texts ---
-        text_1 = (
-            "<b>1. Volatility Clustering (The 'Sandpile'):</b><br>"
-            "In SOC systems, extreme events do not occur in isolation. They come in waves (clusters).<br>"
-            "The color coding shows phases where the system is 'working' (Blue=Stable, Red=Active)."
-        )
+        data_dates = valid_df.index.strftime('%Y-%m-%d').tolist()
+        data_prices = valid_df['close'].tolist()
+        data_returns = valid_df['returns'].tolist()
+        data_magnitudes = valid_df['abs_returns'].tolist()
+        data_sma = valid_df['sma_200'].tolist()
+        data_volatility = valid_df['volatility'].tolist()
         
-        text_2 = (
-            "<b>2. The Power Curve (Log/Log Proof):</b><br>"
-            "This is the mathematical 'fingerprint'. Red points = Real Bitcoin data. Blue line = Normal distribution.<br>"
-            "The straight line of red points proves the 'Fat Tails' (extremely high probability for Black Swans)."
-        )
+        # Convert to JSON strings
+        json_dates = json.dumps(data_dates)
+        json_prices = json.dumps(data_prices)
+        json_returns = json.dumps(data_returns)
+        json_magnitudes = json.dumps(data_magnitudes)
+        json_sma = json.dumps(data_sma)
+        json_volatility = json.dumps(data_volatility)
+
+        # HTML Template
+        html_content = f"""<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitcoin SOC & Power Law Analyse</title>
+    <!-- Plotly.js für interaktive Grafiken laden -->
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+    <style>
+        body {{
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #111;
+            color: #eee;
+            margin: 0;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+        }}
+        h1 {{
+            text-align: center;
+            font-weight: 300;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }}
+        p.subtitle {{
+            line-height: 1.6;
+            color: #aaa;
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+            text-align: center;
+        }}
+        .chart-container {{
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            border: 1px solid #333;
+        }}
+        .status-box {{
+            text-align: center;
+            font-size: 1em;
+            color: #aaa;
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            background: #222;
+        }}
+        .source-badge {{
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 10px;
+        }}
+        .badge-binance {{ background-color: #F3BA2F; color: #000; }}
         
-        text_3 = (
-            "<b>3. System Criticality & Trading Signals:</b><br>"
-            "Combine SOC (Volatility) with Trend (SMA 200).<br>"
-            "⚠ <b>Rule:</b> Red phase + Price < SMA 200 = Crash Risk.<br>"
-            "✓ <b>Rule:</b> Green phase + Price > SMA 200 = Accumulation."
-        )
-
-        # --- Create Layout & Buttons ---
+        .explanation {{
+            background: #222;
+            border-left: 4px solid #ff9800;
+            padding: 15px;
+            margin-bottom: 15px;
+            font-size: 0.95em;
+            line-height: 1.5;
+            border-radius: 0 4px 4px 0;
+        }}
+        strong {{ color: #fff; }}
+        .footer {{
+            text-align: center;
+            font-size: 0.8em;
+            color: #666;
+            margin-top: 50px;
+        }}
         
-        # Default Layout (Chart 1 visible)
-        fig.update_layout(
-            template=CHART_TEMPLATE,
-            height=700,  # Good height for a single view
-            title_text=f"Financial SOC Analysis - {self.symbol}",
-            title_x=0.5,
-            showlegend=True,
-            hovermode="x unified",
-            # Margins for text box at top
-            margin=dict(t=160, b=50, l=50, r=50),
-            legend=dict(
-                orientation="h",  # Horizontal legend at bottom
-                yanchor="top",
-                y=-0.1,
-                xanchor="center",
-                x=0.5
-            )
-        )
+        /* Controls für Chart 3 */
+        .controls {{
+            margin-bottom: 10px;
+            text-align: right;
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 4px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 20px;
+        }}
+        .toggle-label {{
+            cursor: pointer;
+            font-size: 0.9em;
+            color: #ddd;
+            user-select: none;
+            display: flex;
+            align-items: center;
+        }}
+        .toggle-label input {{
+            margin-right: 8px;
+        }}
+    </style>
+</head>
+<body>
 
-        # Create Menu Buttons
-        updatemenus = [
-            dict(
-                type="buttons",
-                direction="right",
-                x=0.5,
-                y=1.25,  # Above title
-                xanchor="center",
-                yanchor="top",
-                pad={"r": 10, "t": 10},
-                buttons=[
-                    # Button 1: Volatility Clustering
-                    dict(
-                        label="1. Volatility Clustering",
-                        method="update",
-                        args=[
-                            # Visibility: [Chart 1 (1 trace), Chart 2 (2 traces), Chart 3 (4 traces)]
-                            {"visible": [True] + [False]*2 + [False]*4},
-                            {
-                                "title": f"Chart 1: Volatility Clustering - {self.symbol}",
-                                "annotations": [self._get_annotation_dict(text_1)],
-                                "xaxis": {"title": "Date", "type": "date"},
-                                "yaxis": {"title": "Price (USD)", "type": "linear"},
-                            }
-                        ],
-                    ),
-                    # Button 2: Power Law
-                    dict(
-                        label="2. Power Law Proof",
-                        method="update",
-                        args=[
-                            # Visibility
-                            {"visible": [False] + [True]*2 + [False]*4},
-                            {
-                                "title": "Chart 2: Power Law Proof - Fat Tail Analysis",
-                                "annotations": [self._get_annotation_dict(text_2)],
-                                "xaxis": {"title": "Absolute Returns (Log Scale)", "type": "log"},
-                                "yaxis": {"title": "Frequency (Log Scale)", "type": "log"},
-                            }
-                        ],
-                    ),
-                    # Button 3: Traffic Light
-                    dict(
-                        label="3. Traffic Light System",
-                        method="update",
-                        args=[
-                            # Visibility
-                            {"visible": [False] + [False]*2 + [True]*4},
-                            {
-                                "title": "Chart 3: Criticality & Trend - Traffic Light System",
-                                "annotations": [self._get_annotation_dict(text_3)],
-                                "xaxis": {"title": "Date", "type": "date"},
-                                "yaxis": {"title": "Volatility (Std Dev)", "type": "linear"},
-                                "yaxis2": {"title": "Price (USD)", "showgrid": False},
-                            }
-                        ],
-                    ),
-                ],
-            )
-        ]
+<div class="container">
+    <h1>Bitcoin: Self-Organized Criticality (SOC)</h1>
+    <p class="subtitle">
+        Diese Analyse visualisiert die Signaturen komplexer Systeme:<br>
+        1. Zeitliche Instabilität, 2. Power Laws (Fat Tails) und 3. System-Kritikalität mit Trendsignalen.
+    </p>
+    
+    <div id="status" class="status-box" style="border-color: #4CAF50; color: #4CAF50;">
+        Daten erfolgreich berechnet durch Python Backend: <span class="source-badge badge-binance">Binance API</span>
+    </div>
 
-        fig.update_layout(updatemenus=updatemenus)
+    <div id="content-area">
         
-        # Initialize with Chart 1 state (Annotations need to be added explicitly for initial state)
-        fig.add_annotation(**self._get_annotation_dict(text_1))
+        <!-- Chart 1: Zeitreihe -->
+        <div class="explanation">
+            <strong>1. Volatility Clustering (Der "Sandhaufen"):</strong><br>
+            In SOC-Systemen treten extreme Ereignisse nicht isoliert auf. Sie kommen in Wellen (Clustern). 
+            Die Einfärbung zeigt Phasen, in denen das System "arbeitet".
+        </div>
+        <div id="chart-time" class="chart-container" style="height: 500px;"></div>
+
+        <!-- Chart 2: Power Law -->
+        <div class="explanation">
+            <strong>2. Die Power Curve (Log/Log Beweis):</strong><br>
+            Dies ist der mathematische "Fingerabdruck". 
+            <span style="color:#00ccff">Blaue Punkte</span> = Reale Bitcoin-Daten. 
+            <span style="color:#00ff00">Grüne Linie</span> = Normalverteilung.<br>
+            Die gerade Linie der blauen Punkte beweist die "Fat Tails" (extrem hohe Wahrscheinlichkeit für Black Swans).
+        </div>
+        <div id="chart-log" class="chart-container" style="height: 600px;"></div>
+
+        <!-- Chart 3: Kritikalität -->
+        <div class="explanation">
+            <strong>3. System-Kritikalität & Handelssignale:</strong><br>
+            Kombiniere SOC (Volatilität) mit Trend (SMA 200), um Signale zu finden.<br>
+            <span style="color:#ffa500">⚠ Regel:</span> <strong>Rote Phasen</strong> bedeuten Instabilität. 
+            Wenn der Preis während einer roten Phase <strong>unter</strong> dem SMA 200 (Gelbe Linie) ist = <strong>Crash-Gefahr (Verkauf)</strong>.
+            Wenn er <strong>über</strong> dem SMA 200 ist = <strong>Parabolische Rallye (Vorsicht/Halten)</strong>.<br>
+            <span style="color:#00ff00">✓ Regel:</span> <strong>Grüne Phasen</strong> über dem SMA 200 sind oft gute Einstiege ("Accumulation").
+        </div>
         
-        # Set initial visibility (redundant but safe)
-        # Traces: 1 (Ch1) + 2 (Ch2) + 4 (Ch3) = 7 total
-        # Ch1 visible, others hidden
-        for i in range(len(fig.data)):
-            fig.data[i].visible = (i == 0)
+        <div class="controls">
+            <label class="toggle-label">
+                <input type="checkbox" id="overlayToggle" onchange="updateChart3Visibility()" checked> 
+                Bitcoin-Kurs (Weiß)
+            </label>
+            <label class="toggle-label">
+                <input type="checkbox" id="smaToggle" onchange="updateChart3Visibility()" checked> 
+                SMA 200 Trendlinie (Gelb)
+            </label>
+        </div>
+        <div id="chart-crit" class="chart-container" style="height: 500px;"></div>
 
-        print("✓ Dashboard created successfully")
-        return fig
+    </div>
 
-    def _get_annotation_dict(self, text: str) -> Dict[str, Any]:
-        """Helper to generate consistent annotation dictionary"""
-        return dict(
-            text=text,
-            xref="paper", yref="paper",
-            x=0.5, y=1.12,  # Fixed position at top
-            xanchor="center", yanchor="bottom",
-            showarrow=False,
-            font=dict(size=14, color="rgba(255,255,255,0.95)"),
-            align="center",
-            bordercolor="rgba(100,100,100,0.5)",
-            borderwidth=1,
-            borderpad=10,
-            bgcolor="rgba(30,30,30,0.9)",
-            width=900,
-        )
+    <div class="footer">
+        Visualisierung: Plotly.js | Analyse basierend auf SOC-Theorie | Generated by soc_analyzer.py
+    </div>
+</div>
 
-    def _add_volatility_clustering_traces(self, fig: go.Figure) -> None:
-        """Chart 1 Traces"""
-        abs_returns = self.df["abs_returns"]
-        abs_returns_norm = (abs_returns - abs_returns.min()) / (abs_returns.max() - abs_returns.min())
+<script>
+    // --- DATEN VOM PYTHON BACKEND INJIZIERT ---
+    const globalDates = {json_dates};
+    const globalPrices = {json_prices};
+    const globalReturns = {json_returns};
+    const globalMagnitudes = {json_magnitudes};
+    const globalSMA = {json_sma};
+    const globalVol = {json_volatility};
 
-        fig.add_trace(
-            go.Scatter(
-                x=self.df.index,
-                y=self.df["close"],
-                mode="markers+lines",
-                name="Price (Vol Heatmap)",
-                line=dict(width=0.75, color="rgba(255,255,255,0.3)"),
-                marker=dict(
-                    size=4,
-                    color=abs_returns_norm,
-                    colorscale=[[0, COLORS["stable"]], [0.5, "#FFFF00"], [1, COLORS["high_volatility"]]],
-                    showscale=True,
-                    colorbar=dict(title="Vol", x=1.02, thickness=10, len=0.5),
-                ),
-                hovertemplate="Price: $%{y:,.2f}<extra></extra>",
-            ),
-            secondary_y=False
-        )
+    // --- LOGIK & RENDERING ---
 
-    def _add_power_law_traces(self, fig: go.Figure) -> None:
-        """Chart 2 Traces"""
-        abs_returns = self.df["abs_returns"].dropna().values
-        mean = abs_returns.mean()
-        std = abs_returns.std()
-        normal_samples = np.abs(np.random.normal(mean, std, len(abs_returns)))
+    function init() {{
+        renderCharts();
+    }}
+
+    // Globale Funktion für Checkbox-Change
+    window.updateChart3Visibility = function() {{
+        const showPrice = document.getElementById('overlayToggle').checked;
+        const showSMA = document.getElementById('smaToggle').checked;
+        drawChart3(showPrice, showSMA);
+    }};
+
+    function drawChart3(showOverlay, showSMA) {{
+        // Trace 1: Kritikalität (Bar Chart)
+        // Einfärbung basierend auf Quantilen für Ampel-Logik
+        // Wir berechnen dies dynamisch im JS für die Visualisierung
         
-        min_val = max(abs_returns.min(), normal_samples.min(), 1e-8)
-        max_val = max(abs_returns.max(), normal_samples.max())
-        bins = np.logspace(np.log10(min_val), np.log10(max_val), 40)
+        // Simple Farb-Logik für JS Visualisierung (Grün/Orange/Rot)
+        const volValues = globalVol;
+        const maxVol = Math.max(...volValues);
+        const colors = volValues.map(v => {{
+            if (v < maxVol * 0.33) return '#00ff00'; // Grün
+            if (v < maxVol * 0.66) return '#ffa500'; // Orange
+            return '#ff0000'; // Rot
+        }});
+
+        const traceCrit = {{
+            x: globalDates, 
+            y: globalVol, 
+            type: 'bar', 
+            marker: {{
+                color: colors,
+                // colorscale nicht nötig wenn color array explizit ist
+            }},
+            name: 'Kritikalität (Vol)',
+            hovertemplate: '%{{x|%d.%m.%Y}}: %{{y:.4f}}<extra></extra>'
+        }};
+
+        const data = [traceCrit];
+        const layoutCrit = {{
+            title: '3. System-Kritikalität & Trendanalyse',
+            paper_bgcolor: 'rgba(0,0,0,0)', 
+            plot_bgcolor: 'rgba(0,0,0,0)',
+            font: {{ color: '#ddd' }}, 
+            margin: {{ t: 40, r: 50, l: 60, b: 40 }},
+            xaxis: {{ title: 'Zeit', gridcolor: '#333' }},
+            yaxis: {{ title: 'Volatilität (StdDev)', gridcolor: '#333' }},
+            bargap: 0,
+            showlegend: true,
+            legend: {{ x: 0, y: 1.1, orientation: 'h' }}
+        }};
+
+        // Optionale Achse hinzufügen
+        if (showOverlay || showSMA) {{
+            layoutCrit.yaxis2 = {{
+                title: 'Preis (Log)',
+                type: 'log',
+                overlaying: 'y',
+                side: 'right',
+                gridcolor: 'rgba(255,255,255,0.1)'
+            }};
+        }}
+
+        // Trace 2: Preis Overlay
+        if (showOverlay) {{
+            const tracePrice = {{
+                x: globalDates,
+                y: globalPrices,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'BTC Preis',
+                line: {{ color: '#ffffff', width: 1 }},
+                yaxis: 'y2', 
+                opacity: 0.8
+            }};
+            data.push(tracePrice);
+        }}
+
+        // Trace 3: SMA 200 Trend
+        if (showSMA) {{
+            const traceSMA = {{
+                x: globalDates,
+                y: globalSMA,
+                type: 'scatter',
+                mode: 'lines',
+                name: 'SMA 200 (Trend)',
+                line: {{ color: '#ffff00', width: 2 }}, // Gelb
+                yaxis: 'y2',
+                opacity: 1.0
+            }};
+            data.push(traceSMA);
+        }}
+
+        Plotly.newPlot('chart-crit', data, layoutCrit, {{responsive: true}});
+    }}
+
+    function renderCharts() {{
+        // CHART 1: Zeitreihe
+        const traceTime = {{
+            x: globalDates, y: globalPrices, mode: 'markers+lines',
+            marker: {{ color: globalMagnitudes, colorscale: 'Turbo', size: 2 }},
+            line: {{ width: 1, color: 'rgba(255,255,255,0.2)' }}, 
+            type: 'scatter', name: 'Preis'
+        }};
+        const layoutTime = {{
+            title: '1. Bitcoin Preis & Instabilität',
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            font: {{ color: '#ddd' }}, margin: {{ t: 40, r: 20, l: 60, b: 40 }},
+            xaxis: {{ title: 'Zeit', gridcolor: '#333' }},
+            yaxis: {{ title: 'Preis (Log)', type: 'log', gridcolor: '#333' }}
+        }};
+        Plotly.newPlot('chart-time', [traceTime], layoutTime, {{responsive: true}});
+
+        // CHART 2: Power Law (Log/Log)
+        // Berechnung der Histogramm-Daten in JS für flüssige Darstellung, 
+        // oder wir könnten Python-berechnete Histogramme injizieren. 
+        // Hier replizieren wir die JS Logik mit den Python-Daten.
         
-        actual_hist, _ = np.histogram(abs_returns, bins=bins)
-        normal_hist, _ = np.histogram(normal_samples, bins=bins)
-        bin_centers = (bins[:-1] + bins[1:]) / 2
+        const magnitudes = globalMagnitudes;
+        const minVal = Math.min(...magnitudes.filter(m => m > 0)); // Filter 0
+        const maxVal = Math.max(...magnitudes);
+        const numBins = 50;
         
-        actual_mask = actual_hist > 0
-        normal_mask = normal_hist > 0
+        const logMin = Math.log10(minVal);
+        const logMax = Math.log10(maxVal);
+        const logBins = [];
+        for (let i = 0; i <= numBins; i++) logBins.push(Math.pow(10, logMin + (i * (logMax - logMin) / numBins)));
 
-        # Trace 1: Actual
-        fig.add_trace(
-            go.Scatter(
-                x=bin_centers[actual_mask],
-                y=actual_hist[actual_mask],
-                mode="markers",
-                name="Actual Returns",
-                marker=dict(size=6, color=COLORS["high_volatility"]),
-            )
-        )
+        const counts = new Array(numBins).fill(0);
+        for (let m of magnitudes) {{
+            if (m <= 0) continue;
+            for (let i = 0; i < numBins; i++) {{
+                if (m >= logBins[i] && m < logBins[i+1]) {{ counts[i]++; break; }}
+            }}
+        }}
+
+        const density = [];
+        const xPoints = [];
+        const totalPoints = magnitudes.length;
+        for (let i = 0; i < numBins; i++) {{
+            if (counts[i] > 0) {{
+                const binWidth = logBins[i+1] - logBins[i];
+                const center = Math.sqrt(logBins[i] * logBins[i+1]);
+                density.push(counts[i] / (totalPoints * binWidth));
+                xPoints.push(center);
+            }}
+        }}
+
+        // Normalverteilung (theoretisch) berechnen
+        // Wir nutzen Mittelwert/Varianz der Returns
+        const returns = globalReturns;
+        const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
+        const variance = returns.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / returns.length;
+        const sigma = Math.sqrt(variance);
         
-        # Trace 2: Theoretical
-        fig.add_trace(
-            go.Scatter(
-                x=bin_centers[normal_mask],
-                y=normal_hist[normal_mask],
-                mode="lines",
-                name="Normal Dist",
-                line=dict(width=1.5, color=COLORS["stable"], dash="dash"),
-            )
-        )
+        const normalY = xPoints.map(x => {{
+            return (2 / (sigma * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow(x / sigma, 2));
+        }});
 
-    def _add_criticality_trend_traces(self, fig: go.Figure) -> None:
-        """Chart 3 Traces"""
-        color_map = {"low": COLORS["low_volatility"], "medium": COLORS["medium_volatility"], "high": COLORS["high_volatility"]}
-        colors_list = self.df["vol_zone"].map(color_map)
+        const traceReal = {{ x: xPoints, y: density, mode: 'markers', type: 'scatter', name: 'Reale Daten', marker: {{ color: '#00ccff', size: 6 }} }};
+        const traceNormal = {{ x: xPoints, y: normalY, mode: 'lines', type: 'scatter', name: 'Normalverteilung', line: {{ color: '#00ff00', dash: 'dash', width: 2 }} }};
 
-        # Trace 1: Volatility Bars
-        fig.add_trace(
-            go.Bar(
-                x=self.df.index,
-                y=self.df["volatility"],
-                name="Volatility",
-                marker=dict(color=colors_list, line=dict(width=0)),
-            ),
-            secondary_y=False,
-        )
+        const layoutLog = {{
+            title: '2. Power Curve Beweis (Log/Log)',
+            paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+            font: {{ color: '#ddd' }}, margin: {{ t: 40, r: 20, l: 60, b: 60 }},
+            xaxis: {{ type: 'log', title: 'Änderung (Log)', gridcolor: '#333' }},
+            yaxis: {{ type: 'log', title: 'Häufigkeit', gridcolor: '#333' }},
+            annotations: [{{
+                x: Math.log10(xPoints[xPoints.length-3] || 0.1), y: Math.log10(density[density.length-3] || 0.001),
+                xref: 'x', yref: 'y', text: 'Fat Tails', showarrow: true, arrowhead: 2, ax: -40, ay: -40, font: {{color: 'red'}}
+            }}]
+        }};
+        Plotly.newPlot('chart-log', [traceReal, traceNormal], layoutLog, {{responsive: true}});
 
-        # Trace 2: SMA 200
-        fig.add_trace(
-            go.Scatter(
-                x=self.df.index,
-                y=self.df["sma_200"],
-                name="SMA 200",
-                line=dict(width=0.75, color=COLORS["sma_line"]),
-            ),
-            secondary_y=True,
-        )
+        // CHART 3: Kritikalität
+        drawChart3(true, true);
+    }}
 
-        # Trace 3: Price
-        fig.add_trace(
-            go.Scatter(
-                x=self.df.index,
-                y=self.df["close"],
-                name="Price",
-                line=dict(width=0.75, color=COLORS["price_line"]),
-            ),
-            secondary_y=True,
-        )
+    // Start
+    init();
 
-        # Trace 4: Threshold Lines (Simplified to one trace or just lines)
-        # For simplicity in this button-view, I'll omit the static lines or add them as layout shapes 
-        # But layout shapes are harder to toggle with buttons.
-        # I'll add the invisible colorbar trace here to maintain the legend/colorbar logic
-        fig.add_trace(
-            go.Scatter(
-                x=[self.df.index[0]], y=[0],
-                mode="markers",
-                name="Heatmap Scale",
-                marker=dict(
-                    size=0,
-                    color=[0],
-                    colorscale=[[0, COLORS["stable"]], [0.5, "#FFFF00"], [1, COLORS["high_volatility"]]],
-                    showscale=True,
-                    colorbar=dict(title="Heatmap", x=1.02, thickness=10, len=0.5, y=0.2),
-                ),
-                showlegend=False,
-                hoverinfo="skip"
-            ),
-            secondary_y=False
-        )
+</script>
 
-    def save_html(self, fig: go.Figure, filename: str = "soc_analysis.html") -> None:
-        fig.write_html(filename)
+</body>
+</html>
+"""
+        return html_content
+
+    def save_html(self, fig: str, filename: str = "soc_analysis.html") -> None:
+        """
+        Save HTML content to file.
+        Note: The 'fig' argument here is actually the HTML string, keeping signature compatible.
+        """
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(fig)
         print(f"✓ Saved visualization to: {filename}")
