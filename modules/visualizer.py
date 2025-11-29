@@ -78,7 +78,7 @@ class PlotlyVisualizer:
         # Chart 3: Criticality & Trend
         self._add_criticality_trend_chart(fig, row=3)
 
-        # Update overall layout - legends will be positioned per chart
+        # Update overall layout
         fig.update_layout(
             height=CHART_HEIGHT * 3,
             template=CHART_TEMPLATE,
@@ -87,44 +87,6 @@ class PlotlyVisualizer:
             title_font_size=20,
             hovermode="x unified",
             margin=dict(r=200),  # Extra right margin for legend and colorbar
-        )
-        
-        # Add legend headers as annotations above each chart
-        fig.add_annotation(
-            text="<b>Chart 1 Legend: Price with Volatility Heatmap</b>",
-            xref="paper", yref="paper",
-            x=0.5, y=0.985,
-            xanchor="center", yanchor="bottom",
-            showarrow=False,
-            font=dict(size=11, color="white"),
-            bgcolor="rgba(50,50,50,0.7)",
-            borderpad=4,
-        )
-        
-        fig.add_annotation(
-            text="<b>Chart 2 Legend: Power Law Analysis</b>",
-            xref="paper", yref="paper",
-            x=0.5, y=0.645,
-            xanchor="center", yanchor="bottom",
-            showarrow=False,
-            font=dict(size=11, color="white"),
-            bgcolor="rgba(50,50,50,0.7)",
-            borderpad=4,
-        )
-        
-        fig.add_annotation(
-            text="<b>Chart 3 Legend: Traffic Light System</b>",
-            xref="paper", yref="paper",
-            x=0.5, y=0.335,
-            xanchor="center", yanchor="bottom",
-            showarrow=False,
-            font=dict(size=11, color="white"),
-            bgcolor="rgba(50,50,50,0.7)",
-            borderpad=4,
-        )
-        
-        # Configure legend to show all items on the right
-        fig.update_layout(
             legend=dict(
                 orientation="v",
                 yanchor="top",
@@ -133,7 +95,7 @@ class PlotlyVisualizer:
                 x=1.02,
                 bgcolor="rgba(30,30,30,0.8)",
                 bordercolor="rgba(255,255,255,0.3)",
-                borderwidth=1,
+                borderwidth=0.75,
                 font=dict(size=10),
             ),
         )
@@ -165,9 +127,9 @@ class PlotlyVisualizer:
                 mode="markers+lines",
                 name="Price (color = volatility)",
                 legendgroup="chart1",
-                line=dict(width=1, color="rgba(255,255,255,0.3)"),
+                line=dict(width=0.75, color="rgba(255,255,255,0.3)"),
                 marker=dict(
-                    size=5,
+                    size=3.75,
                     color=abs_returns_norm,
                     colorscale=[
                         [0, COLORS["stable"]],  # Blue for stable
@@ -224,7 +186,7 @@ class PlotlyVisualizer:
                 mode="markers",
                 name="Actual Returns (Fat Tail)",
                 legendgroup="chart2",
-                marker=dict(size=8, color=COLORS["high_volatility"]),
+                marker=dict(size=6, color=COLORS["high_volatility"]),
                 hovertemplate="<b>Return:</b> %{x:.6f}<br>"
                 + "<b>Frequency:</b> %{y}<br>"
                 + "<extra></extra>",
@@ -241,7 +203,7 @@ class PlotlyVisualizer:
                 mode="lines",
                 name="Theoretical Normal",
                 legendgroup="chart2",
-                line=dict(width=2, color=COLORS["stable"], dash="dash"),
+                line=dict(width=1.5, color=COLORS["stable"], dash="dash"),
                 hovertemplate="<b>Return:</b> %{x:.6f}<br>"
                 + "<b>Frequency:</b> %{y}<br>"
                 + "<extra></extra>",
@@ -306,7 +268,7 @@ class PlotlyVisualizer:
                 y=self.df["sma_200"],
                 name="SMA 200 (Trend)",
                 legendgroup="chart3",
-                line=dict(width=2, color=COLORS["sma_line"]),
+                line=dict(width=1.5, color=COLORS["sma_line"]),
                 hovertemplate="<b>Date:</b> %{x}<br>"
                 + "<b>SMA 200:</b> $%{y:,.2f}<br>"
                 + "<extra></extra>",
@@ -323,7 +285,7 @@ class PlotlyVisualizer:
                 y=self.df["close"],
                 name="Price",
                 legendgroup="chart3",
-                line=dict(width=2, color=COLORS["price_line"]),
+                line=dict(width=1.5, color=COLORS["price_line"]),
                 hovertemplate="<b>Date:</b> %{x}<br>"
                 + "<b>Price:</b> $%{y:,.2f}<br>"
                 + "<extra></extra>",
@@ -373,7 +335,7 @@ class PlotlyVisualizer:
                 y=self.vol_low_threshold,
                 line=dict(
                     color=COLORS["low_volatility"],
-                    width=1,
+                    width=0.75,
                     dash="dot",
                 ),
                 annotation_text="Low Threshold",
@@ -388,7 +350,7 @@ class PlotlyVisualizer:
                 y=self.vol_high_threshold,
                 line=dict(
                     color=COLORS["high_volatility"],
-                    width=1,
+                    width=0.75,
                     dash="dot",
                 ),
                 annotation_text="High Threshold",
