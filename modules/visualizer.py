@@ -55,13 +55,13 @@ class PlotlyVisualizer:
         fig = make_subplots(
             rows=3,
             cols=1,
-            row_heights=[0.30, 0.26, 0.30],
+            row_heights=[0.33, 0.33, 0.33],
             subplot_titles=(
                 f"Chart 1: Volatility Clustering - {self.symbol}",
                 f"Chart 2: Power Law Proof - Fat Tail Analysis",
                 f"Chart 3: Criticality & Trend - Traffic Light System",
             ),
-            vertical_spacing=0.15,
+            vertical_spacing=0.25,  # Increased spacing for text boxes ABOVE charts
             specs=[
                 [{"secondary_y": False}],
                 [{"secondary_y": False}],
@@ -80,13 +80,13 @@ class PlotlyVisualizer:
 
         # Update overall layout
         fig.update_layout(
-            height=CHART_HEIGHT * 3,
+            height=CHART_HEIGHT * 4.5,  # Increased total height for spacing
             template=CHART_TEMPLATE,
             showlegend=True,
             title_text=f"Financial SOC Analysis - {self.symbol}",
             title_font_size=20,
             hovermode="x unified",
-            margin=dict(r=200, b=140),  # Extra right margin for legend/colorbar, bottom for annotations
+            margin=dict(t=150, b=50, r=200),  # Increased top margin, reduced bottom
             legend=dict(
                 orientation="v",
                 yanchor="top",
@@ -100,8 +100,8 @@ class PlotlyVisualizer:
             ),
         )
         
-        # Add explanatory text annotations below each chart
-        # Chart 1 explanation
+        # Add explanatory text annotations ABOVE each chart
+        # Chart 1 explanation (Above Chart 1)
         fig.add_annotation(
             text=(
                 "<b>1. Volatility Clustering (The 'Sandpile'):</b><br>"
@@ -109,18 +109,19 @@ class PlotlyVisualizer:
                 "The color coding shows phases where the system is 'working'."
             ),
             xref="paper", yref="paper",
-            x=0.5, y=0.58,
-            xanchor="center", yanchor="top",
+            x=0.5, y=1.07,  # Positioned above Chart 1 title
+            xanchor="center", yanchor="bottom",
             showarrow=False,
-            font=dict(size=12, color="rgba(255,255,255,0.9)"),
+            font=dict(size=13, color="rgba(255,255,255,0.95)"),
             align="left",
             bordercolor="rgba(100,100,100,0.5)",
             borderwidth=1,
-            borderpad=8,
+            borderpad=10,
             bgcolor="rgba(20,20,20,0.8)",
+            width=800,
         )
         
-        # Chart 2 explanation
+        # Chart 2 explanation (Above Chart 2)
         fig.add_annotation(
             text=(
                 "<b>2. The Power Curve (Log/Log Proof):</b><br>"
@@ -128,36 +129,38 @@ class PlotlyVisualizer:
                 "The straight line of red points proves the 'Fat Tails' (extremely high probability for Black Swans)."
             ),
             xref="paper", yref="paper",
-            x=0.5, y=0.275,
-            xanchor="center", yanchor="top",
+            x=0.5, y=0.64,  # Positioned above Chart 2 title
+            xanchor="center", yanchor="bottom",
             showarrow=False,
-            font=dict(size=12, color="rgba(255,255,255,0.9)"),
+            font=dict(size=13, color="rgba(255,255,255,0.95)"),
             align="left",
             bordercolor="rgba(100,100,100,0.5)",
             borderwidth=1,
-            borderpad=8,
+            borderpad=10,
             bgcolor="rgba(20,20,20,0.8)",
+            width=800,
         )
         
-        # Chart 3 explanation
+        # Chart 3 explanation (Above Chart 3)
         fig.add_annotation(
             text=(
                 "<b>3. System Criticality & Trading Signals:</b><br>"
                 "Combine SOC (Volatility) with Trend (SMA 200) to find signals.<br>"
-                "⚠ <b>Rule:</b> Red phases mean instability. If price during red phase is below SMA 200 (Yellow line) = Crash risk (Sell). "
+                "⚠ <b>Rule:</b> Red phases mean instability. If price during red phase is below SMA 200 (Yellow line) = Crash risk (Sell).<br>"
                 "If above SMA 200 = Parabolic rally (Caution/Hold).<br>"
                 "✓ <b>Rule:</b> Green phases above SMA 200 are often good entries ('Accumulation')."
             ),
             xref="paper", yref="paper",
-            x=0.5, y=-0.03,
-            xanchor="center", yanchor="top",
+            x=0.5, y=0.23,  # Positioned above Chart 3 title
+            xanchor="center", yanchor="bottom",
             showarrow=False,
-            font=dict(size=12, color="rgba(255,255,255,0.9)"),
+            font=dict(size=13, color="rgba(255,255,255,0.95)"),
             align="left",
             bordercolor="rgba(100,100,100,0.5)",
             borderwidth=1,
-            borderpad=8,
+            borderpad=10,
             bgcolor="rgba(20,20,20,0.8)",
+            width=800,
         )
 
         print("✓ Dashboard created successfully")
