@@ -78,7 +78,7 @@ class PlotlyVisualizer:
         # Chart 3: Criticality & Trend
         self._add_criticality_trend_chart(fig, row=3)
 
-        # Update overall layout
+        # Update overall layout with better legend positioning
         fig.update_layout(
             height=CHART_HEIGHT * 3,
             template=CHART_TEMPLATE,
@@ -86,6 +86,18 @@ class PlotlyVisualizer:
             title_text=f"Financial SOC Analysis - {self.symbol}",
             title_font_size=20,
             hovermode="x unified",
+            legend=dict(
+                orientation="v",
+                yanchor="top",
+                y=0.98,
+                xanchor="left",
+                x=1.05,
+                bgcolor="rgba(0,0,0,0.5)",
+                bordercolor="rgba(255,255,255,0.3)",
+                borderwidth=1,
+                font=dict(size=10),
+                tracegroupgap=15,
+            ),
         )
 
         print("✓ Dashboard created successfully")
@@ -110,7 +122,8 @@ class PlotlyVisualizer:
                 x=self.df.index,
                 y=self.df["close"],
                 mode="markers+lines",
-                name="Price (Volatility Heatmap)",
+                name="Chart 1: Price (Heatmap)",
+                legendgroup="chart1",
                 line=dict(width=1, color="rgba(255,255,255,0.3)"),
                 marker=dict(
                     size=5,
@@ -122,9 +135,11 @@ class PlotlyVisualizer:
                     ],
                     colorbar=dict(
                         title="Return<br>Magnitude",
-                        x=1.02,
+                        x=1.15,
                         y=0.85,
-                        len=0.25,
+                        len=0.20,
+                        thickness=15,
+                        titleside="right",
                     ),
                     showscale=True,
                 ),
@@ -174,7 +189,8 @@ class PlotlyVisualizer:
                 x=bin_centers[actual_mask],
                 y=actual_hist[actual_mask],
                 mode="markers",
-                name="Actual Returns (Fat Tail)",
+                name="Chart 2: Actual Returns (Fat Tail)",
+                legendgroup="chart2",
                 marker=dict(size=8, color=COLORS["high_volatility"]),
                 hovertemplate="<b>Return:</b> %{x:.6f}<br>"
                 + "<b>Frequency:</b> %{y}<br>"
@@ -190,7 +206,8 @@ class PlotlyVisualizer:
                 x=bin_centers[normal_mask],
                 y=normal_hist[normal_mask],
                 mode="lines",
-                name="Theoretical Normal",
+                name="Chart 2: Theoretical Normal",
+                legendgroup="chart2",
                 line=dict(width=2, color=COLORS["stable"], dash="dash"),
                 hovertemplate="<b>Return:</b> %{x:.6f}<br>"
                 + "<b>Frequency:</b> %{y}<br>"
@@ -234,7 +251,8 @@ class PlotlyVisualizer:
             go.Bar(
                 x=self.df.index,
                 y=self.df["volatility"],
-                name="Rolling Volatility (30d)",
+                name="Chart 3: Rolling Volatility (30d)",
+                legendgroup="chart3",
                 marker=dict(
                     color=colors_list,
                     line=dict(width=0),
@@ -253,7 +271,8 @@ class PlotlyVisualizer:
             go.Scatter(
                 x=self.df.index,
                 y=self.df["sma_200"],
-                name="SMA 200 (Trend)",
+                name="Chart 3: SMA 200 (Trend)",
+                legendgroup="chart3",
                 line=dict(width=2, color=COLORS["sma_line"]),
                 hovertemplate="<b>Date:</b> %{x}<br>"
                 + "<b>SMA 200:</b> $%{y:,.2f}<br>"
@@ -269,7 +288,8 @@ class PlotlyVisualizer:
             go.Scatter(
                 x=self.df.index,
                 y=self.df["close"],
-                name="Price",
+                name="Chart 3: Price",
+                legendgroup="chart3",
                 line=dict(width=2, color=COLORS["price_line"]),
                 hovertemplate="<b>Date:</b> %{x}<br>"
                 + "<b>Price:</b> $%{y:,.2f}<br>"
