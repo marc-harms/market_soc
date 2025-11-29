@@ -148,7 +148,9 @@ def run_soc_analysis(
 
         if show_browser:
             print(f"\n🌐 Opening visualization in browser...")
-            fig.show()
+            import webbrowser
+            import os
+            webbrowser.open('file://' + os.path.realpath(output_file))
         else:
             print(f"\n✓ Visualization saved to: {output_file}")
 
