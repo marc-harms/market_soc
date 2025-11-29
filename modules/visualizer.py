@@ -79,7 +79,7 @@ class PlotlyVisualizer:
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bitcoin SOC & Power Law Analyse</title>
+    <title>{self.symbol} SOC & Power Law Analyse</title>
     <!-- Plotly.js für interaktive Grafiken laden -->
     <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
     <style>
@@ -179,7 +179,7 @@ class PlotlyVisualizer:
 <body>
 
 <div class="container">
-    <h1>Bitcoin: Self-Organized Criticality (SOC)</h1>
+    <h1>{self.symbol}: Self-Organized Criticality (SOC)</h1>
     <p class="subtitle">
         Diese Analyse visualisiert die Signaturen komplexer Systeme:<br>
         1. Zeitliche Instabilität, 2. Power Laws (Fat Tails) und 3. System-Kritikalität mit Trendsignalen.
@@ -203,7 +203,7 @@ class PlotlyVisualizer:
         <div class="explanation">
             <strong>2. Die Power Curve (Log/Log Beweis):</strong><br>
             Dies ist der mathematische "Fingerabdruck". 
-            <span style="color:#00ccff">Blaue Punkte</span> = Reale Bitcoin-Daten. 
+            <span style="color:#00ccff">Blaue Punkte</span> = Reale {self.symbol}-Daten. 
             <span style="color:#00ff00">Grüne Linie</span> = Normalverteilung.<br>
             Die gerade Linie der blauen Punkte beweist die "Fat Tails" (extrem hohe Wahrscheinlichkeit für Black Swans).
         </div>
@@ -222,7 +222,7 @@ class PlotlyVisualizer:
         <div class="controls">
             <label class="toggle-label">
                 <input type="checkbox" id="overlayToggle" onchange="updateChart3Visibility()" checked> 
-                Bitcoin-Kurs (Weiß)
+                {self.symbol} Kurs (Weiß)
             </label>
             <label class="toggle-label">
                 <input type="checkbox" id="smaToggle" onchange="updateChart3Visibility()" checked> 
@@ -343,7 +343,7 @@ class PlotlyVisualizer:
                 y: globalPrices,
                 type: 'scatter',
                 mode: 'lines',
-                name: 'BTC Preis',
+                name: '{self.symbol} Preis',
                 line: {{ color: '#ffffff', width: 1 }},
                 yaxis: 'y2', 
                 opacity: 0.8
@@ -378,7 +378,7 @@ class PlotlyVisualizer:
             type: 'scatter', name: 'Preis'
         }};
         const layoutTime = {{
-            title: '1. Bitcoin Preis & Instabilität',
+            title: '1. {self.symbol} Preis & Instabilität',
             paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
             font: {{ color: '#ddd' }}, margin: {{ t: 40, r: 20, l: 60, b: 40 }},
             xaxis: {{ title: 'Zeit', gridcolor: '#333' }},
@@ -432,7 +432,7 @@ class PlotlyVisualizer:
             return (2 / (sigma * Math.sqrt(2 * Math.PI))) * Math.exp(-0.5 * Math.pow(x / sigma, 2));
         }});
 
-        const traceReal = {{ x: xPoints, y: density, mode: 'markers', type: 'scatter', name: 'Reale Daten', marker: {{ color: '#00ccff', size: 6 }} }};
+        const traceReal = {{ x: xPoints, y: density, mode: 'markers', type: 'scatter', name: 'Reale Daten ({self.symbol})', marker: {{ color: '#00ccff', size: 6 }} }};
         const traceNormal = {{ x: xPoints, y: normalY, mode: 'lines', type: 'scatter', name: 'Normalverteilung', line: {{ color: '#00ff00', dash: 'dash', width: 2 }} }};
 
         const layoutLog = {{
