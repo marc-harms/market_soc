@@ -55,6 +55,10 @@ class PlotlyVisualizer:
         json_magnitudes = json.dumps(data_magnitudes)
         json_sma = json.dumps(data_sma)
         json_volatility = json.dumps(data_volatility)
+        
+        # Thresholds (default to 0 if None)
+        vol_low = self.vol_low_threshold if self.vol_low_threshold is not None else 0
+        vol_high = self.vol_high_threshold if self.vol_high_threshold is not None else 0
 
         # HTML Template
         html_content = f"""<!DOCTYPE html>
@@ -229,6 +233,10 @@ class PlotlyVisualizer:
     const globalMagnitudes = {json_magnitudes};
     const globalSMA = {json_sma};
     const globalVol = {json_volatility};
+    
+    // Thresholds from Python
+    const globalVolLow = {vol_low};
+    const globalVolHigh = {vol_high};
 
     // --- LOGIK & RENDERING ---
 
@@ -280,7 +288,37 @@ class PlotlyVisualizer:
             yaxis: {{ title: 'Volatilität (StdDev)', gridcolor: '#333' }},
             bargap: 0,
             showlegend: true,
-            legend: {{ x: 0, y: 1.1, orientation: 'h' }}
+            legend: {{ x: 0, y: 1.1, orientation: 'h' }},
+            shapes: [
+                // Low Threshold Line (Green/Orange boundary)
+                {{
+                    type: 'line',
+                    xref: 'paper', x0: 0, x1: 1,
+                    yref: 'y', y0: globalVolLow, y1: globalVolLow,
+                    line: {{ color: '#00ff00', width: 1, dash: 'dot' }}
+                }},
+                // High Threshold Line (Orange/Red boundary)
+                {{
+                    type: 'line',
+                    xref: 'paper', x0: 0, x1: 1,
+                    yref: 'y', y0: globalVolHigh, y1: globalVolHigh,
+                    line: {{ color: '#ff0000', width: 1, dash: 'dot' }}
+                }}
+            ],
+            annotations: [
+                {{
+                    xref: 'paper', x: 1, y: globalVolLow, yref: 'y',
+                    text: 'Low', showarrow: false, 
+                    xanchor: 'left', yanchor: 'middle',
+                    font: {{ color: '#00ff00', size: 10 }}
+                }},
+                {{
+                    xref: 'paper', x: 1, y: globalVolHigh, yref: 'y',
+                    text: 'High', showarrow: false, 
+                    xanchor: 'left', yanchor: 'middle',
+                    font: {{ color: '#ff0000', size: 10 }}
+                }}
+            ]
         }};
 
         // Optionale Achse hinzufügen
