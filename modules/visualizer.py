@@ -26,6 +26,8 @@ class PlotlyVisualizer:
     ) -> None:
         self.df = df
         self.symbol = symbol
+        self.vol_low_threshold = vol_low_threshold
+        self.vol_high_threshold = vol_high_threshold
 
     def create_interactive_dashboard(self) -> str:
         """
