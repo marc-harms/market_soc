@@ -14,9 +14,10 @@ class SOCAnalyzer:
     Wraps metric calculation and determines market phase (Signal).
     """
 
-    def __init__(self, df: pd.DataFrame, symbol: str):
+    def __init__(self, df: pd.DataFrame, symbol: str, asset_info: Optional[Dict[str, Any]] = None):
         self.df = df
         self.symbol = symbol
+        self.asset_info = asset_info or {}
         self.calculator = SOCMetricsCalculator(df)
         self.metrics_df = self.calculator.calculate_all_metrics()
         self.summary_stats = self.calculator.get_summary_stats()
@@ -98,6 +99,7 @@ class SOCAnalyzer:
             "df": self.metrics_df,
             "symbol": self.symbol,
             "vol_low": self.calculator.vol_low_threshold,
-            "vol_high": self.calculator.vol_high_threshold
+            "vol_high": self.calculator.vol_high_threshold,
+            "asset_info": self.asset_info
         }
 

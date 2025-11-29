@@ -44,8 +44,11 @@ def run_scanner():
                 print("❌ Insufficient Data")
                 continue
 
+            # 1.5 Fetch Info
+            asset_info = fetcher.fetch_info(symbol)
+
             # 2. Analyze
-            analyzer = SOCAnalyzer(df, symbol)
+            analyzer = SOCAnalyzer(df, symbol, asset_info=asset_info)
             phase = analyzer.get_market_phase()
             
             results.append(phase)
@@ -117,7 +120,8 @@ def plot_asset(analyzer: SOCAnalyzer):
         df=data["df"],
         symbol=data["symbol"],
         vol_low_threshold=data["vol_low"],
-        vol_high_threshold=data["vol_high"]
+        vol_high_threshold=data["vol_high"],
+        asset_info=data.get("asset_info")
     )
     
     html = visualizer.create_interactive_dashboard()

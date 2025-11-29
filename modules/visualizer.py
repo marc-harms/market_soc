@@ -23,11 +23,13 @@ class PlotlyVisualizer:
         symbol: str = "BTCUSDT",
         vol_low_threshold: Optional[float] = None,
         vol_high_threshold: Optional[float] = None,
+        asset_info: Optional[dict] = None,
     ) -> None:
         self.df = df
         self.symbol = symbol
         self.vol_low_threshold = vol_low_threshold
         self.vol_high_threshold = vol_high_threshold
+        self.asset_info = asset_info or {}
 
     def create_interactive_dashboard(self) -> str:
         """
@@ -72,6 +74,19 @@ class PlotlyVisualizer:
         # Thresholds (default to 0 if None)
         vol_low = self.vol_low_threshold if self.vol_low_threshold is not None else 0
         vol_high = self.vol_high_threshold if self.vol_high_threshold is not None else 0
+
+        # Asset Info Block
+        asset_desc_html = ""
+        if self.asset_info:
+            name = self.asset_info.get("name", "")
+            desc = self.asset_info.get("description", "")
+            if name or desc:
+                asset_desc_html = f"""
+                <p style="text-align: center; color: #999; font-size: 0.95em; max-width: 900px; margin: -15px auto 30px auto; line-height: 1.4; padding: 0 10px;">
+                    <span style="color: #ddd; font-weight: bold;">{name}</span><br>
+                    {desc}
+                </p>
+                """
 
         # HTML Template
         html_content = f"""<!DOCTYPE html>
@@ -180,6 +195,7 @@ class PlotlyVisualizer:
 
 <div class="container">
     <h1>{self.symbol}: Self-Organized Criticality (SOC)</h1>
+    {asset_desc_html}
     <p class="subtitle">
         Diese Analyse visualisiert die Signaturen komplexer Systeme:<br>
         1. Zeitliche Instabilität, 2. Power Laws (Fat Tails) und 3. System-Kritikalität mit Trendsignalen.

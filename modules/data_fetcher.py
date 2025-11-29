@@ -35,12 +35,24 @@ class DataProvider(ABC):
         """Fetch data and return standardized DataFrame"""
         pass
 
+    @abstractmethod
+    def fetch_info(self, symbol: str) -> Dict[str, Any]:
+        """Fetch asset metadata"""
+        pass
+
 
 class BinanceProvider(DataProvider):
     """Fetches data from Binance Public API"""
     
     def __init__(self):
         self.base_url = BINANCE_BASE_URL
+
+    def fetch_info(self, symbol: str) -> Dict[str, Any]:
+        return {
+            "name": symbol,
+            "sector": "Cryptocurrency",
+            "description": f"Cryptocurrency asset pair {symbol} from Binance exchange."
+        }
 
     def fetch_data(self, symbol: str, interval: str, lookback_days: int) -> pd.DataFrame:
         print(f"Fetching {lookback_days} days of {symbol} from Binance...")
@@ -99,6 +111,31 @@ class BinanceProvider(DataProvider):
 
 class YFinanceProvider(DataProvider):
     """Fetches data from Yahoo Finance"""
+
+    def fetch_info(self, symbol: str) -> Dict[str, Any]:
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            
+            # Extract relevant fields
+            description = info.get("longBusinessSummary", "")
+            # Truncate description to keep it crisp (~300 chars)
+            if len(description) > 300:
+                description = description[:297] + "..."
+                
+            return {
+                "name": info.get("longName", symbol),
+                "sector": info.get("sector", "Unknown"),
+                "industry": info.get("industry", "Unknown"),
+                "description": description,
+                "country": info.get("country", "")
+            }
+        except Exception as e:
+            print(f"⚠ YFinance Info Error for {symbol}: {e}")
+            return {
+                "name": symbol,
+                "description": "No description available."
+            }
 
     def fetch_data(self, symbol: str, interval: str, lookback_days: int) -> pd.DataFrame:
         print(f"Fetching {lookback_days} days of {symbol} from Yahoo Finance...")
@@ -179,6 +216,15 @@ class DataFetcher:
             self._save_cache(df, symbol, interval)
 
         return df
+
+    def fetch_info(self, symbol: str) -> Dict[str, Any]:
+        """Fetch asset metadata from appropriate provider"""
+        if symbol.endswith("USDT") or symbol.endswith("BUSD"):
+            provider = self.binance_provider
+        else:
+            provider = self.yfinance_provider
+            
+        return provider.fetch_info(symbol)
 
     def _get_cache_path(self, symbol: str, interval: str) -> Path:
         # Sanitize symbol for filename (e.g. ^GDAXI -> GDAXI)
