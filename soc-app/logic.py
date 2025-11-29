@@ -57,8 +57,10 @@ class SOCMetricsCalculator:
     - Volatility thresholds for traffic light system
     """
 
-    def __init__(self, df: pd.DataFrame) -> None:
+    def __init__(self, df: pd.DataFrame, sma_window: int = SMA_PERIOD, vol_window: int = ROLLING_VOLATILITY_WINDOW) -> None:
         self.df = df.copy()
+        self.sma_window = sma_window
+        self.vol_window = vol_window
         self.vol_low_threshold = 0.0
         self.vol_high_threshold = 0.0
         self._validate_dataframe()
@@ -73,10 +75,10 @@ class SOCMetricsCalculator:
         self.df["abs_returns"] = self.df["returns"].abs()
 
         # Calculate moving averages
-        self.df["sma_200"] = self.df["close"].rolling(window=SMA_PERIOD).mean()
+        self.df["sma_200"] = self.df["close"].rolling(window=self.sma_window).mean()
 
         # Calculate rolling volatility
-        self.df["volatility"] = self.df["returns"].rolling(window=ROLLING_VOLATILITY_WINDOW).std()
+        self.df["volatility"] = self.df["returns"].rolling(window=self.vol_window).std()
 
         # Calculate thresholds
         self.vol_low_threshold, self.vol_high_threshold = self._calculate_volatility_thresholds()
@@ -275,11 +277,13 @@ class SOCAnalyzer:
     Wraps metric calculation and determines market phase (Signal).
     """
 
-    def __init__(self, df: pd.DataFrame, symbol: str, asset_info: Optional[Dict[str, Any]] = None):
+    def __init__(self, df: pd.DataFrame, symbol: str, asset_info: Optional[Dict[str, Any]] = None,
+                 sma_window: int = SMA_PERIOD, vol_window: int = ROLLING_VOLATILITY_WINDOW, hysteresis: float = 0.0):
         self.df = df
         self.symbol = symbol
         self.asset_info = asset_info or {}
-        self.calculator = SOCMetricsCalculator(df)
+        self.hysteresis = hysteresis
+        self.calculator = SOCMetricsCalculator(df, sma_window, vol_window)
         self.metrics_df = self.calculator.calculate_all_metrics()
         self.summary_stats = self.calculator.get_summary_stats()
 
@@ -296,20 +300,37 @@ class SOCAnalyzer:
         vol_low = self.calculator.vol_low_threshold
         vol_high = self.calculator.vol_high_threshold
         
-        # Logic
-        is_bullish = current_price > sma_200
+        # Trend Logic with Hysteresis
+        # Standard: price > sma
+        # Hysteresis: price > sma * (1 + h) for Bull, price < sma * (1 - h) for Bear
+        
+        upper_bound = sma_200 * (1.0 + self.hysteresis)
+        lower_bound = sma_200 * (1.0 - self.hysteresis)
+        
+        is_bullish = current_price > upper_bound
+        is_bearish = current_price < lower_bound
+        # if neither, it is neutral
+        
         is_high_stress = current_vol > vol_high
         is_low_stress = current_vol <= vol_low
         
         signal = "NEUTRAL"
+        trend_label = "NEUTRAL"
+        
         if is_bullish:
+            trend_label = "BULL"
             if is_low_stress: signal = "🟢 BUY/ACCUMULATE"
             elif is_high_stress: signal = "🟠 OVERHEATED"
             else: signal = "⚪ UPTREND (Choppy)"
-        else:
+        elif is_bearish:
+            trend_label = "BEAR"
             if is_high_stress: signal = "🔴 CRASH RISK"
             elif is_low_stress: signal = "🟡 CAPITULATION/WAIT"
             else: signal = "⚪ DOWNTREND (Choppy)"
+        else:
+            # Neutral / Hysteresis Zone
+            trend_label = "NEUTRAL"
+            signal = "⚪ NEUTRAL (Range)"
 
         return {
             "symbol": self.symbol,
@@ -317,8 +338,10 @@ class SOCAnalyzer:
             "sma_200": sma_200,
             "dist_to_sma": (current_price - sma_200) / sma_200,
             "volatility": current_vol,
+            "vol_threshold_high": vol_high,
+            "stress_score": current_vol / vol_high if vol_high > 0 else 0,
             "signal": signal,
-            "trend": "BULL" if is_bullish else "BEAR",
+            "trend": trend_label,
             "stress": "HIGH" if is_high_stress else ("LOW" if is_low_stress else "MED")
         }
 
@@ -458,4 +481,3 @@ class SOCAnalyzer:
         figures["chart3"] = fig3
         
         return figures
-
