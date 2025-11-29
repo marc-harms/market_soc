@@ -86,7 +86,7 @@ class PlotlyVisualizer:
             title_text=f"Financial SOC Analysis - {self.symbol}",
             title_font_size=20,
             hovermode="x unified",
-            margin=dict(r=200),  # Extra right margin for legend and colorbar
+            margin=dict(r=200, b=100),  # Extra right margin for legend/colorbar, bottom for annotations
             legend=dict(
                 orientation="v",
                 yanchor="top",
@@ -98,6 +98,66 @@ class PlotlyVisualizer:
                 borderwidth=0.75,
                 font=dict(size=10),
             ),
+        )
+        
+        # Add explanatory text annotations below each chart
+        # Chart 1 explanation
+        fig.add_annotation(
+            text=(
+                "<b>1. Volatility Clustering (The 'Sandpile'):</b><br>"
+                "In SOC systems, extreme events do not occur in isolation. They come in waves (clusters). "
+                "The color coding shows phases where the system is 'working'."
+            ),
+            xref="paper", yref="paper",
+            x=0.5, y=0.645,
+            xanchor="center", yanchor="top",
+            showarrow=False,
+            font=dict(size=9, color="rgba(255,255,255,0.8)"),
+            align="left",
+            bordercolor="rgba(100,100,100,0.5)",
+            borderwidth=1,
+            borderpad=6,
+            bgcolor="rgba(20,20,20,0.7)",
+        )
+        
+        # Chart 2 explanation
+        fig.add_annotation(
+            text=(
+                "<b>2. The Power Curve (Log/Log Proof):</b><br>"
+                "This is the mathematical 'fingerprint'. Red points = Real Bitcoin data. Blue line = Normal distribution.<br>"
+                "The straight line of red points proves the 'Fat Tails' (extremely high probability for Black Swans)."
+            ),
+            xref="paper", yref="paper",
+            x=0.5, y=0.315,
+            xanchor="center", yanchor="top",
+            showarrow=False,
+            font=dict(size=9, color="rgba(255,255,255,0.8)"),
+            align="left",
+            bordercolor="rgba(100,100,100,0.5)",
+            borderwidth=1,
+            borderpad=6,
+            bgcolor="rgba(20,20,20,0.7)",
+        )
+        
+        # Chart 3 explanation
+        fig.add_annotation(
+            text=(
+                "<b>3. System Criticality & Trading Signals:</b><br>"
+                "Combine SOC (Volatility) with Trend (SMA 200) to find signals.<br>"
+                "⚠ <b>Rule:</b> Red phases mean instability. If price during red phase is below SMA 200 (Yellow line) = Crash risk (Sell). "
+                "If above SMA 200 = Parabolic rally (Caution/Hold).<br>"
+                "✓ <b>Rule:</b> Green phases above SMA 200 are often good entries ('Accumulation')."
+            ),
+            xref="paper", yref="paper",
+            x=0.5, y=-0.02,
+            xanchor="center", yanchor="top",
+            showarrow=False,
+            font=dict(size=9, color="rgba(255,255,255,0.8)"),
+            align="left",
+            bordercolor="rgba(100,100,100,0.5)",
+            borderwidth=1,
+            borderpad=6,
+            bgcolor="rgba(20,20,20,0.7)",
         )
 
         print("✓ Dashboard created successfully")
@@ -268,7 +328,7 @@ class PlotlyVisualizer:
                 y=self.df["sma_200"],
                 name="SMA 200 (Trend)",
                 legendgroup="chart3",
-                line=dict(width=1.5, color=COLORS["sma_line"]),
+                line=dict(width=0.75, color=COLORS["sma_line"]),
                 hovertemplate="<b>Date:</b> %{x}<br>"
                 + "<b>SMA 200:</b> $%{y:,.2f}<br>"
                 + "<extra></extra>",
@@ -285,7 +345,7 @@ class PlotlyVisualizer:
                 y=self.df["close"],
                 name="Price",
                 legendgroup="chart3",
-                line=dict(width=1.5, color=COLORS["price_line"]),
+                line=dict(width=0.75, color=COLORS["price_line"]),
                 hovertemplate="<b>Date:</b> %{x}<br>"
                 + "<b>Price:</b> $%{y:,.2f}<br>"
                 + "<extra></extra>",
