@@ -55,13 +55,13 @@ class PlotlyVisualizer:
         fig = make_subplots(
             rows=3,
             cols=1,
-            row_heights=[0.35, 0.30, 0.35],
+            row_heights=[0.30, 0.26, 0.30],
             subplot_titles=(
                 f"Chart 1: Volatility Clustering - {self.symbol}",
                 f"Chart 2: Power Law Proof - Fat Tail Analysis",
                 f"Chart 3: Criticality & Trend - Traffic Light System",
             ),
-            vertical_spacing=0.08,
+            vertical_spacing=0.15,
             specs=[
                 [{"secondary_y": False}],
                 [{"secondary_y": False}],
@@ -86,7 +86,7 @@ class PlotlyVisualizer:
             title_text=f"Financial SOC Analysis - {self.symbol}",
             title_font_size=20,
             hovermode="x unified",
-            margin=dict(r=200, b=100),  # Extra right margin for legend/colorbar, bottom for annotations
+            margin=dict(r=200, b=140),  # Extra right margin for legend/colorbar, bottom for annotations
             legend=dict(
                 orientation="v",
                 yanchor="top",
@@ -109,15 +109,15 @@ class PlotlyVisualizer:
                 "The color coding shows phases where the system is 'working'."
             ),
             xref="paper", yref="paper",
-            x=0.5, y=0.645,
+            x=0.5, y=0.58,
             xanchor="center", yanchor="top",
             showarrow=False,
-            font=dict(size=9, color="rgba(255,255,255,0.8)"),
+            font=dict(size=12, color="rgba(255,255,255,0.9)"),
             align="left",
             bordercolor="rgba(100,100,100,0.5)",
             borderwidth=1,
-            borderpad=6,
-            bgcolor="rgba(20,20,20,0.7)",
+            borderpad=8,
+            bgcolor="rgba(20,20,20,0.8)",
         )
         
         # Chart 2 explanation
@@ -128,15 +128,15 @@ class PlotlyVisualizer:
                 "The straight line of red points proves the 'Fat Tails' (extremely high probability for Black Swans)."
             ),
             xref="paper", yref="paper",
-            x=0.5, y=0.315,
+            x=0.5, y=0.275,
             xanchor="center", yanchor="top",
             showarrow=False,
-            font=dict(size=9, color="rgba(255,255,255,0.8)"),
+            font=dict(size=12, color="rgba(255,255,255,0.9)"),
             align="left",
             bordercolor="rgba(100,100,100,0.5)",
             borderwidth=1,
-            borderpad=6,
-            bgcolor="rgba(20,20,20,0.7)",
+            borderpad=8,
+            bgcolor="rgba(20,20,20,0.8)",
         )
         
         # Chart 3 explanation
@@ -149,15 +149,15 @@ class PlotlyVisualizer:
                 "✓ <b>Rule:</b> Green phases above SMA 200 are often good entries ('Accumulation')."
             ),
             xref="paper", yref="paper",
-            x=0.5, y=-0.02,
+            x=0.5, y=-0.03,
             xanchor="center", yanchor="top",
             showarrow=False,
-            font=dict(size=9, color="rgba(255,255,255,0.8)"),
+            font=dict(size=12, color="rgba(255,255,255,0.9)"),
             align="left",
             bordercolor="rgba(100,100,100,0.5)",
             borderwidth=1,
-            borderpad=6,
-            bgcolor="rgba(20,20,20,0.7)",
+            borderpad=8,
+            bgcolor="rgba(20,20,20,0.8)",
         )
 
         print("✓ Dashboard created successfully")
