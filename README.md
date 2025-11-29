@@ -1,4 +1,4 @@
-# Market SOC - Financial Self-Organized Criticality Analysis
+source# Market SOC - Financial Self-Organized Criticality Analysis
 
 ## Overview
 A robust Python application for analyzing Financial Self-Organized Criticality (SOC) in cryptocurrency markets, specifically designed for Bitcoin analysis with detection of:

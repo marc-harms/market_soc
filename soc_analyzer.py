@@ -140,6 +140,7 @@ def run_soc_analysis(
             vol_low_threshold=calculator.vol_low_threshold,
             vol_high_threshold=calculator.vol_high_threshold,
         )
+        # Generates a standalone HTML string with embedded data and custom CSS
         fig = visualizer.create_interactive_dashboard()
 
         # Step 4: Save and Display

@@ -3,7 +3,6 @@ Data Fetcher Module
 Handles fetching OHLCV data from Binance API with caching support
 """
 
-import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path

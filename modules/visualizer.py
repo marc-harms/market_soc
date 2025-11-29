@@ -50,6 +50,17 @@ class PlotlyVisualizer:
         data_sma = valid_df['sma_200'].tolist()
         data_volatility = valid_df['volatility'].tolist()
         
+        # Prepare Colors based on Volatility Zones
+        # Map 'low', 'medium', 'high' to actual colors
+        color_map = {
+            "low": "#00ff00",      # Green
+            "medium": "#ffa500",   # Orange
+            "high": "#ff0000",     # Red
+        }
+        # Default to orange if zone missing
+        data_colors = [color_map.get(zone, "#ffa500") for zone in valid_df['vol_zone']]
+        json_colors = json.dumps(data_colors)
+
         # Convert to JSON strings
         json_dates = json.dumps(data_dates)
         json_prices = json.dumps(data_prices)
@@ -235,6 +246,7 @@ class PlotlyVisualizer:
     const globalMagnitudes = {json_magnitudes};
     const globalSMA = {json_sma};
     const globalVol = {json_volatility};
+    const globalColors = {json_colors};
     
     // Thresholds from Python
     const globalVolLow = {vol_low};
@@ -255,24 +267,14 @@ class PlotlyVisualizer:
 
     function drawChart3(showOverlay, showSMA) {{
         // Trace 1: Kritikalität (Bar Chart)
-        // Einfärbung basierend auf Quantilen für Ampel-Logik
-        // Wir berechnen dies dynamisch im JS für die Visualisierung
+        // Farben kommen direkt aus Python (basierend auf korrekten Quantilen)
         
-        // Simple Farb-Logik für JS Visualisierung (Grün/Orange/Rot)
-        const volValues = globalVol;
-        const maxVol = Math.max(...volValues);
-        const colors = volValues.map(v => {{
-            if (v < maxVol * 0.33) return '#00ff00'; // Grün
-            if (v < maxVol * 0.66) return '#ffa500'; // Orange
-            return '#ff0000'; // Rot
-        }});
-
         const traceCrit = {{
             x: globalDates, 
             y: globalVol, 
             type: 'bar', 
             marker: {{
-                color: colors,
+                color: globalColors,
                 // colorscale nicht nötig wenn color array explizit ist
             }},
             name: 'Kritikalität (Vol)',
