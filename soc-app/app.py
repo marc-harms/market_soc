@@ -14,14 +14,29 @@ st.set_page_config(
 # --- CSS / STYLING ---
 st.markdown("""
 <style>
-    .stMetric {
-        background-color: #0E1117;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #262730;
+    /* Remove blank space at top */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
     }
+    
+    /* Card-like Metric Styling */
+    .stMetric {
+        background-color: #1E1E1E; /* Dark card background */
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #333;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    
+    /* Progress bar gradient */
     .stProgress > div > div > div > div {
         background-image: linear-gradient(to right, #00ff00, #ffff00, #ff0000);
+    }
+    
+    /* Button styling for Analyze buttons */
+    div.stButton > button {
+        border-radius: 6px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -132,70 +147,76 @@ def run_full_scan(ticker_list, sma_w, vol_w, hyst):
 with st.sidebar:
     st.logo("https://img.icons8.com/color/48/bullish.png")
     st.title("📡 SOC Scanner")
-    st.markdown("---")
     
-    # 2. Smart Sidebar
-    st.subheader("Market Universe")
+    # Section 1: Universe
+    st.header("1. Market Selection")
     
     # Build options dynamically
     radio_options = list(MARKET_SETS.keys())
-    
-    # Custom Portfolio option
     radio_options.append("✏️ Custom Portfolio")
     
     universe_mode = st.radio(
-        "Select Asset Class",
+        "Choose your Asset Class:",
         radio_options,
-        horizontal=False
+        horizontal=False,
+        label_visibility="collapsed"
     )
     
     target_tickers = []
     
     if universe_mode == "✏️ Custom Portfolio":
         input_tickers = st.text_area(
-            "Paste tickers (comma or new line)",
+            "Paste tickers:",
             value="BTC-USD, NVDA, TSLA, SAP.DE",
-            height=150,
+            height=100,
             help="Paste from Excel or list. One ticker per line or comma separated."
         )
-        # Smart cleaning: Replace newlines with commas, split, strip
         cleaned_input = input_tickers.replace("\n", ",").replace(";", ",")
         target_tickers = [t.strip().upper() for t in cleaned_input.split(',') if t.strip()]
     else:
         target_tickers = MARKET_SETS[universe_mode]
-        st.info(f"Loaded {len(target_tickers)} assets.")
-        with st.expander("View Assets"):
+        with st.expander(f"View {len(target_tickers)} Assets"):
             st.code(", ".join(target_tickers))
 
-    st.markdown("### Actions")
+    st.divider()
+
+    # Section 2: Actions
+    st.header("2. Analysis Control")
     
-    # Simple button logic (reverted from rate limiting)
+    # Primary Action
     run_btn = st.button("🚀 Run Analysis", type="primary", use_container_width=True)
     
-    st.divider()
-    st.caption("v3.0 | Powered by SOC Logic")
+    if run_btn:
+        st.caption("Scan started... please wait.")
 
-    # 3. Quant Settings
-    with st.expander("⚙️ Quant Settings", expanded=True):
-        st.caption("Adjust model parameters to stress-test the thesis.")
+    st.divider()
+
+    # Section 3: Settings
+    st.header("3. Configuration")
+    
+    with st.expander("⚙️ Quant Settings", expanded=False):
+        st.info("Adjusting these resets the scan.")
         
         sma_window = st.slider(
-            "Trend Window (SMA)", 
-            min_value=50, max_value=365, value=200, step=10,
-            help="Days to look back for the Simple Moving Average. Shorter = faster reaction, more false signals."
+            "Trend (SMA)", 
+            50, 365, 200, 10,
+            help="Lookback period for trend detection."
         )
         
         vol_window = st.slider(
-            "Volatility Window", 
-            min_value=10, max_value=90, value=30, step=5,
-            help="Days to measure volatility. Lower = sensitive to recent shocks."
+            "Volatility", 
+            10, 90, 30, 5,
+            help="Lookback period for volatility."
         )
         
         hysteresis = st.slider(
-            "Whipsaw Filter (Hysteresis) %", 
-            min_value=0.0, max_value=5.0, value=0.0, step=0.1,
-            help="Requires price to break SMA by this % to trigger a signal. Reduces false alarms in sideways markets."
+            "Hysteresis %", 
+            0.0, 5.0, 0.0, 0.1,
+            help="Buffer to prevent whipsaws."
         ) / 100.0
+
+    st.markdown("---")
+    st.caption("v4.0 | SOC Financial Dashboard")
 
 # --- MAIN DASHBOARD ---
 
@@ -226,8 +247,8 @@ with st.container():
         snapshot_data = []
         st.info("Select indicators above to view market health.")
     
-    # Grid Layout: 3 columns max per row
-    cols_per_row = 3
+    # Grid Layout: 4 columns max per row (The Cockpit)
+    cols_per_row = 4
     for i in range(0, len(snapshot_data), cols_per_row):
         row_items = snapshot_data[i:i+cols_per_row]
         cols = st.columns(cols_per_row)
@@ -235,13 +256,17 @@ with st.container():
         for idx, data in enumerate(row_items):
             with cols[idx]:
                 is_risk = "CRASH" in data['signal'] or "OVERHEATED" in data['signal']
-                label_display = f"{data['name']} | {data['signal']}"
+                label_display = f"{data['name']}"
                 st.metric(
                     label=label_display,
                     value=f"${data['price']:,.2f}",
-                    delta=f"{data['change']:.2f}%",
+                    delta=f"{data['change']:.2f}% | {data['signal']}",
                     delta_color="inverse" if is_risk else "normal"
                 )
+                if st.button("🔍 Analyze", key=f"btn_{data['symbol']}", use_container_width=True):
+                    st.session_state.selected_asset = data['symbol']
+                    st.session_state.switch_to_deep_dive = True
+                    st.rerun()
 
 st.divider()
 
@@ -403,43 +428,57 @@ elif selected_tab == "🔍 Deep Dive Analysis":
                 sma_window=sma_window, vol_window=vol_window, hysteresis=hysteresis
             )
             
-            # Asset Header
-            st.markdown("---")
-            h1, h2, h3 = st.columns([1.5, 2.5, 1])
-            with h1:
-                st.header(f"{selected_asset}")
-                info = asset_res.get('info', {})
-                st.caption(f"{info.get('name', '')} | {info.get('sector', '')}")
-            with h2:
-                c_m, c_i = st.columns([1, 0.15])
-                with c_m:
-                    st.metric("Phase", asset_res['signal'])
-                with c_i:
-                    st.write("")
-                    with st.popover("ℹ️"):
-                        st.markdown("""
-                        **Strategy Legend:**
-                        
-                        * 🟢 **Green + Trend:** Accumulation Phase. Low risk, high potential.
-                        * 🔴 **Red + Downtrend:** Critical Instability. High crash probability.
-                        
-                        _Disclaimer: Not financial advice._
-                        """)
-            with h3:
-                st.metric("Stress Score", f"{asset_res['stress_score']:.2f}")
-
-            # Charts
+            # Prepare data for display
+            info = asset_res.get('info', {})
             figs = analyzer.get_plotly_figures()
             
-            c1, c2 = st.columns(2)
-            with c1:
-                st.subheader("Volatility Clustering")
+            # --- DEEP DIVE LAYOUT ---
+            
+            # 1. Signal Header (Banner Style)
+            st.markdown("---")
+            
+            # Container for the "Banner"
+            with st.container():
+                b_c1, b_c2 = st.columns([3, 1])
+                with b_c1:
+                    st.markdown(f"# {selected_asset}")
+                    st.markdown(f"### Current Price: **${asset_res['price']:,.2f}**")
+                    st.caption(f"{info.get('name', 'Unknown')} | {info.get('sector', 'Unknown Sector')}")
+                
+                with b_c2:
+                    # Determine Color
+                    sig = asset_res['signal']
+                    color = "#00FF00" if "BUY" in sig or "ACCUMULATE" in sig or "UPTREND" in sig else \
+                            "#FF0000" if "CRASH" in sig or "DOWNTREND" in sig else \
+                            "#FFA500" if "OVERHEATED" in sig else "#CCCCCC"
+                    
+                    st.markdown(f"""
+                    <div style="text-align: right; padding: 10px; border-radius: 10px; border: 2px solid {color};">
+                        <h4 style="margin:0; color: #888;">SOC SIGNAL</h4>
+                        <h2 style="margin:0; color: {color};">{sig.split(' ')[0]}</h2>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+            # Risk Settings Display (as requested)
+            with st.expander("⚙️ Used Parameters (Risk Settings)"):
+                c_p1, c_p2, c_p3 = st.columns(3)
+                c_p1.metric("SMA Window", sma_window)
+                c_p2.metric("Vol Window", vol_window)
+                c_p3.metric("Hysteresis", f"{hysteresis*100}%")
+
+            # 2. Charts Grid
+            st.markdown("### 📊 Market Dynamics")
+            
+            # Row 1: Price/Vol (Left) + Criticality (Right)
+            g_r1_c1, g_r1_c2 = st.columns(2)
+            
+            with g_r1_c1:
                 st.plotly_chart(figs['chart1'], use_container_width=True)
-            with c2:
-                st.subheader("Criticality")
+            
+            with g_r1_c2:
                 st.plotly_chart(figs['chart3'], use_container_width=True)
                 
-            st.subheader("Power Law Distribution")
+            # Row 2: Power Law (Center/Full)
             st.plotly_chart(figs['chart2'], use_container_width=True)
 
 elif selected_tab == "📈 Portfolio Simulation":
