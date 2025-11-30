@@ -59,6 +59,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
 # --- CONSTANTS & DATA ---
 GLOBAL_TICKERS = {
     "Bitcoin": "BTC-USD",
@@ -204,10 +205,10 @@ if active_tickers:
     with st.expander(f"Preview: {len(active_tickers)} Assets", expanded=False):
         # Fetch names (cached)
         df_preview = fetch_asset_names(active_tickers)
-        st.dataframe(df_preview, hide_index=True, use_container_width=True)
+        st.dataframe(df_preview, hide_index=True, width="stretch")
 
 # Step C: Action
-if st.button("RUN SOC ANALYSIS", type="primary", use_container_width=True):
+if st.button("RUN SOC ANALYSIS", type="primary", width="stretch"):
     with st.spinner("Analyzing Market Criticality..."):
         scan_results = run_analysis_logic(active_tickers)
         st.session_state['scan_results'] = scan_results
@@ -240,7 +241,7 @@ if 'scan_results' in st.session_state and st.session_state['scan_results']:
 
             st.dataframe(
                 df_res[["symbol", "price", "signal", "stress_score", "trend"]].style.apply(highlight_signal, axis=1),
-                use_container_width=True,
+                width="stretch",
                 column_config={
                     "symbol": "Asset",
                     "price": st.column_config.NumberColumn("Price", format="$%.2f"),
@@ -278,15 +279,15 @@ if 'scan_results' in st.session_state and st.session_state['scan_results']:
                 
                 # Hero Element: Criticality Chart (Chart 3)
                 st.subheader(f"{selected_asset} - Criticality & Trend")
-                st.plotly_chart(figs['chart3'], use_container_width=True)
+                st.plotly_chart(figs['chart3'], width="stretch")
                 
                 # Context
                 with st.expander("Show Price History & Power Law Details"):
                     c1, c2 = st.columns(2)
                     with c1:
-                        st.plotly_chart(figs['chart1'], use_container_width=True)
+                        st.plotly_chart(figs['chart1'], width="stretch")
                     with c2:
-                        st.plotly_chart(figs['chart2'], use_container_width=True)
+                        st.plotly_chart(figs['chart2'], width="stretch")
             else:
                 st.error("Could not load chart data.")
 
