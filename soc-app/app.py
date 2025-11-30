@@ -272,6 +272,22 @@ if 'scan_results' in st.session_state and st.session_state['scan_results']:
         else:
             df_res = pd.DataFrame(results)
             
+            # Extract Company Name from 'info' column safely
+            def get_name(row):
+                info = row.get('info', {})
+                if isinstance(info, dict):
+                    # Try to clean it similar to the preview
+                    name = info.get('name', row['symbol'])
+                    # Apply basic cleanup
+                    name = name.replace(" SE", "").replace(" AG", "").strip()
+                    # Fix map check (simplified version of above)
+                    if "SIEMENS" in name and " N" in name: return "Siemens"
+                    if "SAP" in name: return "SAP"
+                    return name
+                return row['symbol']
+
+            df_res['company_name'] = df_res.apply(get_name, axis=1)
+            
             # Styling
             def highlight_signal(row):
                 val = row['signal']
@@ -284,30 +300,20 @@ if 'scan_results' in st.session_state and st.session_state['scan_results']:
             # Reset index to start at 1
             df_res.index = df_res.index + 1
 
-            # Event handling for row click
-            selection = st.dataframe(
-                df_res[["symbol", "price", "signal", "stress_score", "trend"]].style.apply(highlight_signal, axis=1),
+            st.dataframe(
+                df_res[["symbol", "company_name", "price", "signal", "stress_score", "trend"]].style.apply(highlight_signal, axis=1),
                 width="stretch",
                 column_config={
-                    "symbol": "Asset",
+                    "symbol": "Ticker",
+                    "company_name": st.column_config.TextColumn("Company Name", width="medium"),
                     "price": st.column_config.NumberColumn("Price", format="$%.2f"),
                     "signal": st.column_config.TextColumn("SOC Signal"),
                     "stress_score": st.column_config.ProgressColumn("Stress Level", min_value=0, max_value=2.0, format="%.2f"),
                     "trend": "Trend Status"
                 },
-                height=500,
-                on_select="rerun",
-                selection_mode="single-row"
+                height=500
             )
-            
-            if selection.selection.rows:
-                selected_row_index = selection.selection.rows[0]
-                # Adjust for 1-based index if needed, but session state stores 0-based list usually
-                # Actually, df_res.iloc uses 0-based position even if index is changed
-                selected_symbol = df_res.iloc[selected_row_index]["symbol"]
-                st.session_state['selected_asset_deep_dive'] = selected_symbol
-                # Switch tab logic isn't native easily in basic Streamlit without extra component or reruns
-                # We'll handle pre-selection in Tab 2
+
 
     # --- TAB 2: Deep Dive ---
     with tab2:
