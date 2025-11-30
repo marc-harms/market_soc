@@ -106,10 +106,21 @@ def fetch_asset_names(ticker_list):
     data = []
     for t in ticker_list:
         try:
+            # Special handling for Indices to look cleaner
+            if t == "^GDAXI":
+                data.append({"Ticker": t, "Name": "DAX 40 Index"})
+                continue
+                
             # Quick fetch name only
             ticker = yf.Ticker(t)
             # Use fast info if available, else standard info
             name = ticker.info.get('shortName') or ticker.info.get('longName') or t
+            
+            # Clean up messy Yahoo Finance names
+            name = name.replace(" SE", "").replace(" AG", "").strip()
+            # Remove trailing ' I' or similar artifacts if common
+            if name.endswith(" I"): name = name[:-2]
+            
             data.append({"Ticker": t, "Name": name})
         except:
             data.append({"Ticker": t, "Name": "Unknown"})
@@ -153,7 +164,7 @@ def run_analysis_logic(tickers):
 
 # 1. Global Market Header (The Ticker Tape)
 with st.container():
-    st.caption("Global Market Pulse")
+    st.markdown("### 🌍 Current Market Health")
     global_data = fetch_global_ticker_tape()
     
     cols = st.columns(6) # Try 6 cols for wide mode
@@ -166,11 +177,15 @@ with st.container():
             # Wrap if needed or just limit to available
             if idx < 6:
                 with cols[idx]:
-                    st.metric(
-                        label=item["Name"],
-                        value=f"{item['Price']:,.2f}",
-                        delta=f"{item['Change']:.2f}%"
-                    )
+                    st.markdown(f"""
+                    <div class="metric-card">
+                        <div style="font-size: 0.9rem; color: #888;">{item['Name']}</div>
+                        <div style="font-size: 1.2rem; font-weight: bold;">${item['Price']:,.2f}</div>
+                        <div style="color: {'#00FF00' if item['Change'] >= 0 else '#FF0000'};">
+                            {item['Change']:+.2f}%
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
     st.divider()
 
 # 2. Education
@@ -238,8 +253,12 @@ if 'scan_results' in st.session_state and st.session_state['scan_results']:
                 elif "CRASH" in val: color = 'background-color: rgba(255, 0, 0, 0.1)'
                 elif "OVERHEATED" in val: color = 'background-color: rgba(255, 165, 0, 0.1)'
                 return [color] * len(row)
+            
+            # Reset index to start at 1
+            df_res.index = df_res.index + 1
 
-            st.dataframe(
+            # Event handling for row click
+            selection = st.dataframe(
                 df_res[["symbol", "price", "signal", "stress_score", "trend"]].style.apply(highlight_signal, axis=1),
                 width="stretch",
                 column_config={
@@ -249,8 +268,19 @@ if 'scan_results' in st.session_state and st.session_state['scan_results']:
                     "stress_score": st.column_config.ProgressColumn("Stress Level", min_value=0, max_value=2.0, format="%.2f"),
                     "trend": "Trend Status"
                 },
-                height=500
+                height=500,
+                on_select="rerun",
+                selection_mode="single-row"
             )
+            
+            if selection.selection.rows:
+                selected_row_index = selection.selection.rows[0]
+                # Adjust for 1-based index if needed, but session state stores 0-based list usually
+                # Actually, df_res.iloc uses 0-based position even if index is changed
+                selected_symbol = df_res.iloc[selected_row_index]["symbol"]
+                st.session_state['selected_asset_deep_dive'] = selected_symbol
+                # Switch tab logic isn't native easily in basic Streamlit without extra component or reruns
+                # We'll handle pre-selection in Tab 2
 
     # --- TAB 2: Deep Dive ---
     with tab2:
@@ -259,10 +289,16 @@ if 'scan_results' in st.session_state and st.session_state['scan_results']:
         else:
             symbol_list = [r['symbol'] for r in results]
             
+            # Check if we have a selection from Tab 1
+            default_ix = 0
+            if 'selected_asset_deep_dive' in st.session_state:
+                if st.session_state['selected_asset_deep_dive'] in symbol_list:
+                    default_ix = symbol_list.index(st.session_state['selected_asset_deep_dive'])
+            
             # Use cols to keep dropdown small
             c_sel, _ = st.columns([1, 3])
             with c_sel:
-                selected_asset = st.selectbox("Select Asset to Inspect:", symbol_list)
+                selected_asset = st.selectbox("Select Asset to Inspect:", symbol_list, index=default_ix)
             
             # Fetch Deep Data
             asset_res = next(r for r in results if r['symbol'] == selected_asset)
@@ -273,12 +309,51 @@ if 'scan_results' in st.session_state and st.session_state['scan_results']:
             
             if not df_asset.empty:
                 # Re-run analyzer for charts
-                # Note: We use default params here as per "Total Redesign" simplification
                 analyzer = SOCAnalyzer(df_asset, selected_asset, asset_info=asset_res.get('info'))
                 figs = analyzer.get_plotly_figures()
                 
+                # --- Header with Traffic Light ---
+                h_c1, h_c2 = st.columns([2, 1])
+                with h_c1:
+                    st.subheader(f"{selected_asset} - Criticality & Trend")
+                with h_c2:
+                    # Traffic Light Logic
+                    sig = asset_res['signal']
+                    color = "#00FF00" if "BUY" in sig or "ACCUMULATE" in sig else \
+                            "#FF0000" if "CRASH" in sig else \
+                            "#FFA500" if "OVERHEATED" in sig else "#CCCCCC"
+                    
+                    st.markdown(f"""
+                    <div style="border: 2px solid {color}; padding: 10px; border-radius: 8px; text-align: center;">
+                        <span style="font-size: 1.1rem; font-weight: bold; color: {color};">
+                             {sig}
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # --- Timeline Slider ---
+                min_date = df_asset.index.min().date()
+                max_date = df_asset.index.max().date()
+                
+                date_range = st.slider(
+                    "Analysis Timeline",
+                    min_value=min_date,
+                    max_value=max_date,
+                    value=(min_date, max_date),
+                    format="YYYY-MM-DD"
+                )
+                
+                # Filter data for chart based on slider
+                filtered_df = df_asset.loc[str(date_range[0]):str(date_range[1])]
+                
+                # Re-generate ONLY the main chart with filtered data to be responsive
+                # Note: For full correctness we should re-run analyzer on filtered data 
+                # OR just zoom the chart. Re-running analyzer might change signals which is confusing.
+                # Easier: Just update chart x-axis range.
+                
+                figs['chart3'].update_layout(xaxis_range=[date_range[0], date_range[1]], title="")
+                
                 # Hero Element: Criticality Chart (Chart 3)
-                st.subheader(f"{selected_asset} - Criticality & Trend")
                 st.plotly_chart(figs['chart3'], width="stretch")
                 
                 # Context
