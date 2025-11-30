@@ -1,126 +1,133 @@
 import streamlit as st
 import pandas as pd
 import time
+import yfinance as yf
 from logic import DataFetcher, SOCAnalyzer
 
-# 1. Page Config
+# 1. Global Setup
 st.set_page_config(
     page_title="SOC Market Seismograph",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # --- CSS / STYLING ---
 st.markdown("""
 <style>
-    /* Remove blank space at top */
+    /* Clean, Minimalist Dashboard Styling */
+    
+    /* Remove Sidebar */
+    [data-testid="stSidebar"] {
+        display: none;
+    }
+    
+    /* Minimize Top Padding */
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1rem;
         padding-bottom: 2rem;
+        max-width: 1200px; /* Center content max width */
+        margin: 0 auto;
     }
     
-    /* Card-like Metric Styling */
-    .stMetric {
-        background-color: #1E1E1E; /* Dark card background */
-        padding: 15px;
-        border-radius: 8px;
+    /* Metric Card Styling */
+    div[data-testid="stMetricValue"] {
+        font-size: 1.2rem;
+    }
+    
+    /* Custom Card for Metrics */
+    .metric-card {
+        background-color: #1E1E1E;
         border: 1px solid #333;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        padding: 10px;
+        border-radius: 8px;
+        text-align: center;
     }
     
-    /* Progress bar gradient */
-    .stProgress > div > div > div > div {
-        background-image: linear-gradient(to right, #00ff00, #ffff00, #ff0000);
+    /* Hide Deploy Button */
+    .stDeployButton {
+        visibility: hidden;
     }
     
-    /* Button styling for Analyze buttons */
+    /* Button Styling */
     div.stButton > button {
-        border-radius: 6px;
+        font-weight: bold;
+        border-radius: 8px;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # --- CONSTANTS & DATA ---
-
-KPI_UNIVERSE = {
-    "Gold": {"symbol": "GC=F", "name": "Gold"},
-    "S&P 500": {"symbol": "^GSPC", "name": "S&P 500"},
-    "Bitcoin": {"symbol": "BTC-USD", "name": "Bitcoin"},
-    "Dow Jones": {"symbol": "^DJI", "name": "Dow Jones"},
-    "NASDAQ 100": {"symbol": "^NDX", "name": "NASDAQ 100"},
-    "MSCI China": {"symbol": "MCHI", "name": "MSCI China (ETF)"},
-    "TSX Composite": {"symbol": "^GSPTSE", "name": "TSX Composite"},
-    "FTSE 100": {"symbol": "^FTSE", "name": "FTSE 100"},
-    "CAC 40": {"symbol": "^FCHI", "name": "CAC 40"},
-    "Nikkei 225": {"symbol": "^N225", "name": "Nikkei 225 (Japan)"},
-    "MSCI Emerging": {"symbol": "EEM", "name": "MSCI Emerging (ETF)"},
-    "MSCI World": {"symbol": "URTH", "name": "MSCI World (ETF)"}
+GLOBAL_TICKERS = {
+    "Bitcoin": "BTC-USD",
+    "Nasdaq": "^IXIC",
+    "S&P 500": "^GSPC",
+    "Gold": "GC=F",
+    "MSCI China": "MCHI",
+    "Nikkei 225": "^N225"
 }
 
 MARKET_SETS = {
-    "🇺🇸 US BigTech": ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'AMD', 'NFLX'],
-    "🇩🇪 DAX Top 10": ['^GDAXI', 'SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'AIR.DE', 'BMW.DE', 'VOW3.DE', 'BAS.DE', 'MUV2.DE'],
-    "₿ Crypto": ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD'],
-    "🥇 Precious Metals": ['GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV']
+    "US Big Tech": ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'AMD', 'NFLX'],
+    "DAX Top 10": ['^GDAXI', 'SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'AIR.DE', 'BMW.DE', 'VOW3.DE', 'BAS.DE', 'MUV2.DE'],
+    "Crypto Assets": ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD'],
+    "Precious Metals": ['GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV']
 }
 
 # --- HELPER FUNCTIONS ---
 
-if 'selected_asset' not in st.session_state:
-    st.session_state.selected_asset = None
-if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = "Scanner"
-if 'kpi_selection' not in st.session_state:
-    # Default selection
-    st.session_state.kpi_selection = ["Bitcoin", "S&P 500", "Gold"]
-
 @st.cache_data(ttl=3600)
-def fetch_market_snapshot(selected_keys):
-    """Fetches key assets for the top dashboard."""
+def fetch_global_ticker_tape():
+    """Fetches simple price/change data for the header."""
+    results = []
     fetcher = DataFetcher(cache_enabled=True)
-    snapshot = []
-    
-    # Build list of asset dicts from keys
-    target_assets = []
-    for k in selected_keys:
-        if k in KPI_UNIVERSE:
-            target_assets.append(KPI_UNIVERSE[k])
-            
-    for item in target_assets:
-        sym = item["symbol"]
+    for name, symbol in GLOBAL_TICKERS.items():
         try:
-            df = fetcher.fetch_data(sym)
+            df = fetcher.fetch_data(symbol)
             if not df.empty:
-                analyzer = SOCAnalyzer(df, sym)
-                phase = analyzer.get_market_phase()
-                snapshot.append({
-                    "name": item["name"],
-                    "symbol": sym,
-                    "price": phase["price"],
-                    "change": df["close"].pct_change().iloc[-1] * 100, # Approx last daily change
-                    "signal": phase["signal"]
+                current = df["close"].iloc[-1]
+                prev = df["close"].iloc[-2] if len(df) > 1 else current
+                change = ((current - prev) / prev) * 100
+                results.append({
+                    "Name": name,
+                    "Price": current,
+                    "Change": change
                 })
-        except Exception as e:
+        except Exception:
             pass
-            
-    return snapshot
+    return results
 
-@st.cache_data(ttl=3600)
-def run_full_scan(ticker_list, sma_w, vol_w, hyst):
+@st.cache_data(ttl=86400)
+def fetch_asset_names(ticker_list):
+    """Fetches names for the preview table. Cached for 24h."""
+    data = []
+    for t in ticker_list:
+        try:
+            # Quick fetch name only
+            ticker = yf.Ticker(t)
+            # Use fast info if available, else standard info
+            name = ticker.info.get('shortName') or ticker.info.get('longName') or t
+            data.append({"Ticker": t, "Name": name})
+        except:
+            data.append({"Ticker": t, "Name": "Unknown"})
+    return pd.DataFrame(data)
+
+def run_analysis_logic(tickers):
+    """Runs the full SOC analysis."""
     fetcher = DataFetcher(cache_enabled=True)
     results = []
     
-    # Progress UI
+    # Defaults for now (could be exposed in 'Advanced' later)
+    sma_w, vol_w, hyst = 200, 30, 0.0
+    
     progress_bar = st.progress(0)
     status_text = st.empty()
     
-    total = len(ticker_list)
-    for i, symbol in enumerate(ticker_list):
-        symbol = symbol.strip()
-        if not symbol: continue
-        
-        status_text.caption(f"Analyzing {symbol}...")
+    total = len(tickers)
+    for i, symbol in enumerate(tickers):
+        status_text.caption(f"Processing {symbol}...")
         try:
             df = fetcher.fetch_data(symbol)
             info = fetcher.fetch_info(symbol)
@@ -134,422 +141,176 @@ def run_full_scan(ticker_list, sma_w, vol_w, hyst):
                 phase['info'] = info
                 results.append(phase)
         except Exception as e:
-            print(f"Error {symbol}: {e}")
-            
+            pass
         progress_bar.progress((i + 1) / total)
         
     status_text.empty()
     progress_bar.empty()
     return results
 
-# --- SIDEBAR NAVIGATION ---
+# --- MAIN LAYOUT ---
 
-with st.sidebar:
-    st.logo("https://img.icons8.com/color/48/bullish.png")
-    st.title("📡 SOC Scanner")
-    
-    # Section 1: Universe
-    st.header("1. Market Selection")
-    
-    # Build options dynamically
-    radio_options = list(MARKET_SETS.keys())
-    radio_options.append("✏️ Custom Portfolio")
-    
-    universe_mode = st.radio(
-        "Choose your Asset Class:",
-        radio_options,
-        horizontal=False,
-        label_visibility="collapsed"
-    )
-    
-    target_tickers = []
-    
-    if universe_mode == "✏️ Custom Portfolio":
-        input_tickers = st.text_area(
-            "Paste tickers:",
-            value="BTC-USD, NVDA, TSLA, SAP.DE",
-            height=100,
-            help="Paste from Excel or list. One ticker per line or comma separated."
-        )
-        cleaned_input = input_tickers.replace("\n", ",").replace(";", ",")
-        target_tickers = [t.strip().upper() for t in cleaned_input.split(',') if t.strip()]
-    else:
-        target_tickers = MARKET_SETS[universe_mode]
-        with st.expander(f"View {len(target_tickers)} Assets"):
-            st.code(", ".join(target_tickers))
-
-    st.divider()
-
-    # Section 2: Actions
-    st.header("2. Analysis Control")
-    
-    # Primary Action
-    run_btn = st.button("🚀 Run Analysis", type="primary", use_container_width=True)
-    
-    if run_btn:
-        st.caption("Scan started... please wait.")
-
-    st.divider()
-
-    # Section 3: Settings
-    st.header("3. Configuration")
-    
-    with st.expander("⚙️ Quant Settings", expanded=False):
-        st.info("Adjusting these resets the scan.")
-        
-        sma_window = st.slider(
-            "Trend (SMA)", 
-            50, 365, 200, 10,
-            help="Lookback period for trend detection."
-        )
-        
-        vol_window = st.slider(
-            "Volatility", 
-            10, 90, 30, 5,
-            help="Lookback period for volatility."
-        )
-        
-        hysteresis = st.slider(
-            "Hysteresis %", 
-            0.0, 5.0, 0.0, 0.1,
-            help="Buffer to prevent whipsaws."
-        ) / 100.0
-
-    st.markdown("---")
-    st.caption("v4.0 | SOC Financial Dashboard")
-
-# --- MAIN DASHBOARD ---
-
-st.title("⚡ Market Seismograph")
-st.markdown("**Self-Organized Criticality (SOC) Risk Analysis**")
-
-# 1. KPI Dashboard (The "Cockpit")
+# 1. Global Market Header (The Ticker Tape)
 with st.container():
-    c1, c2 = st.columns([1, 2])
-    with c1:
-        st.markdown("### 🌍 Market Health Check")
-    with c2:
-        selected_kpis = st.multiselect(
-            "Select Indicators (Max 6)",
-            options=list(KPI_UNIVERSE.keys()),
-            default=st.session_state.kpi_selection,
-            max_selections=6,
-            label_visibility="collapsed",
-            key="kpi_multiselect"
-        )
-        # Update session state if changed
-        st.session_state.kpi_selection = selected_kpis
-        
-    # Fetch snapshot immediately
-    if selected_kpis:
-        snapshot_data = fetch_market_snapshot(selected_kpis)
-    else:
-        snapshot_data = []
-        st.info("Select indicators above to view market health.")
+    st.caption("Global Market Pulse")
+    global_data = fetch_global_ticker_tape()
     
-    # Grid Layout: 4 columns max per row (The Cockpit)
-    cols_per_row = 4
-    for i in range(0, len(snapshot_data), cols_per_row):
-        row_items = snapshot_data[i:i+cols_per_row]
-        cols = st.columns(cols_per_row)
-        
-        for idx, data in enumerate(row_items):
-            with cols[idx]:
-                is_risk = "CRASH" in data['signal'] or "OVERHEATED" in data['signal']
-                label_display = f"{data['name']}"
-                st.metric(
-                    label=label_display,
-                    value=f"${data['price']:,.2f}",
-                    delta=f"{data['change']:.2f}% | {data['signal']}",
-                    delta_color="inverse" if is_risk else "normal"
-                )
-                if st.button("🔍 Analyze", key=f"btn_{data['symbol']}", use_container_width=True):
-                    st.session_state.selected_asset = data['symbol']
-                    st.session_state.switch_to_deep_dive = True
-                    st.rerun()
+    cols = st.columns(6) # Try 6 cols for wide mode
+    
+    # If fetch failed or partial, handle gracefully
+    if not global_data:
+        st.warning("Unable to fetch global market data.")
+    else:
+        for idx, item in enumerate(global_data):
+            # Wrap if needed or just limit to available
+            if idx < 6:
+                with cols[idx]:
+                    st.metric(
+                        label=item["Name"],
+                        value=f"{item['Price']:,.2f}",
+                        delta=f"{item['Change']:.2f}%"
+                    )
+    st.divider()
 
-st.divider()
-
-# 5. Instructions
+# 2. Education
 with st.expander("📖 How to read this dashboard"):
     st.markdown("""
-    **The SOC Traffic Light System:**
-    * 🔴 **CRASH RISK:** High Volatility + Downtrend. High probability of cascading sell-offs.
-    * 🟠 **OVERHEATED:** High Volatility + Uptrend. Price is rising but instability is high. Risk of correction.
-    * 🟢 **ACCUMULATION:** Low Volatility + Uptrend. Stable growth phase.
-    * 🟡 **CAPITULATION:** Low Volatility + Downtrend. Market is quiet but bearish. Watch for reversals.
-    * ⚪ **NEUTRAL / CHOPPY:** Market is in a sideways range or strictly following the SMA. Hysteresis active.
-    
-    **Stress Score:** Measures how close the asset is to a critical phase transition (values > 1.0 indicate high stress).
+    **SOC Traffic Light System:**
+    * 🟢 **ACCUMULATE:** Low Volatility + Uptrend. Safe growth.
+    * 🔴 **RISK:** High Volatility + Downtrend. Crash probability.
+    * 🟠 **OVERHEATED:** High Volatility + Uptrend. Correction risk.
+    * ⚪ **NEUTRAL:** Choppy / Range-bound market.
     """)
 
-# --- SCANNER LOGIC ---
+# 3. Workflow - Market Selection
+st.header("Market Selection")
 
-if run_btn:
-    st.session_state.scan_results = run_full_scan(target_tickers, sma_window, vol_window, hysteresis)
+# Step A: Universe Selection
+universe_options = ["US Big Tech", "DAX Top 10", "Crypto Assets", "Precious Metals", "Custom Portfolio"]
+selected_universe = st.radio("Choose Asset Universe:", universe_options, horizontal=True)
 
-results = st.session_state.get('scan_results', [])
+# Logic for Tick List
+active_tickers = []
 
-# Tabs for View
-# Use session state to force tab selection when "Analyze" is clicked
-# Manual tab selection updates state
-def on_tab_change():
-    pass
+if selected_universe == "Custom Portfolio":
+    raw_input = st.text_area("Enter Tickers (comma or newline separated):", "NVDA, BTC-USD, GLD")
+    cleaned = raw_input.replace("\n", ",").replace(";", ",")
+    active_tickers = [t.strip().upper() for t in cleaned.split(",") if t.strip()]
+else:
+    active_tickers = MARKET_SETS[selected_universe]
 
-tab_options = ["📊 Market Scanner", "🔍 Deep Dive Analysis", "📈 Portfolio Simulation", "📘 Model Theory & Risks"]
+# Step B: Preview (Asset Names)
+if active_tickers:
+    with st.expander(f"Preview: {len(active_tickers)} Assets", expanded=False):
+        # Fetch names (cached)
+        df_preview = fetch_asset_names(active_tickers)
+        st.dataframe(df_preview, hide_index=True, use_container_width=True)
 
-# Ensure valid state
-if st.session_state.active_tab not in tab_options:
-    st.session_state.active_tab = tab_options[0]
+# Step C: Action
+if st.button("RUN SOC ANALYSIS", type="primary", use_container_width=True):
+    with st.spinner("Analyzing Market Criticality..."):
+        scan_results = run_analysis_logic(active_tickers)
+        st.session_state['scan_results'] = scan_results
+        st.session_state['run_timestamp'] = time.time()
 
-# Determine index
-current_tab_index = tab_options.index(st.session_state.active_tab)
-
-# Logic to handle "Switch to Deep Dive" trigger from elsewhere
-# Must be handled BEFORE st.radio renders to ensure index matches
-if st.session_state.get("switch_to_deep_dive", False):
-    st.session_state.active_tab = "🔍 Deep Dive Analysis"
-    st.session_state.nav_radio = "🔍 Deep Dive Analysis" # Sync widget state
-    st.session_state.switch_to_deep_dive = False
-    current_tab_index = tab_options.index(st.session_state.active_tab)
-
-st.markdown("---")
-selected_tab = st.radio(
-    "Navigation", 
-    tab_options, 
-    index=current_tab_index, 
-    horizontal=True, 
-    label_visibility="collapsed",
-    key="nav_radio"
-)
-
-# Update state if changed by user
-if selected_tab != st.session_state.active_tab:
-    st.session_state.active_tab = selected_tab
-    st.rerun()
-
-if selected_tab == "📊 Market Scanner":
-    # Tab 1 Content
-    if not results:
-        st.info("👈 Select a universe and click 'Run Analysis' to see the matrix.")
-    else:
-        # Prepare Data
-        df_res = pd.DataFrame(results)
-        
-        # Sort logic
-        signal_order = {
-            "🔴 CRASH RISK": 0, "🟠 OVERHEATED": 1,
-            "🟢 BUY/ACCUMULATE": 2, "🟡 CAPITULATION/WAIT": 3,
-            "⚪ UPTREND (Choppy)": 4, "⚪ DOWNTREND (Choppy)": 5,
-            "NEUTRAL": 6, "NO_DATA": 7
-        }
-        df_res['sort_key'] = df_res['signal'].map(signal_order)
-        df_res = df_res.sort_values('sort_key').drop(columns=['sort_key'])
-        
-        # 3. Enhanced Styling
-        # Background coloring function
-        def highlight_signal(row):
-            val = row['signal']
-            color = ''
-            if "BUY" in val: color = 'background-color: rgba(0, 255, 0, 0.1)'
-            elif "CRASH" in val: color = 'background-color: rgba(255, 0, 0, 0.1)'
-            elif "OVERHEATED" in val: color = 'background-color: rgba(255, 165, 0, 0.1)'
-            elif "NEUTRAL (Range)" in val: color = 'background-color: rgba(128, 128, 128, 0.1)'
-            return [color] * len(row)
-
-        # Columns to display
-        display_df = df_res[["symbol", "price", "signal", "stress_score", "dist_to_sma", "trend"]]
-        
-        st.dataframe(
-            display_df.style.apply(highlight_signal, axis=1),
-            use_container_width=True,
-            column_config={
-                "symbol": "Asset",
-                "price": st.column_config.NumberColumn("Price", format="$%.2f"),
-                "signal": st.column_config.TextColumn("SOC Phase", help="Current Market Phase based on Volatility & Trend"),
-                "stress_score": st.column_config.ProgressColumn(
-                    "Stress Level",
-                    help="Criticality Score (Vol / Threshold). >1.0 is High Stress.",
-                    format="%.2f",
-                    min_value=0,
-                    max_value=2.0,
-                ),
-                "dist_to_sma": st.column_config.NumberColumn("SMA Deviance", format="%.2f%%"),
-                "trend": st.column_config.TextColumn("Trend")
-            },
-            height=600
-        )
-        
-        # Export
-        csv = df_res.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="📥 Download Scan Results (CSV)",
-            data=csv,
-            file_name=f"soc_market_scan_{time.strftime('%Y%m%d')}.csv",
-            mime="text/csv",
-        )
-
-elif selected_tab == "🔍 Deep Dive Analysis":
-    # Tab 2 Content (Deep Dive)
-    if not results:
-        st.warning("Please run a scan first to populate the deep dive list.")
-    else:
-        # Create a mapping for the selectbox
-        symbol_list = [r['symbol'] for r in results]
-        
-        col_sel, _ = st.columns([1, 2])
-        
-        with col_sel:
-            ix = 0
-            if st.session_state.selected_asset in symbol_list:
-                ix = symbol_list.index(st.session_state.selected_asset)
+# 4. Results Area
+if 'scan_results' in st.session_state and st.session_state['scan_results']:
+    results = st.session_state['scan_results']
+    
+    st.divider()
+    st.header("Analysis Results")
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["Table Overview", "Deep Dive Analysis", "Portfolio Simulation", "Model Theory"])
+    
+    # --- TAB 1: Table Overview ---
+    with tab1:
+        if not results:
+            st.warning("No valid data found for the selected assets.")
+        else:
+            df_res = pd.DataFrame(results)
             
-            def update_selected():
-                st.session_state.selected_asset = st.session_state.box_selected_asset
-            
-            selected_asset = st.selectbox(
-                "Select Asset to Analyze", 
-                symbol_list, 
-                index=ix,
-                key="box_selected_asset",
-                on_change=update_selected
+            # Styling
+            def highlight_signal(row):
+                val = row['signal']
+                color = ''
+                if "BUY" in val: color = 'background-color: rgba(0, 255, 0, 0.1)'
+                elif "CRASH" in val: color = 'background-color: rgba(255, 0, 0, 0.1)'
+                elif "OVERHEATED" in val: color = 'background-color: rgba(255, 165, 0, 0.1)'
+                return [color] * len(row)
+
+            st.dataframe(
+                df_res[["symbol", "price", "signal", "stress_score", "trend"]].style.apply(highlight_signal, axis=1),
+                use_container_width=True,
+                column_config={
+                    "symbol": "Asset",
+                    "price": st.column_config.NumberColumn("Price", format="$%.2f"),
+                    "signal": st.column_config.TextColumn("SOC Signal"),
+                    "stress_score": st.column_config.ProgressColumn("Stress Level", min_value=0, max_value=2.0, format="%.2f"),
+                    "trend": "Trend Status"
+                },
+                height=500
             )
-        
-        if selected_asset:
-            # Re-fetch specific asset data for charts (utilizing cache)
+
+    # --- TAB 2: Deep Dive ---
+    with tab2:
+        if not results:
+            st.info("Run analysis first.")
+        else:
+            symbol_list = [r['symbol'] for r in results]
+            
+            # Use cols to keep dropdown small
+            c_sel, _ = st.columns([1, 3])
+            with c_sel:
+                selected_asset = st.selectbox("Select Asset to Inspect:", symbol_list)
+            
+            # Fetch Deep Data
+            asset_res = next(r for r in results if r['symbol'] == selected_asset)
+            
+            # Fetch full DF for charts
             fetcher = DataFetcher(cache_enabled=True)
             df_asset = fetcher.fetch_data(selected_asset)
             
-            # Retrieve cached analysis result
-            asset_res = next(r for r in results if r['symbol'] == selected_asset)
-            
-            analyzer = SOCAnalyzer(
-                df_asset, selected_asset, asset_info=asset_res.get('info'),
-                sma_window=sma_window, vol_window=vol_window, hysteresis=hysteresis
-            )
-            
-            # Prepare data for display
-            info = asset_res.get('info', {})
-            figs = analyzer.get_plotly_figures()
-            
-            # --- DEEP DIVE LAYOUT ---
-            
-            # 1. Signal Header (Banner Style)
-            st.markdown("---")
-            
-            # Container for the "Banner"
-            with st.container():
-                b_c1, b_c2 = st.columns([3, 1])
-                with b_c1:
-                    st.markdown(f"# {selected_asset}")
-                    st.markdown(f"### Current Price: **${asset_res['price']:,.2f}**")
-                    st.caption(f"{info.get('name', 'Unknown')} | {info.get('sector', 'Unknown Sector')}")
+            if not df_asset.empty:
+                # Re-run analyzer for charts
+                # Note: We use default params here as per "Total Redesign" simplification
+                analyzer = SOCAnalyzer(df_asset, selected_asset, asset_info=asset_res.get('info'))
+                figs = analyzer.get_plotly_figures()
                 
-                with b_c2:
-                    # Determine Color
-                    sig = asset_res['signal']
-                    color = "#00FF00" if "BUY" in sig or "ACCUMULATE" in sig or "UPTREND" in sig else \
-                            "#FF0000" if "CRASH" in sig or "DOWNTREND" in sig else \
-                            "#FFA500" if "OVERHEATED" in sig else "#CCCCCC"
-                    
-                    st.markdown(f"""
-                    <div style="text-align: right; padding: 10px; border-radius: 10px; border: 2px solid {color};">
-                        <h4 style="margin:0; color: #888;">SOC SIGNAL</h4>
-                        <h2 style="margin:0; color: {color};">{sig.split(' ')[0]}</h2>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    
-            # Risk Settings Display (as requested)
-            with st.expander("⚙️ Used Parameters (Risk Settings)"):
-                c_p1, c_p2, c_p3 = st.columns(3)
-                c_p1.metric("SMA Window", sma_window)
-                c_p2.metric("Vol Window", vol_window)
-                c_p3.metric("Hysteresis", f"{hysteresis*100}%")
-
-            # 2. Charts Grid
-            st.markdown("### 📊 Market Dynamics")
-            
-            # Row 1: Price/Vol (Left) + Criticality (Right)
-            g_r1_c1, g_r1_c2 = st.columns(2)
-            
-            with g_r1_c1:
-                st.plotly_chart(figs['chart1'], use_container_width=True)
-            
-            with g_r1_c2:
+                # Hero Element: Criticality Chart (Chart 3)
+                st.subheader(f"{selected_asset} - Criticality & Trend")
                 st.plotly_chart(figs['chart3'], use_container_width=True)
                 
-            # Row 2: Power Law (Center/Full)
-            st.plotly_chart(figs['chart2'], use_container_width=True)
+                # Context
+                with st.expander("Show Price History & Power Law Details"):
+                    c1, c2 = st.columns(2)
+                    with c1:
+                        st.plotly_chart(figs['chart1'], use_container_width=True)
+                    with c2:
+                        st.plotly_chart(figs['chart2'], use_container_width=True)
+            else:
+                st.error("Could not load chart data.")
 
-elif selected_tab == "📈 Portfolio Simulation":
-    # Tab 3 Content (Portfolio Simulation)
-    st.header("Portfolio Simulation")
-    
-    # 1. Quant Settings (One line)
-    with st.expander("🔧 Simulation Settings", expanded=True):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            sim_years = st.slider("Simulation Years", 1, 30, 10)
-            st.caption("Duration of the backtest. Longer periods test robustness across different market cycles (Bull/Bear).")
-        with c2:
-            rebalance = st.slider("Rebalance Frequency (Months)", 1, 12, 3)
-            st.caption("How often the portfolio aligns with the SOC strategy signals. Frequent rebalancing captures trends faster but increases transaction costs.")
-        with c3:
-            alloc_risk = st.slider("Risk Allocation %", 0, 100, 70)
-            st.caption("Percentage of capital allocated to 'Green/Accumulate' assets. The remainder is held in cash/safe assets to reduce drawdown.")
+    # --- TAB 3: Portfolio Simulation ---
+    with tab3:
+        st.subheader("Portfolio Simulation")
+        st.info("🚧 Module under construction. Use the 'Deep Dive' to analyze individual assets first.")
+        
+        c_sim1, c_sim2 = st.columns(2)
+        with c_sim1:
+            st.slider("Years", 1, 30, 10)
+            st.number_input("Capital", value=10000)
+        with c_sim2:
+            st.slider("Risk Allocation", 0, 100, 70)
+        
+        st.button("Run Backtest (Simulated)", disabled=True)
 
-    st.divider()
-
-    # 2. Inputs
-    c_in1, c_in2 = st.columns(2)
-    with c_in1:
-        start_year = st.number_input("Starting Year", min_value=2000, max_value=2024, value=2015)
-    with c_in2:
-        start_capital = st.number_input("Starting Capital ($)", min_value=1000, value=10000, step=1000)
-
-    # Display selected universe
-    st.info(f"Selected Asset Class: **{universe_mode if 'universe_mode' in locals() else 'Current Selection'}**")
-
-    st.divider()
-
-    # 3. Action
-    st.button("🚀 Run Simulation", type="primary", disabled=True, help="Feature coming soon")
-
-elif selected_tab == "📘 Model Theory & Risks":
-    # Tab 3 Content
-    st.markdown("## 📘 Why this model is robust, but not bulletproof.")
-    st.markdown("---")
-    
-    st.markdown("### 1. The Whipsaw Trap (Sideways Markets)")
-    st.markdown("""
-    **The Problem:** Simple Moving Average (SMA) models excel in trending markets but fail miserably in sideways/choppy markets. 
-    In a flat market, price constantly crosses the SMA, generating false "Buy" and "Sell" signals (whipsaws) that bleed capital.
-    
-    **The Solution (Hysteresis):** We introduced a **"Whipsaw Filter"** (Hysteresis). 
-    * Instead of triggering a signal the moment price touches the SMA, we require it to break the SMA by a specific percentage (e.g., 1.0% or 3.0%).
-    * This creates a "Neutral Zone" where no new signals are generated, protecting you from chop.
-    """)
-    
-    st.markdown("### 2. The Lag Effect")
-    st.markdown("""
-    **Reality Check:** SOC and Trend Following signals are **reactive**, not predictive. 
-    * We do not catch the absolute bottom or top.
-    * We aim to capture the "meat" of the move (the middle 60-80%).
-    * **Risk:** In a "V-shaped" recovery or crash, the model will be late. This is the cost of doing business to avoid false alarms.
-    """)
-    
-    st.markdown("### 3. The Minsky Paradox (The Coiled Spring)")
-    st.markdown("""
-    **"Stability leads to Instability."** — Hyman Minsky.
-    
-    * **Green (Low Volatility)** usually means safe accumulation. 
-    * **However:** Extremely low volatility for extended periods often precedes a violent breakout (volatility compression).
-    * If you see **Volatility near zero**, be ready for a massive move in *either* direction, even if the current signal is Green.
-    """)
-    
-    st.markdown("### 4. Stationarity & Parameter Drift")
-    st.markdown("""
-    Markets change. A **200-day SMA** is a standard institutional benchmark, but in faster crypto markets, a **100-day** or **50-day** might be more relevant.
-    * Use the **"Quant Settings"** in the sidebar to stress-test your thesis. 
-    * If a signal disappears when you change the window slightly, it might not be robust.
-    """)
+    # --- TAB 4: Model Theory ---
+    with tab4:
+        st.markdown("""
+        ### Self-Organized Criticality (SOC)
+        Markets are not efficient; they are complex adaptive systems.
+        
+        1.  **Volatility Clustering:** Large price changes tend to be followed by large changes (Mandelbrot).
+        2.  **Power Laws:** Market returns follow a Fat-Tailed distribution, not a Bell Curve. Standard models underestimate risk.
+        3.  **Phase Transitions:** We look for the "Edge of Chaos" — when a system becomes unstable (High Volatility) and prone to collapse (Downtrend).
+        """)
