@@ -12,6 +12,22 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- AUTHENTICATION ---
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+
+def check_password():
+    if st.session_state.password == "BETA2025":
+        st.session_state.authenticated = True
+        del st.session_state.password  # don't store password
+    else:
+        st.error("Incorrect Password")
+
+if not st.session_state.authenticated:
+    st.title("🔒 Login Required")
+    st.text_input("Enter Access Code", type="password", on_change=check_password, key="password")
+    st.stop()
+
 # --- CSS / STYLING ---
 st.markdown("""
 <style>
