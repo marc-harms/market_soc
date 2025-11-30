@@ -117,9 +117,36 @@ def fetch_asset_names(ticker_list):
             name = ticker.info.get('shortName') or ticker.info.get('longName') or t
             
             # Clean up messy Yahoo Finance names
+            # Remove legal entities
             name = name.replace(" SE", "").replace(" AG", "").strip()
-            # Remove trailing ' I' or similar artifacts if common
-            if name.endswith(" I"): name = name[:-2]
+            
+            # Regex or specific replacement for weird trailing chars often found in German tickers on Yahoo
+            # Examples: "SIEMENS                    N" -> "Siemens"
+            # Strategy: If it looks like ALL CAPS followed by space and single letter, fix it.
+            # But simpler: Just title case it and strip common suffixes if we know them.
+            # Or manually map the worst offenders if regex is too risky.
+            
+            # Manual Fix map for known issues (Safest)
+            fix_map = {
+                "SIEMENS                    N": "Siemens",
+                "Allianz                    v": "Allianz",
+                "DEUTSCHE TELEKOM           N": "Deutsche Telekom",
+                "Airbus                     A": "Airbus",
+                "BAYERISCHE MOTOREN WERKE   S": "BMW",
+                "VOLKSWAGEN                 V": "Volkswagen",
+                "BASF                       N": "BASF",
+                "MUENCHENER RUECKVERS.-GES. N": "Munich Re",
+                "SAP                       ": "SAP"
+            }
+            
+            if name in fix_map:
+                name = fix_map[name]
+            else:
+                # Generic fallback cleanup: remove multiple spaces
+                name = " ".join(name.split())
+                # Remove trailing single chars preceded by space (common in German tickers for voting rights etc)
+                if len(name) > 2 and name[-2] == " ":
+                    name = name[:-2]
             
             data.append({"Ticker": t, "Name": name})
         except:
