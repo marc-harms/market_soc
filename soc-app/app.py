@@ -44,7 +44,7 @@ KPI_UNIVERSE = {
 }
 
 MARKET_SETS = {
-    "🇺🇸 US Tech": ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'AMD', 'NFLX'],
+    "🇺🇸 US BigTech": ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'AMD', 'NFLX'],
     "🇩🇪 DAX Top 10": ['^GDAXI', 'SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'AIR.DE', 'BMW.DE', 'VOW3.DE', 'BAS.DE', 'MUV2.DE'],
     "₿ Crypto": ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD'],
     "🥇 Precious Metals": ['GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV']
@@ -60,7 +60,7 @@ if 'kpi_selection' not in st.session_state:
     # Default selection
     st.session_state.kpi_selection = ["Bitcoin", "S&P 500", "Gold"]
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=3600)
 def fetch_market_snapshot(selected_keys):
     """Fetches key assets for the top dashboard."""
     fetcher = DataFetcher(cache_enabled=True)
@@ -139,12 +139,8 @@ with st.sidebar:
     
     # Build options dynamically
     radio_options = list(MARKET_SETS.keys())
-    kpi_option = "🌍 Health Check Assets"
     
-    # Add KPI Watchlist if available
-    if st.session_state.get('kpi_selection'):
-        radio_options = [kpi_option] + radio_options
-        
+    # Custom Portfolio option
     radio_options.append("✏️ Custom Portfolio")
     
     universe_mode = st.radio(
@@ -155,17 +151,7 @@ with st.sidebar:
     
     target_tickers = []
     
-    if universe_mode == kpi_option:
-        selected_kpis = st.session_state.get('kpi_selection', [])
-        for k in selected_kpis:
-            if k in KPI_UNIVERSE:
-                target_tickers.append(KPI_UNIVERSE[k]['symbol'])
-        
-        st.info(f"Loaded {len(target_tickers)} assets from Dashboard.")
-        with st.expander("View Assets"):
-            st.code(", ".join(target_tickers))
-            
-    elif universe_mode == "✏️ Custom Portfolio":
+    if universe_mode == "✏️ Custom Portfolio":
         input_tickers = st.text_area(
             "Paste tickers (comma or new line)",
             value="BTC-USD, NVDA, TSLA, SAP.DE",
@@ -182,10 +168,12 @@ with st.sidebar:
             st.code(", ".join(target_tickers))
 
     st.markdown("### Actions")
+    
+    # Simple button logic (reverted from rate limiting)
     run_btn = st.button("🚀 Run Analysis", type="primary", use_container_width=True)
     
     st.divider()
-    st.caption("v2.1 | Powered by SOC Logic")
+    st.caption("v3.0 | Powered by SOC Logic")
 
     # 3. Quant Settings
     with st.expander("⚙️ Quant Settings", expanded=True):
@@ -231,8 +219,6 @@ with st.container():
         # Update session state if changed
         st.session_state.kpi_selection = selected_kpis
         
-    kpi_cols = st.columns(max(1, len(selected_kpis)))
-    
     # Fetch snapshot immediately
     if selected_kpis:
         snapshot_data = fetch_market_snapshot(selected_kpis)
@@ -240,21 +226,22 @@ with st.container():
         snapshot_data = []
         st.info("Select indicators above to view market health.")
     
-    for i, data in enumerate(snapshot_data):
-        with kpi_cols[i]:
-            is_risk = "CRASH" in data['signal'] or "OVERHEATED" in data['signal']
-            
-            label_display = f"{data['name']} | {data['signal']}"
-            
-            st.metric(
-                label=label_display,
-                value=f"${data['price']:,.2f}",
-                delta=f"{data['change']:.2f}%",
-                delta_color="inverse" if is_risk else "normal"
-            )
-            
-            # Button logic removed as requested
-
+    # Grid Layout: 3 columns max per row
+    cols_per_row = 3
+    for i in range(0, len(snapshot_data), cols_per_row):
+        row_items = snapshot_data[i:i+cols_per_row]
+        cols = st.columns(cols_per_row)
+        
+        for idx, data in enumerate(row_items):
+            with cols[idx]:
+                is_risk = "CRASH" in data['signal'] or "OVERHEATED" in data['signal']
+                label_display = f"{data['name']} | {data['signal']}"
+                st.metric(
+                    label=label_display,
+                    value=f"${data['price']:,.2f}",
+                    delta=f"{data['change']:.2f}%",
+                    delta_color="inverse" if is_risk else "normal"
+                )
 
 st.divider()
 
@@ -264,7 +251,7 @@ with st.expander("📖 How to read this dashboard"):
     **The SOC Traffic Light System:**
     * 🔴 **CRASH RISK:** High Volatility + Downtrend. High probability of cascading sell-offs.
     * 🟠 **OVERHEATED:** High Volatility + Uptrend. Price is rising but instability is high. Risk of correction.
-    * 🟢 **BUY/ACCUMULATE:** Low Volatility + Uptrend. Stable growth phase.
+    * 🟢 **ACCUMULATION:** Low Volatility + Uptrend. Stable growth phase.
     * 🟡 **CAPITULATION:** Low Volatility + Downtrend. Market is quiet but bearish. Watch for reversals.
     * ⚪ **NEUTRAL / CHOPPY:** Market is in a sideways range or strictly following the SMA. Hysteresis active.
     
@@ -280,71 +267,11 @@ results = st.session_state.get('scan_results', [])
 
 # Tabs for View
 # Use session state to force tab selection when "Analyze" is clicked
-if st.session_state.get("switch_to_deep_dive", False):
-    st.session_state.active_tab = "Deep Dive"
-    st.session_state.switch_to_deep_dive = False # Reset trigger
-
 # Manual tab selection updates state
 def on_tab_change():
-    # This won't work directly with st.tabs return value, 
-    # so we rely on render order and just set default index if needed?
-    # Streamlit tabs don't support programmatic selection easily without key.
     pass
 
-# Workaround: Use a hidden radio or just rely on user click if we can't force it easily.
-# But user specifically asked to fix the jump.
-# We can't force st.tabs active tab easily in recent Streamlit versions without re-running.
-# Let's try passing the selection list in order? No.
-
-# Fix: We will render the content based on a "Menu" or just standard tabs.
-# Since st.tabs are purely UI, if we want to programmatically switch, we need to re-render.
-# BUT: standard st.tabs does NOT support index argument in older versions.
-# Let's assume standard behavior:
-# If we want to switch, we might need to use st.radio as tabs or look for a workaround.
-
-# Actually, the user says "click Deep Dive Analysis -> drop down menu -> select AAPL -> jumps back to market scanner".
-# This happens because the selectbox triggers a rerun, and Streamlit resets the tab to the first one unless 
-# we persist the state.
-
-# THIS IS THE KEY FIX:
-# We don't need to force the tab via code, we just need to STOP it from resetting.
-# st.tabs preserves state in recent versions, BUT if the key or structure changes, it resets.
-# The structure is stable.
-
-# Wait, if "select AAPL -> jumps back", it means the re-run is resetting the view.
-# Is "Run Scan" creating a new set of results?
-# If we change the selectbox, it updates session_state.selected_asset.
-# The re-run happens.
-# If `st.tabs` resets to 0, it's annoying.
-
-# Strategy:
-# We can't set the index of st.tabs directly in standard API.
-# Alternative: Use st.radio styled as tabs or just accept that we need to keep the structure static.
-# The structure IS static.
-
-# Why does it jump? 
-# Maybe because `results` was re-evaluated? No, it's from session state.
-# Ah, if the `selectbox` is inside `tab2`, and we interact with it, `st.rerun()` is called.
-# Upon rerun, does `st.tabs` remember which one was open?
-# Usually yes.
-
-# Let's try to explicitly manage tabs via a radio button if the native tabs are failing, 
-# OR use the `st.tabs` container but ensure nothing above it shifts layout.
-
-# The user explicitly asked to "Force tab switch to Deep Dive".
-# We can do this by conditional rendering instead of st.tabs if st.tabs is flaky.
-# OR we use a session state variable to determine which tab content to show, 
-# and maybe mimic tabs with buttons/radio.
-
-# However, let's try to just fix the logic first.
-# The previous code had `st.rerun()` inside the selectbox `on_change`. 
-# That forces a full script run. Streamlit *should* preserve tab selection.
-# If it doesn't, it might be an environment specific issue or older Streamlit.
-
-# Let's Replace `st.tabs` with a persisted `st.radio` (horizontal) to guarantee control.
-# This is the most robust way to "fix" tab jumping.
-
-tab_options = ["📊 Market Scanner", "🔍 Deep Dive Analysis", "📘 Model Theory & Risks"]
+tab_options = ["📊 Market Scanner", "🔍 Deep Dive Analysis", "📈 Portfolio Simulation", "📘 Model Theory & Risks"]
 
 # Ensure valid state
 if st.session_state.active_tab not in tab_options:
@@ -360,14 +287,6 @@ if st.session_state.get("switch_to_deep_dive", False):
     st.session_state.nav_radio = "🔍 Deep Dive Analysis" # Sync widget state
     st.session_state.switch_to_deep_dive = False
     current_tab_index = tab_options.index(st.session_state.active_tab)
-
-# If we want to look like tabs, we can use a radio with horizontal=True and some styling,
-# or just stick to tabs and hope the user's browser handles it.
-# BUT the user said "Fix this".
-
-# Let's try a custom tab implementation using columns and buttons? No, too complex.
-# Let's use `st.radio` to act as the tab selector. It allows `index=...`
-# We can style it to look decent.
 
 st.markdown("---")
 selected_tab = st.radio(
@@ -389,7 +308,6 @@ if selected_tab == "📊 Market Scanner":
     if not results:
         st.info("👈 Select a universe and click 'Run Analysis' to see the matrix.")
     else:
-        # ... (Dataframe code)
         # Prepare Data
         df_res = pd.DataFrame(results)
         
@@ -448,7 +366,6 @@ if selected_tab == "📊 Market Scanner":
 
 elif selected_tab == "🔍 Deep Dive Analysis":
     # Tab 2 Content (Deep Dive)
-    # ... (Deep dive code)
     if not results:
         st.warning("Please run a scan first to populate the deep dive list.")
     else:
@@ -488,13 +405,13 @@ elif selected_tab == "🔍 Deep Dive Analysis":
             
             # Asset Header
             st.markdown("---")
-            h1, h2, h3 = st.columns([2, 1, 1])
+            h1, h2, h3 = st.columns([1.5, 2.5, 1])
             with h1:
                 st.header(f"{selected_asset}")
                 info = asset_res.get('info', {})
                 st.caption(f"{info.get('name', '')} | {info.get('sector', '')}")
             with h2:
-                c_m, c_i = st.columns([1, 0.3])
+                c_m, c_i = st.columns([1, 0.15])
                 with c_m:
                     st.metric("Phase", asset_res['signal'])
                 with c_i:
@@ -524,6 +441,40 @@ elif selected_tab == "🔍 Deep Dive Analysis":
                 
             st.subheader("Power Law Distribution")
             st.plotly_chart(figs['chart2'], use_container_width=True)
+
+elif selected_tab == "📈 Portfolio Simulation":
+    # Tab 3 Content (Portfolio Simulation)
+    st.header("Portfolio Simulation")
+    
+    # 1. Quant Settings (One line)
+    with st.expander("🔧 Simulation Settings", expanded=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            sim_years = st.slider("Simulation Years", 1, 30, 10)
+            st.caption("Duration of the backtest. Longer periods test robustness across different market cycles (Bull/Bear).")
+        with c2:
+            rebalance = st.slider("Rebalance Frequency (Months)", 1, 12, 3)
+            st.caption("How often the portfolio aligns with the SOC strategy signals. Frequent rebalancing captures trends faster but increases transaction costs.")
+        with c3:
+            alloc_risk = st.slider("Risk Allocation %", 0, 100, 70)
+            st.caption("Percentage of capital allocated to 'Green/Accumulate' assets. The remainder is held in cash/safe assets to reduce drawdown.")
+
+    st.divider()
+
+    # 2. Inputs
+    c_in1, c_in2 = st.columns(2)
+    with c_in1:
+        start_year = st.number_input("Starting Year", min_value=2000, max_value=2024, value=2015)
+    with c_in2:
+        start_capital = st.number_input("Starting Capital ($)", min_value=1000, value=10000, step=1000)
+
+    # Display selected universe
+    st.info(f"Selected Asset Class: **{universe_mode if 'universe_mode' in locals() else 'Current Selection'}**")
+
+    st.divider()
+
+    # 3. Action
+    st.button("🚀 Run Simulation", type="primary", disabled=True, help="Feature coming soon")
 
 elif selected_tab == "📘 Model Theory & Risks":
     # Tab 3 Content
