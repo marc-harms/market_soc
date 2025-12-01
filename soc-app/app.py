@@ -332,7 +332,26 @@ def render_theory():
         | 🟢 **ACCUMULATE** | Low Volatility + Uptrend | System stable, safe to build positions |
         | 🔴 **CRASH RISK** | High Volatility + Downtrend | Critical state, high probability of cascading sell-off |
         | 🟠 **OVERHEATED** | High Volatility + Uptrend | Approaching criticality, correction risk elevated |
+        | 🟡 **CAPITULATION** | Low Volatility + Downtrend | Selling exhaustion, potential bottom forming |
         | ⚪ **NEUTRAL** | Mixed conditions | Range-bound, wait for clearer signal |
+        
+        ---
+        
+        ### Understanding Capitulation
+        
+        The **🟡 CAPITULATION** signal deserves special attention. It occurs when:
+        - Price is **below** the 200-day moving average (downtrend)
+        - Volatility has **dropped** to low levels
+        
+        This combination often marks the **final phase of a bear market**. After panic selling (high volatility), 
+        the market enters a quiet period where:
+        - Weak hands have already sold
+        - Remaining holders refuse to sell at lower prices
+        - Volume and volatility dry up
+        
+        Historically, capitulation phases can be **excellent long-term entry points**, but timing is difficult. 
+        The signal suggests the worst may be over, but confirmation (transition to ACCUMULATE) is recommended 
+        before aggressive positioning.
         
         ---
         
@@ -409,6 +428,196 @@ def render_detail_panel(result: Dict[str, Any]):
         analyzer = SOCAnalyzer(df, symbol, result.get('info'))
         figs = analyzer.get_plotly_figures(dark_mode=is_dark)
         st.plotly_chart(figs['chart3'], use_container_width=True)
+        
+        # Historical Signal Analysis Report
+        with st.expander("📈 Historical Signal Analysis & Performance Report"):
+            with st.spinner("Analyzing historical signals..."):
+                analysis = analyzer.get_historical_signal_analysis()
+            
+            if 'error' in analysis:
+                st.warning(analysis['error'])
+            else:
+                # === CRASH WARNING SCORE (Premium Feature) ===
+                crash_warning = analysis.get('crash_warning', {})
+                if crash_warning:
+                    score = crash_warning.get('score', 0)
+                    level = crash_warning.get('level', 'LOW')
+                    level_color = crash_warning.get('level_color', '#00CC00')
+                    level_emoji = crash_warning.get('level_emoji', '✅')
+                    interpretation = crash_warning.get('interpretation', '')
+                    risk_factors = crash_warning.get('risk_factors', [])
+                    asset_name = crash_warning.get('asset_name', symbol)
+                    
+                    # Determine background color based on level
+                    if level == "CRITICAL":
+                        bg_color = "rgba(255, 0, 0, 0.15)"
+                        border_color = "#FF0000"
+                    elif level == "ELEVATED":
+                        bg_color = "rgba(255, 102, 0, 0.15)"
+                        border_color = "#FF6600"
+                    elif level == "MODERATE":
+                        bg_color = "rgba(255, 204, 0, 0.15)"
+                        border_color = "#FFCC00"
+                    else:
+                        bg_color = "rgba(0, 204, 0, 0.1)"
+                        border_color = "#00CC00"
+                    
+                    # Build risk factors HTML
+                    risk_html = ""
+                    if risk_factors:
+                        risk_html = "<div style='margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2);'>"
+                        risk_html += "<strong>Risk Factors:</strong><ul style='margin: 8px 0 0 0; padding-left: 20px;'>"
+                        for factor in risk_factors:
+                            risk_html += f"<li style='margin: 4px 0;'>{factor}</li>"
+                        risk_html += "</ul></div>"
+                    
+                    st.markdown(f"""
+                    <div style="
+                        background: {bg_color};
+                        border: 2px solid {border_color};
+                        border-radius: 12px;
+                        padding: 20px;
+                        margin-bottom: 24px;
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 4px;">
+                                    🎯 Crash Warning Score
+                                </div>
+                                <div style="font-size: 42px; font-weight: bold; color: {level_color};">
+                                    {score}<span style="font-size: 20px; opacity: 0.7;">/100</span>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="
+                                    background: {level_color};
+                                    color: {'#000' if level in ['LOW', 'MODERATE'] else '#FFF'};
+                                    padding: 8px 16px;
+                                    border-radius: 20px;
+                                    font-weight: bold;
+                                    font-size: 14px;
+                                ">
+                                    {level_emoji} {level}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; font-size: 14px; opacity: 0.9;">
+                            {interpretation}
+                        </div>
+                        {risk_html}
+                        <div style="margin-top: 12px; font-size: 11px; opacity: 0.6; text-align: right;">
+                            ⭐ Premium Feature
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Display the prose report
+                st.markdown(analysis['prose_report'])
+                
+                # Additional statistics in columns
+                st.markdown("---")
+                st.markdown("#### 📊 Signal Distribution Summary")
+                
+                stats = analysis['signal_stats']
+                col1, col2, col3, col4 = st.columns(4)
+                
+                with col1:
+                    accum = stats.get('ACCUMULATE', {})
+                    st.metric(
+                        "🟢 Accumulate", 
+                        f"{accum.get('phase_count', 0)} phases",
+                        f"{accum.get('pct_of_time', 0):.1f}% of time"
+                    )
+                
+                with col2:
+                    crash = stats.get('CRASH_RISK', {})
+                    st.metric(
+                        "🔴 Crash Risk",
+                        f"{crash.get('phase_count', 0)} phases",
+                        f"{crash.get('pct_of_time', 0):.1f}% of time"
+                    )
+                
+                with col3:
+                    overheat = stats.get('OVERHEATED', {})
+                    st.metric(
+                        "🟠 Overheated",
+                        f"{overheat.get('phase_count', 0)} phases",
+                        f"{overheat.get('pct_of_time', 0):.1f}% of time"
+                    )
+                
+                with col4:
+                    neutral = stats.get('NEUTRAL', {})
+                    st.metric(
+                        "⚪ Neutral",
+                        f"{neutral.get('phase_count', 0)} phases",
+                        f"{neutral.get('pct_of_time', 0):.1f}% of time"
+                    )
+                
+                # Performance tables - Prior, Short-term, and Long-term
+                
+                # Prior returns - what happened BEFORE the signal
+                st.markdown("#### 📉 What Happened BEFORE Signal (Prior Returns)")
+                st.caption("Shows market movement that triggered each signal")
+                
+                signal_order = ['ACCUMULATE', 'CRASH_RISK', 'OVERHEATED', 'CAPITULATION', 'NEUTRAL']
+                prior_rows = []
+                
+                for sig in signal_order:
+                    data = stats.get(sig, {})
+                    phase_count = data.get('phase_count', 0)
+                    if phase_count > 0:
+                        emoji = '🟢' if sig == 'ACCUMULATE' else '🔴' if sig == 'CRASH_RISK' else '🟠' if sig == 'OVERHEATED' else '🟡' if sig == 'CAPITULATION' else '⚪'
+                        prior_rows.append({
+                            'Signal': f"{emoji} {sig}",
+                            'Phases': str(phase_count),
+                            'Prior 5d': f"{data.get('prior_5d', 0):+.1f}%",
+                            'Prior 10d': f"{data.get('prior_10d', 0):+.1f}%",
+                            'Prior 20d': f"{data.get('prior_20d', 0):+.1f}%",
+                            'Prior 30d': f"{data.get('prior_30d', 0):+.1f}%"
+                        })
+                
+                if prior_rows:
+                    st.table(pd.DataFrame(prior_rows))
+                
+                # Forward returns - short-term
+                st.markdown("#### ⚡ What Happens AFTER Signal (1-10 Days Forward)")
+                
+                short_term_rows = []
+                for sig in signal_order:
+                    data = stats.get(sig, {})
+                    phase_count = data.get('phase_count', 0)
+                    if phase_count > 0:
+                        emoji = '🟢' if sig == 'ACCUMULATE' else '🔴' if sig == 'CRASH_RISK' else '🟠' if sig == 'OVERHEATED' else '🟡' if sig == 'CAPITULATION' else '⚪'
+                        short_term_rows.append({
+                            'Signal': f"{emoji} {sig}",
+                            '1d': f"{data.get('start_return_1d', 0):+.2f}%",
+                            '3d': f"{data.get('start_return_3d', 0):+.2f}%",
+                            '5d': f"{data.get('start_return_5d', 0):+.2f}%",
+                            '10d': f"{data.get('start_return_10d', 0):+.2f}%"
+                        })
+                
+                if short_term_rows:
+                    st.table(pd.DataFrame(short_term_rows))
+                
+                # Forward returns - long-term
+                st.markdown("#### 📅 Long-term Trajectory (30-90 Days Forward)")
+                
+                long_term_rows = []
+                for sig in signal_order:
+                    data = stats.get(sig, {})
+                    phase_count = data.get('phase_count', 0)
+                    if phase_count > 0:
+                        emoji = '🟢' if sig == 'ACCUMULATE' else '🔴' if sig == 'CRASH_RISK' else '🟠' if sig == 'OVERHEATED' else '🟡' if sig == 'CAPITULATION' else '⚪'
+                        long_term_rows.append({
+                            'Signal': f"{emoji} {sig}",
+                            'Avg Duration': f"{data.get('avg_duration', 0):.0f}d",
+                            '30d': f"{data.get('avg_return_30d', 0):+.1f}%",
+                            '60d': f"{data.get('avg_return_60d', 0):+.1f}%",
+                            '90d': f"{data.get('avg_return_90d', 0):+.1f}%"
+                        })
+                
+                if long_term_rows:
+                    st.table(pd.DataFrame(long_term_rows))
 
 
 def render_footer():
