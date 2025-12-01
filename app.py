@@ -1,10 +1,28 @@
+"""
+SOC Market Seismograph - Streamlit Application
+==============================================
+A market analysis dashboard based on Self-Organized Criticality (SOC) theory.
+Master-Detail layout for seamless asset analysis workflow.
+
+Author: Market Analysis Team
+Version: 3.0 (Beta)
+"""
+
+# =============================================================================
+# IMPORTS
+# =============================================================================
+import time
+from typing import List, Dict, Any
+
 import streamlit as st
 import pandas as pd
-import time
 import yfinance as yf
+
 from logic import DataFetcher, SOCAnalyzer
 
-# 1. Global Setup
+# =============================================================================
+# PAGE CONFIGURATION
+# =============================================================================
 st.set_page_config(
     page_title="SOC Market Seismograph",
     page_icon="⚡",
@@ -12,79 +30,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- AUTHENTICATION ---
-if 'authenticated' not in st.session_state:
-    st.session_state.authenticated = False
+# =============================================================================
+# CONSTANTS
+# =============================================================================
+ACCESS_CODE = "BETA2025"
+DEFAULT_SMA_WINDOW = 200
+DEFAULT_VOL_WINDOW = 30
+DEFAULT_HYSTERESIS = 0.0
+MIN_DATA_POINTS = 200
 
-def check_password():
-    if st.session_state.password == "BETA2025":
-        st.session_state.authenticated = True
-        del st.session_state.password  # don't store password
-    else:
-        st.error("Incorrect Password")
-
-if not st.session_state.authenticated:
-    st.title("🔒 Login Required")
-    st.text_input("Enter Access Code", type="password", on_change=check_password, key="password")
-    st.stop()
-
-# --- CSS / STYLING ---
-st.markdown("""
-<style>
-    /* Clean, Minimalist Dashboard Styling */
-    
-    /* Remove Sidebar */
-    [data-testid="stSidebar"] {
-        display: none;
-    }
-    
-    /* Minimize Top Padding */
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 2rem;
-        max-width: 1200px; /* Center content max width */
-        margin: 0 auto;
-    }
-    
-    /* Metric Card Styling */
-    div[data-testid="stMetricValue"] {
-        font-size: 1.2rem;
-    }
-    
-    /* Custom Card for Metrics */
-    .metric-card {
-        background-color: #1E1E1E;
-        border: 1px solid #333;
-        padding: 10px;
-        border-radius: 8px;
-        text-align: center;
-    }
-    
-    /* Hide Deploy Button */
-    .stDeployButton {
-        visibility: hidden;
-    }
-    
-    /* Button Styling */
-    div.stButton > button {
-        font-weight: bold;
-        border-radius: 8px;
-        padding-top: 0.5rem;
-        padding-bottom: 0.5rem;
-    }
-</style>
-""", unsafe_allow_html=True)
-
-
-# --- CONSTANTS & DATA ---
-GLOBAL_TICKERS = {
-    "Bitcoin": "BTC-USD",
-    "Nasdaq": "^IXIC",
-    "S&P 500": "^GSPC",
-    "Gold": "GC=F",
-    "MSCI China": "MCHI",
-    "Nikkei 225": "^N225"
-}
+FOOTER_TICKERS = {"Bitcoin": "BTC-USD", "S&P 500": "^GSPC", "Gold": "GC=F"}
 
 MARKET_SETS = {
     "US Big Tech": ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'AMD', 'NFLX'],
@@ -93,349 +48,417 @@ MARKET_SETS = {
     "Precious Metals": ['GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV']
 }
 
-# --- HELPER FUNCTIONS ---
+TICKER_NAME_FIXES = {
+    "SIEMENS                    N": "Siemens", "Allianz                    v": "Allianz",
+    "DEUTSCHE TELEKOM           N": "Deutsche Telekom", "Airbus                     A": "Airbus",
+    "BAYERISCHE MOTOREN WERKE   S": "BMW", "VOLKSWAGEN                 V": "Volkswagen",
+    "BASF                       N": "BASF", "MUENCHENER RUECKVERS.-GES. N": "Munich Re",
+    "SAP                       ": "SAP"
+}
 
+SPECIAL_TICKER_NAMES = {"^GDAXI": "DAX 40 Index"}
+
+# =============================================================================
+# STYLING
+# =============================================================================
+def get_theme_css(is_dark: bool) -> str:
+    """Generate theme-aware CSS."""
+    c = {
+        "bg": "#0E1117" if is_dark else "#FFFFFF",
+        "bg2": "#262730" if is_dark else "#F0F2F6",
+        "card": "#1E1E1E" if is_dark else "#F8F9FA",
+        "border": "#333" if is_dark else "#DEE2E6",
+        "text": "#FAFAFA" if is_dark else "#212529",
+        "muted": "#888" if is_dark else "#6C757D",
+        "input": "#262730" if is_dark else "#FFFFFF"
+    }
+    
+    return f"""
+<style>
+    /* Global Theme */
+    .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
+        background-color: {c['bg']} !important;
+    }}
+    .stApp, .stApp p, .stApp span, .stApp label, .stApp div,
+    .stApp h1, .stApp h2, .stApp h3, .stMarkdown, .stMarkdown p {{
+        color: {c['text']} !important;
+    }}
+    
+    /* Inputs & Controls */
+    .stTextInput input, .stTextArea textarea, [data-baseweb="select"], [data-baseweb="select"] > div {{
+        background-color: {c['input']} !important;
+        color: {c['text']} !important;
+        border-color: {c['border']} !important;
+    }}
+    
+    /* Expanders */
+    .streamlit-expanderHeader {{ background-color: {c['card']} !important; }}
+    .streamlit-expanderContent {{ background-color: {c['bg2']} !important; }}
+    
+    /* Tables */
+    .stDataFrame, [data-testid="stDataFrame"], .stDataFrame div, .stDataFrame table,
+    .stDataFrame th, .stDataFrame td, [data-testid="glideDataEditor"], .dvn-scroller {{
+        background-color: {c['card']} !important;
+        color: {c['text']} !important;
+    }}
+    .stDataFrame th {{ background-color: {c['bg2']} !important; }}
+    
+    /* Buttons */
+    .stButton > button {{
+        background-color: {c['card']} !important;
+        color: {c['text']} !important;
+        border-color: {c['border']} !important;
+        font-weight: bold;
+        border-radius: 8px;
+    }}
+    .stButton > button:hover {{ background-color: {c['bg2']} !important; }}
+    .stButton > button[kind="primary"] {{
+        background-color: #667eea !important;
+        color: white !important;
+        border-color: #667eea !important;
+    }}
+    
+    /* Radio */
+    .stRadio label {{ color: {c['text']} !important; }}
+    .stRadio [role="radiogroup"] label {{ background-color: {c['card']} !important; border-color: {c['border']} !important; }}
+    
+    /* Metrics */
+    [data-testid="stMetricValue"] {{ color: {c['text']} !important; }}
+    [data-testid="stMetricLabel"] {{ color: {c['muted']} !important; }}
+    
+    /* Layout */
+    [data-testid="stSidebar"] {{ display: none; }}
+    .stDeployButton {{ visibility: hidden; }}
+    .block-container {{ padding-top: 0.5rem; max-width: 1400px; margin: 0 auto; }}
+    hr {{ border-color: {c['border']} !important; }}
+    
+    /* Custom Components */
+    .app-header {{
+        display: flex; align-items: center; gap: 1rem;
+        padding: 0.75rem 0; border-bottom: 2px solid {c['border']}; margin-bottom: 1rem;
+    }}
+    .logo {{ width: 45px; height: 45px; background: linear-gradient(135deg, #667eea, #764ba2);
+             border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; }}
+    .app-title {{ font-size: 1.6rem; font-weight: 700;
+                  background: linear-gradient(90deg, #667eea, #764ba2);
+                  -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }}
+    .app-subtitle {{ font-size: 0.8rem; color: {c['muted']} !important; margin: 0; }}
+    
+    /* Asset List Item */
+    .asset-item {{
+        padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 4px;
+        cursor: pointer; transition: all 0.15s ease;
+        border: 1px solid transparent;
+    }}
+    .asset-item:hover {{ background-color: {c['bg2']}; }}
+    .asset-item.selected {{ background-color: {c['bg2']}; border-color: #667eea; }}
+    .asset-symbol {{ font-weight: 600; font-size: 0.95rem; }}
+    .asset-price {{ color: {c['muted']}; font-size: 0.85rem; }}
+    .asset-signal {{ font-size: 0.8rem; }}
+    
+    /* Detail Panel */
+    .detail-header {{ padding: 1rem; background: {c['card']}; border-radius: 8px; margin-bottom: 1rem; }}
+    .signal-badge {{
+        display: inline-block; padding: 0.4rem 0.8rem; border-radius: 6px;
+        font-weight: 600; font-size: 0.9rem;
+    }}
+    
+    /* Footer */
+    .footer {{ border-top: 1px solid {c['border']}; padding-top: 0.75rem; margin-top: 1.5rem; }}
+    .footer-item {{ display: inline-block; margin-right: 1.5rem; font-size: 0.8rem; color: {c['muted']}; }}
+</style>
+"""
+
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+def clean_name(name: str) -> str:
+    """Clean ticker names from Yahoo Finance."""
+    name = name.replace(" SE", "").replace(" AG", "").strip()
+    if name in TICKER_NAME_FIXES:
+        return TICKER_NAME_FIXES[name]
+    name = " ".join(name.split())
+    return name[:-2] if len(name) > 2 and name[-2] == " " else name
+
+
+def get_signal_color(signal: str) -> str:
+    """Get color for SOC signal."""
+    if "ACCUMULATE" in signal: return "#00FF00"
+    if "CRASH" in signal: return "#FF0000"
+    if "OVERHEATED" in signal: return "#FFA500"
+    return "#888888"
+
+
+def get_signal_bg(signal: str) -> str:
+    """Get background color for signal badge."""
+    if "ACCUMULATE" in signal: return "rgba(0, 255, 0, 0.15)"
+    if "CRASH" in signal: return "rgba(255, 0, 0, 0.15)"
+    if "OVERHEATED" in signal: return "rgba(255, 165, 0, 0.15)"
+    return "rgba(136, 136, 136, 0.15)"
+
+
+# =============================================================================
+# DATA FUNCTIONS
+# =============================================================================
 @st.cache_data(ttl=3600)
-def fetch_global_ticker_tape():
-    """Fetches simple price/change data for the header."""
+def fetch_footer_data() -> List[Dict[str, Any]]:
+    """Fetch footer market indicators."""
     results = []
     fetcher = DataFetcher(cache_enabled=True)
-    for name, symbol in GLOBAL_TICKERS.items():
+    for name, symbol in FOOTER_TICKERS.items():
         try:
             df = fetcher.fetch_data(symbol)
-            if not df.empty:
-                current = df["close"].iloc[-1]
-                prev = df["close"].iloc[-2] if len(df) > 1 else current
-                change = ((current - prev) / prev) * 100
-                results.append({
-                    "Name": name,
-                    "Price": current,
-                    "Change": change
-                })
+            if len(df) > 1:
+                curr, prev = df["close"].iloc[-1], df["close"].iloc[-2]
+                results.append({"name": name, "price": curr, "change": ((curr - prev) / prev) * 100})
         except Exception:
             pass
     return results
 
-@st.cache_data(ttl=86400)
-def fetch_asset_names(ticker_list):
-    """Fetches names for the preview table. Cached for 24h."""
-    data = []
-    for t in ticker_list:
-        try:
-            # Special handling for Indices to look cleaner
-            if t == "^GDAXI":
-                data.append({"Ticker": t, "Name": "DAX 40 Index"})
-                continue
-                
-            # Quick fetch name only
-            ticker = yf.Ticker(t)
-            # Use fast info if available, else standard info
-            name = ticker.info.get('shortName') or ticker.info.get('longName') or t
-            
-            # Clean up messy Yahoo Finance names
-            # Remove legal entities
-            name = name.replace(" SE", "").replace(" AG", "").strip()
-            
-            # Regex or specific replacement for weird trailing chars often found in German tickers on Yahoo
-            # Examples: "SIEMENS                    N" -> "Siemens"
-            # Strategy: If it looks like ALL CAPS followed by space and single letter, fix it.
-            # But simpler: Just title case it and strip common suffixes if we know them.
-            # Or manually map the worst offenders if regex is too risky.
-            
-            # Manual Fix map for known issues (Safest)
-            fix_map = {
-                "SIEMENS                    N": "Siemens",
-                "Allianz                    v": "Allianz",
-                "DEUTSCHE TELEKOM           N": "Deutsche Telekom",
-                "Airbus                     A": "Airbus",
-                "BAYERISCHE MOTOREN WERKE   S": "BMW",
-                "VOLKSWAGEN                 V": "Volkswagen",
-                "BASF                       N": "BASF",
-                "MUENCHENER RUECKVERS.-GES. N": "Munich Re",
-                "SAP                       ": "SAP"
-            }
-            
-            if name in fix_map:
-                name = fix_map[name]
-            else:
-                # Generic fallback cleanup: remove multiple spaces
-                name = " ".join(name.split())
-                # Remove trailing single chars preceded by space (common in German tickers for voting rights etc)
-                if len(name) > 2 and name[-2] == " ":
-                    name = name[:-2]
-            
-            data.append({"Ticker": t, "Name": name})
-        except:
-            data.append({"Ticker": t, "Name": "Unknown"})
-    return pd.DataFrame(data)
 
-def run_analysis_logic(tickers):
-    """Runs the full SOC analysis."""
+def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
+    """Run SOC analysis on tickers."""
     fetcher = DataFetcher(cache_enabled=True)
     results = []
+    progress = st.progress(0)
+    status = st.empty()
     
-    # Defaults for now (could be exposed in 'Advanced' later)
-    sma_w, vol_w, hyst = 200, 30, 0.0
-    
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    total = len(tickers)
     for i, symbol in enumerate(tickers):
-        status_text.caption(f"Processing {symbol}...")
+        status.caption(f"Analyzing {symbol}...")
         try:
             df = fetcher.fetch_data(symbol)
             info = fetcher.fetch_info(symbol)
-            
-            if not df.empty and len(df) > 200:
-                analyzer = SOCAnalyzer(
-                    df, symbol, asset_info=info,
-                    sma_window=sma_w, vol_window=vol_w, hysteresis=hyst
-                )
+            if not df.empty and len(df) > MIN_DATA_POINTS:
+                analyzer = SOCAnalyzer(df, symbol, info, DEFAULT_SMA_WINDOW, DEFAULT_VOL_WINDOW, DEFAULT_HYSTERESIS)
                 phase = analyzer.get_market_phase()
                 phase['info'] = info
+                phase['name'] = clean_name(info.get('name', symbol))
                 results.append(phase)
-        except Exception as e:
+        except Exception:
             pass
-        progress_bar.progress((i + 1) / total)
-        
-    status_text.empty()
-    progress_bar.empty()
+        progress.progress((i + 1) / len(tickers))
+    
+    status.empty()
+    progress.empty()
     return results
 
-# --- MAIN LAYOUT ---
 
-# 1. Global Market Header (The Ticker Tape)
-with st.container():
-    st.markdown("### 🌍 Current Market Health")
-    global_data = fetch_global_ticker_tape()
+# =============================================================================
+# UI COMPONENTS
+# =============================================================================
+def render_header():
+    """Render app header with theme toggle."""
+    is_dark = st.session_state.get('dark_mode', True)
+    col1, col2 = st.columns([8, 1])
     
-    cols = st.columns(6) # Try 6 cols for wide mode
-    
-    # If fetch failed or partial, handle gracefully
-    if not global_data:
-        st.warning("Unable to fetch global market data.")
-    else:
-        for idx, item in enumerate(global_data):
-            # Wrap if needed or just limit to available
-            if idx < 6:
-                with cols[idx]:
-                    st.markdown(f"""
-                    <div class="metric-card">
-                        <div style="font-size: 0.9rem; color: #888;">{item['Name']}</div>
-                        <div style="font-size: 1.2rem; font-weight: bold;">${item['Price']:,.2f}</div>
-                        <div style="color: {'#00FF00' if item['Change'] >= 0 else '#FF0000'};">
-                            {item['Change']:+.2f}%
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
-    st.divider()
-
-# 2. Education
-with st.expander("📖 How to read this dashboard"):
-    st.markdown("""
-    **SOC Traffic Light System:**
-    * 🟢 **ACCUMULATE:** Low Volatility + Uptrend. Safe growth.
-    * 🔴 **RISK:** High Volatility + Downtrend. Crash probability.
-    * 🟠 **OVERHEATED:** High Volatility + Uptrend. Correction risk.
-    * ⚪ **NEUTRAL:** Choppy / Range-bound market.
-    """)
-
-# 3. Workflow - Market Selection
-st.header("Market Selection")
-
-# Step A: Universe Selection
-universe_options = ["US Big Tech", "DAX Top 10", "Crypto Assets", "Precious Metals", "Custom Portfolio"]
-selected_universe = st.radio("Choose Asset Universe:", universe_options, horizontal=True)
-
-# Logic for Tick List
-active_tickers = []
-
-if selected_universe == "Custom Portfolio":
-    raw_input = st.text_area("Enter Tickers (comma or newline separated):", "NVDA, BTC-USD, GLD")
-    cleaned = raw_input.replace("\n", ",").replace(";", ",")
-    active_tickers = [t.strip().upper() for t in cleaned.split(",") if t.strip()]
-else:
-    active_tickers = MARKET_SETS[selected_universe]
-
-# Step B: Preview (Asset Names)
-if active_tickers:
-    with st.expander(f"Preview: {len(active_tickers)} Assets", expanded=False):
-        # Fetch names (cached)
-        df_preview = fetch_asset_names(active_tickers)
-        st.dataframe(df_preview, hide_index=True, width="stretch")
-
-# Step C: Action
-if st.button("RUN SOC ANALYSIS", type="primary", width="stretch"):
-    with st.spinner("Analyzing Market Criticality..."):
-        scan_results = run_analysis_logic(active_tickers)
-        st.session_state['scan_results'] = scan_results
-        st.session_state['run_timestamp'] = time.time()
-
-# 4. Results Area
-if 'scan_results' in st.session_state and st.session_state['scan_results']:
-    results = st.session_state['scan_results']
-    
-    st.divider()
-    st.header("Analysis Results")
-    
-    tab1, tab2, tab3, tab4 = st.tabs(["Table Overview", "Deep Dive Analysis", "Portfolio Simulation", "Model Theory"])
-    
-    # --- TAB 1: Table Overview ---
-    with tab1:
-        if not results:
-            st.warning("No valid data found for the selected assets.")
-        else:
-            df_res = pd.DataFrame(results)
-            
-            # Extract Company Name from 'info' column safely
-            def get_name(row):
-                info = row.get('info', {})
-                if isinstance(info, dict):
-                    # Try to clean it similar to the preview
-                    name = info.get('name', row['symbol'])
-                    # Apply basic cleanup
-                    name = name.replace(" SE", "").replace(" AG", "").strip()
-                    # Fix map check (simplified version of above)
-                    if "SIEMENS" in name and " N" in name: return "Siemens"
-                    if "SAP" in name: return "SAP"
-                    return name
-                return row['symbol']
-
-            df_res['company_name'] = df_res.apply(get_name, axis=1)
-            
-            # Styling
-            def highlight_signal(row):
-                val = row['signal']
-                color = ''
-                if "BUY" in val: color = 'background-color: rgba(0, 255, 0, 0.1)'
-                elif "CRASH" in val: color = 'background-color: rgba(255, 0, 0, 0.1)'
-                elif "OVERHEATED" in val: color = 'background-color: rgba(255, 165, 0, 0.1)'
-                return [color] * len(row)
-            
-            # Reset index to start at 1
-            df_res.index = df_res.index + 1
-
-            st.dataframe(
-                df_res[["symbol", "company_name", "price", "signal", "stress_score", "trend"]].style.apply(highlight_signal, axis=1),
-                width="stretch",
-                column_config={
-                    "symbol": "Ticker",
-                    "company_name": st.column_config.TextColumn("Company Name", width="medium"),
-                    "price": st.column_config.NumberColumn("Price", format="$%.2f"),
-                    "signal": st.column_config.TextColumn("SOC Signal"),
-                    "stress_score": st.column_config.ProgressColumn("Stress Level", min_value=0, max_value=2.0, format="%.2f"),
-                    "trend": "Trend Status"
-                },
-                height=500
-            )
-
-
-    # --- TAB 2: Deep Dive ---
-    with tab2:
-        if not results:
-            st.info("Run analysis first.")
-        else:
-            symbol_list = [r['symbol'] for r in results]
-            
-            # Check if we have a selection from Tab 1
-            default_ix = 0
-            if 'selected_asset_deep_dive' in st.session_state:
-                if st.session_state['selected_asset_deep_dive'] in symbol_list:
-                    default_ix = symbol_list.index(st.session_state['selected_asset_deep_dive'])
-            
-            # Use cols to keep dropdown small
-            c_sel, _ = st.columns([1, 3])
-            with c_sel:
-                selected_asset = st.selectbox("Select Asset to Inspect:", symbol_list, index=default_ix)
-            
-            # Fetch Deep Data
-            asset_res = next(r for r in results if r['symbol'] == selected_asset)
-            
-            # Fetch full DF for charts
-            fetcher = DataFetcher(cache_enabled=True)
-            df_asset = fetcher.fetch_data(selected_asset)
-            
-            if not df_asset.empty:
-                # Re-run analyzer for charts
-                analyzer = SOCAnalyzer(df_asset, selected_asset, asset_info=asset_res.get('info'))
-                figs = analyzer.get_plotly_figures()
-                
-                # --- Header with Traffic Light ---
-                h_c1, h_c2 = st.columns([2, 1])
-                with h_c1:
-                    st.subheader(f"{selected_asset} - Criticality & Trend")
-                with h_c2:
-                    # Traffic Light Logic
-                    sig = asset_res['signal']
-                    color = "#00FF00" if "BUY" in sig or "ACCUMULATE" in sig else \
-                            "#FF0000" if "CRASH" in sig else \
-                            "#FFA500" if "OVERHEATED" in sig else "#CCCCCC"
-                    
-                    st.markdown(f"""
-                    <div style="border: 2px solid {color}; padding: 10px; border-radius: 8px; text-align: center;">
-                        <span style="font-size: 1.1rem; font-weight: bold; color: {color};">
-                             {sig}
-                        </span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                # --- Timeline Slider ---
-                min_date = df_asset.index.min().date()
-                max_date = df_asset.index.max().date()
-                
-                date_range = st.slider(
-                    "Analysis Timeline",
-                    min_value=min_date,
-                    max_value=max_date,
-                    value=(min_date, max_date),
-                    format="YYYY-MM-DD"
-                )
-                
-                # Filter data for chart based on slider
-                filtered_df = df_asset.loc[str(date_range[0]):str(date_range[1])]
-                
-                # Re-generate ONLY the main chart with filtered data to be responsive
-                # Note: For full correctness we should re-run analyzer on filtered data 
-                # OR just zoom the chart. Re-running analyzer might change signals which is confusing.
-                # Easier: Just update chart x-axis range.
-                
-                figs['chart3'].update_layout(xaxis_range=[date_range[0], date_range[1]], title="")
-                
-                # Hero Element: Criticality Chart (Chart 3)
-                st.plotly_chart(figs['chart3'], width="stretch")
-                
-                # Context
-                with st.expander("Show Price History & Power Law Details"):
-                    c1, c2 = st.columns(2)
-                    with c1:
-                        st.plotly_chart(figs['chart1'], width="stretch")
-                    with c2:
-                        st.plotly_chart(figs['chart2'], width="stretch")
-            else:
-                st.error("Could not load chart data.")
-
-    # --- TAB 3: Portfolio Simulation ---
-    with tab3:
-        st.subheader("Portfolio Simulation")
-        st.info("🚧 Module under construction. Use the 'Deep Dive' to analyze individual assets first.")
-        
-        c_sim1, c_sim2 = st.columns(2)
-        with c_sim1:
-            st.slider("Years", 1, 30, 10)
-            st.number_input("Capital", value=10000)
-        with c_sim2:
-            st.slider("Risk Allocation", 0, 100, 70)
-        
-        st.button("Run Backtest (Simulated)", disabled=True)
-
-    # --- TAB 4: Model Theory ---
-    with tab4:
+    with col1:
         st.markdown("""
-        ### Self-Organized Criticality (SOC)
-        Markets are not efficient; they are complex adaptive systems.
+        <div class="app-header">
+            <div class="logo">⚡</div>
+            <div><h1 class="app-title">Market Seismograph</h1>
+            <p class="app-subtitle">Self-Organized Criticality Analysis</p></div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    with col2:
+        if st.button("🌙" if is_dark else "☀️", key="theme"):
+            st.session_state.dark_mode = not is_dark
+            st.rerun()
+
+
+def render_theory():
+    """Render theory expander."""
+    with st.expander("📖 How this theory works"):
+        st.markdown("""
+        **Self-Organized Criticality (SOC)** - Markets are complex adaptive systems, not efficient.
         
-        1.  **Volatility Clustering:** Large price changes tend to be followed by large changes (Mandelbrot).
-        2.  **Power Laws:** Market returns follow a Fat-Tailed distribution, not a Bell Curve. Standard models underestimate risk.
-        3.  **Phase Transitions:** We look for the "Edge of Chaos" — when a system becomes unstable (High Volatility) and prone to collapse (Downtrend).
+        | Signal | Condition | Meaning |
+        |--------|-----------|---------|
+        | 🟢 ACCUMULATE | Low Vol + Uptrend | Safe growth |
+        | 🔴 CRASH RISK | High Vol + Downtrend | Danger zone |
+        | 🟠 OVERHEATED | High Vol + Uptrend | Correction risk |
+        | ⚪ NEUTRAL | Mixed | Range-bound |
         """)
+
+
+def render_market_selection() -> List[str]:
+    """Render market selection and return tickers."""
+    universe = st.radio("Asset Universe:", list(MARKET_SETS.keys()) + ["Custom"], horizontal=True)
+    
+    if universe == "Custom":
+        raw = st.text_input("Tickers (comma-separated):", "NVDA, BTC-USD, GLD")
+        return [t.strip().upper() for t in raw.replace("\n", ",").split(",") if t.strip()]
+    return MARKET_SETS[universe]
+
+
+def render_asset_list(results: List[Dict[str, Any]], selected_idx: int) -> int:
+    """Render clickable asset list and return selected index."""
+    for i, r in enumerate(results):
+        is_selected = i == selected_idx
+        color = get_signal_color(r['signal'])
+        
+        col1, col2, col3 = st.columns([2, 2, 3])
+        with col1:
+            st.markdown(f"**{r['symbol']}**")
+        with col2:
+            st.markdown(f"${r['price']:,.2f}")
+        with col3:
+            st.markdown(f"<span style='color:{color}'>{r['signal']}</span>", unsafe_allow_html=True)
+        
+        if st.button("Select", key=f"select_{i}", use_container_width=True, 
+                     type="primary" if is_selected else "secondary"):
+            return i
+    
+    return selected_idx
+
+
+def render_detail_panel(result: Dict[str, Any]):
+    """Render detail panel for selected asset."""
+    is_dark = st.session_state.get('dark_mode', True)
+    symbol = result['symbol']
+    signal = result['signal']
+    color = get_signal_color(signal)
+    bg = get_signal_bg(signal)
+    
+    # Header with signal
+    st.markdown(f"""
+    <div class="detail-header">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin: 0;">{result.get('name', symbol)}</h3>
+                <span style="color: #888;">{symbol}</span>
+            </div>
+            <div class="signal-badge" style="background: {bg}; color: {color};">
+                {signal}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Metrics row
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Price", f"${result['price']:,.2f}")
+    col2.metric("Stress Score", f"{result['stress_score']:.2f}")
+    col3.metric("Trend", result['trend'])
+    
+    # Chart
+    fetcher = DataFetcher(cache_enabled=True)
+    df = fetcher.fetch_data(symbol)
+    
+    if not df.empty:
+        analyzer = SOCAnalyzer(df, symbol, result.get('info'))
+        figs = analyzer.get_plotly_figures(dark_mode=is_dark)
+        st.plotly_chart(figs['chart3'], use_container_width=True)
+
+
+def render_footer():
+    """Render footer with market pulse."""
+    data = fetch_footer_data()
+    if data:
+        st.markdown('<div class="footer">', unsafe_allow_html=True)
+        cols = st.columns(len(data))
+        for i, d in enumerate(data):
+            color = "#00FF00" if d['change'] >= 0 else "#FF0000"
+            cols[i].markdown(
+                f"<span class='footer-item'>{d['name']}: ${d['price']:,.0f} "
+                f"<span style='color:{color}'>{d['change']:+.1f}%</span></span>",
+                unsafe_allow_html=True
+            )
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+# =============================================================================
+# AUTHENTICATION
+# =============================================================================
+def check_auth():
+    if st.session_state.get("pwd") == ACCESS_CODE:
+        st.session_state.authenticated = True
+        del st.session_state.pwd
+    else:
+        st.error("Incorrect password")
+
+
+def login_page():
+    st.title("🔒 Login Required")
+    st.text_input("Access Code", type="password", key="pwd", on_change=check_auth)
+    st.stop()
+
+
+# =============================================================================
+# MAIN APPLICATION
+# =============================================================================
+def main():
+    # Session state initialization
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'dark_mode' not in st.session_state:
+        st.session_state.dark_mode = True
+    if 'selected_asset' not in st.session_state:
+        st.session_state.selected_asset = 0
+    
+    # Auth gate
+    if not st.session_state.authenticated:
+        login_page()
+        return
+    
+    # Apply theme
+    st.markdown(get_theme_css(st.session_state.dark_mode), unsafe_allow_html=True)
+    
+    # Header
+    render_header()
+    render_theory()
+    
+    # Market selection
+    st.markdown("### Market Selection")
+    tickers = render_market_selection()
+    
+    # Run button
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        if st.button("RUN SOC ANALYSIS", type="primary", use_container_width=True):
+            st.session_state.scan_results = run_analysis(tickers)
+            st.session_state.selected_asset = 0
+    with col2:
+        if st.button("Clear", use_container_width=True):
+            st.session_state.pop('scan_results', None)
+            st.rerun()
+    
+    # Results - Master-Detail Layout
+    if 'scan_results' in st.session_state and st.session_state.scan_results:
+        results = st.session_state.scan_results
+        
+        st.divider()
+        st.markdown("### Analysis Results")
+        
+        # Master-Detail Layout
+        col_list, col_detail = st.columns([1, 2])
+        
+        with col_list:
+            st.markdown("**Select an asset:**")
+            
+            # Asset list as selectable items
+            for i, r in enumerate(results):
+                is_selected = i == st.session_state.selected_asset
+                
+                # Create a button for each asset
+                btn_label = f"{r['symbol']} | ${r['price']:,.0f} | {r['signal'].split()[0]}"
+                if st.button(
+                    btn_label,
+                    key=f"asset_{i}",
+                    use_container_width=True,
+                    type="primary" if is_selected else "secondary"
+                ):
+                    st.session_state.selected_asset = i
+                    st.rerun()
+        
+        with col_detail:
+            if results:
+                selected = results[st.session_state.selected_asset]
+                render_detail_panel(selected)
+    
+    # Footer
+    render_footer()
+
+
+if __name__ == "__main__":
+    main()

@@ -213,11 +213,14 @@ class YFinanceProvider(DataProvider):
         start_date = datetime.now() - timedelta(days=lookback_days)
         try:
             df = yf.download(symbol, start=start_date, progress=False, auto_adjust=True)
-            if df.empty: return pd.DataFrame()
+            if df.empty:
+                return pd.DataFrame()
             
             if isinstance(df.columns, pd.MultiIndex):
-                try: df.columns = df.columns.get_level_values(0)
-                except: pass
+                try:
+                    df.columns = df.columns.get_level_values(0)
+                except Exception:
+                    pass
                 
             df.columns = [str(c).lower() for c in df.columns]
             df.index = pd.to_datetime(df.index)
@@ -245,7 +248,8 @@ class DataFetcher:
         if self.cache_enabled and cache_path.exists():
             try:
                 return pd.read_csv(cache_path, index_col=0, parse_dates=True)
-            except: pass
+            except Exception:
+                pass
 
         # Fetch
         if symbol.endswith("USDT") or symbol.endswith("BUSD"):
@@ -319,7 +323,7 @@ class SOCAnalyzer:
         
         if is_bullish:
             trend_label = "BULL"
-            if is_low_stress: signal = "🟢 BUY/ACCUMULATE"
+            if is_low_stress: signal = "🟢 ACCUMULATE"
             elif is_high_stress: signal = "🟠 OVERHEATED"
             else: signal = "⚪ UPTREND (Choppy)"
         elif is_bearish:
@@ -345,104 +349,47 @@ class SOCAnalyzer:
             "stress": "HIGH" if is_high_stress else ("LOW" if is_low_stress else "MED")
         }
 
-    def get_plotly_figures(self) -> Dict[str, go.Figure]:
-        """Returns 3 separate Plotly figures for Streamlit"""
+    def get_plotly_figures(self, dark_mode: bool = True) -> Dict[str, go.Figure]:
+        """
+        Returns Plotly figures for Streamlit display.
+        
+        Args:
+            dark_mode: If True, use dark theme. If False, use light theme.
+            
+        Returns:
+            Dictionary containing the criticality chart (chart3).
+        """
         figures = {}
         
-        # --- Chart 1: Volatility Clustering ---
-        fig1 = go.Figure()
-        
-        # Normalize returns for coloring
-        abs_returns = self.metrics_df["abs_returns"]
-        min_ret = abs_returns.min()
-        max_ret = abs_returns.max()
-        if max_ret > min_ret:
-            norm_returns = (abs_returns - min_ret) / (max_ret - min_ret)
+        # Theme settings - explicit colors for full control
+        if dark_mode:
+            template = "plotly_dark"
+            paper_bg = "#0E1117"
+            plot_bg = "#0E1117"
+            price_line_color = "white"
+            text_color = "#FAFAFA"
+            grid_color = "#333333"
+            sma_color = "#FFD700"
         else:
-            norm_returns = abs_returns
+            template = "plotly_white"
+            paper_bg = "#FFFFFF"
+            plot_bg = "#FFFFFF"
+            price_line_color = "#1f77b4"  # Blue for better visibility on white
+            text_color = "#212529"
+            grid_color = "#E5E5E5"
+            sma_color = "#DAA520"  # Darker gold for light mode
         
-        fig1.add_trace(go.Scatter(
-            x=self.metrics_df.index,
-            y=self.metrics_df["close"],
-            mode="markers+lines",
-            name="Price",
-            line=dict(width=1, color="rgba(255,255,255,0.3)"),
-            marker=dict(
-                size=4,
-                color=norm_returns,
-                colorscale="Turbo",
-                showscale=True,
-                colorbar=dict(title="Magnitude")
-            )
-        ))
-        fig1.update_layout(
-            title=f"1. Volatility Clustering ({self.symbol})",
-            template="plotly_dark",
-            xaxis_title="Date",
-            yaxis_title="Price (Log)",
-            yaxis_type="log",
-            height=500
-        )
-        figures["chart1"] = fig1
+        # Get asset name for caption
+        asset_name = self.asset_info.get('name', self.symbol) if self.asset_info else self.symbol
         
-        # --- Chart 2: Power Law ---
-        fig2 = go.Figure()
-        
-        # Calculate histograms
-        returns_clean = self.metrics_df["abs_returns"].dropna().values
-        returns_clean = returns_clean[returns_clean > 0]
-        
-        if len(returns_clean) > 0:
-            # Log bins
-            min_val = returns_clean.min()
-            max_val = returns_clean.max()
-            bins = np.logspace(np.log10(min_val), np.log10(max_val), 50)
-            
-            hist, _ = np.histogram(returns_clean, bins=bins)
-            bin_centers = (bins[:-1] + bins[1:]) / 2
-            
-            # Density
-            widths = bins[1:] - bins[:-1]
-            density = hist / (len(returns_clean) * widths)
-            
-            mask = density > 0
-            
-            # Theoretical Normal
-            mean_ret = self.metrics_df["returns"].mean()
-            std_ret = self.metrics_df["returns"].std()
-            # Approx PDF for positive half of normal distribution on log scale comparison
-            # (Note: This is a simplified visual comparison)
-            normal_pdf = (2 / (std_ret * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((bin_centers - mean_ret) / std_ret) ** 2)
-            
-            fig2.add_trace(go.Scatter(
-                x=bin_centers[mask], y=density[mask],
-                mode="markers", name="Actual Returns",
-                marker=dict(color="#00ccff")
-            ))
-            fig2.add_trace(go.Scatter(
-                x=bin_centers, y=normal_pdf,
-                mode="lines", name="Normal Dist",
-                line=dict(color="#00ff00", dash="dash")
-            ))
-            
-        fig2.update_layout(
-            title="2. Power Law Proof (Fat Tails)",
-            template="plotly_dark",
-            xaxis_title="Return Magnitude (Log)",
-            yaxis_title="Density (Log)",
-            xaxis_type="log",
-            yaxis_type="log",
-            height=500
-        )
-        figures["chart2"] = fig2
-        
-        # --- Chart 3: Criticality ---
+        # --- Chart 3: Criticality (Main SOC Chart) ---
         fig3 = make_subplots(specs=[[{"secondary_y": True}]])
         
-        # Map colors
-        color_map = {"low": "#00ff00", "medium": "#ffa500", "high": "#ff0000"}
-        colors = [color_map.get(z, "#ffa500") for z in self.metrics_df["vol_zone"]]
+        # Map colors for volatility zones
+        color_map = {"low": "#00cc00", "medium": "#ff9900", "high": "#ff0000"}
+        colors = [color_map.get(z, "#ff9900") for z in self.metrics_df["vol_zone"]]
         
+        # Volatility bars
         fig3.add_trace(go.Bar(
             x=self.metrics_df.index,
             y=self.metrics_df["volatility"],
@@ -451,33 +398,86 @@ class SOCAnalyzer:
             marker_line_width=0
         ), secondary_y=False)
         
+        # Price line
         fig3.add_trace(go.Scatter(
             x=self.metrics_df.index,
             y=self.metrics_df["close"],
             name="Price",
-            line=dict(color="white", width=1)
+            line=dict(color=price_line_color, width=1.5)
         ), secondary_y=True)
         
+        # SMA 200 line
         fig3.add_trace(go.Scatter(
             x=self.metrics_df.index,
             y=self.metrics_df["sma_200"],
             name="SMA 200",
-            line=dict(color="yellow", width=1)
+            line=dict(color=sma_color, width=1)
         ), secondary_y=True)
         
         # Threshold lines
         if self.calculator.vol_low_threshold:
-            fig3.add_hline(y=self.calculator.vol_low_threshold, line_dash="dot", line_color="green", secondary_y=False)
+            fig3.add_hline(
+                y=self.calculator.vol_low_threshold, 
+                line_dash="dot", 
+                line_color="green", 
+                secondary_y=False,
+                annotation_text="Low Vol",
+                annotation_position="right"
+            )
         if self.calculator.vol_high_threshold:
-            fig3.add_hline(y=self.calculator.vol_high_threshold, line_dash="dot", line_color="red", secondary_y=False)
-            
+            fig3.add_hline(
+                y=self.calculator.vol_high_threshold, 
+                line_dash="dot", 
+                line_color="red", 
+                secondary_y=False,
+                annotation_text="High Vol",
+                annotation_position="right"
+            )
+        
+        # Layout with explicit background colors and centered caption
         fig3.update_layout(
-            title="3. Criticality & Trend",
-            template="plotly_dark",
+            template=template,
+            paper_bgcolor=paper_bg,
+            plot_bgcolor=plot_bg,
             height=500,
             showlegend=True,
-            yaxis2=dict(title="Price (Log)", type="log")
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="right",
+                x=1,
+                font=dict(color=text_color)
+            ),
+            margin=dict(b=80)
         )
+        
+        # Update axes separately for better compatibility
+        fig3.update_yaxes(
+            title_text="Price (Log)",
+            type="log",
+            title_font=dict(color=text_color),
+            tickfont=dict(color=text_color),
+            gridcolor=grid_color,
+            secondary_y=True
+        )
+        fig3.update_yaxes(
+            title_text="Volatility",
+            title_font=dict(color=text_color),
+            tickfont=dict(color=text_color),
+            gridcolor=grid_color,
+            secondary_y=False
+        )
+        fig3.update_xaxes(
+            title_text=f"<b>{asset_name} - SOC Analysis</b>",
+            title_font=dict(size=14, color=text_color),
+            title_standoff=25,
+            tickformat="%Y",
+            tickfont=dict(color=text_color),
+            gridcolor=grid_color
+        )
+        
         figures["chart3"] = fig3
         
         return figures
+
