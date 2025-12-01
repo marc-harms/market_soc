@@ -25,7 +25,7 @@ from logic import DataFetcher, SOCAnalyzer
 # =============================================================================
 st.set_page_config(
     page_title="SOC Market Seismograph",
-    page_icon="⚡",
+    page_icon="assets/logo-soc.png",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -129,7 +129,7 @@ def get_theme_css(is_dark: bool) -> str:
     /* Layout */
     [data-testid="stSidebar"] {{ display: none; }}
     .stDeployButton {{ visibility: hidden; }}
-    .block-container {{ padding-top: 0.5rem; max-width: 1400px; margin: 0 auto; }}
+    .block-container {{ padding-top: 2rem; max-width: 1400px; margin: 0 auto; }}
     hr {{ border-color: {c['border']} !important; }}
     
     /* Custom Components */
@@ -247,23 +247,32 @@ def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
 # UI COMPONENTS
 # =============================================================================
 def render_header():
-    """Render app header with theme toggle."""
+    """Render app header with logo and theme toggle."""
     is_dark = st.session_state.get('dark_mode', True)
-    col1, col2 = st.columns([8, 1])
     
-    with col1:
+    col_logo, col_title, col_theme = st.columns([1, 6, 1])
+    
+    with col_logo:
+        # Logo image
+        try:
+            st.image("assets/logo-soc.png", width=80)
+        except Exception:
+            st.markdown('<div class="logo">⚡</div>', unsafe_allow_html=True)
+    
+    with col_title:
         st.markdown("""
-        <div class="app-header">
-            <div class="logo">⚡</div>
-            <div><h1 class="app-title">Market Seismograph</h1>
-            <p class="app-subtitle">Self-Organized Criticality Analysis</p></div>
+        <div style="padding-top: 10px;">
+            <h1 class="app-title">Market Seismograph</h1>
+            <p class="app-subtitle">Self-Organized Criticality Analysis</p>
         </div>
         """, unsafe_allow_html=True)
     
-    with col2:
+    with col_theme:
         if st.button("🌙" if is_dark else "☀️", key="theme"):
             st.session_state.dark_mode = not is_dark
             st.rerun()
+    
+    st.markdown('<hr style="margin: 0.5rem 0 1rem 0;">', unsafe_allow_html=True)
 
 
 def render_theory():
