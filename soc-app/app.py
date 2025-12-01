@@ -276,17 +276,68 @@ def render_header():
 
 
 def render_theory():
-    """Render theory expander."""
+    """Render theory expander with comprehensive SOC explanation."""
     with st.expander("📖 How this theory works"):
         st.markdown("""
-        **Self-Organized Criticality (SOC)** - Markets are complex adaptive systems, not efficient.
+        ## Self-Organized Criticality (SOC)
         
-        | Signal | Condition | Meaning |
-        |--------|-----------|---------|
-        | 🟢 ACCUMULATE | Low Vol + Uptrend | Safe growth |
-        | 🔴 CRASH RISK | High Vol + Downtrend | Danger zone |
-        | 🟠 OVERHEATED | High Vol + Uptrend | Correction risk |
-        | ⚪ NEUTRAL | Mixed | Range-bound |
+        ### Origins
+        
+        Self-Organized Criticality was introduced by physicists **Per Bak, Chao Tang, and Kurt Wiesenfeld** 
+        in 1987. They discovered that certain complex systems naturally evolve toward a "critical state" 
+        where small perturbations can trigger chain reactions of all sizes—from minor fluctuations to 
+        catastrophic avalanches.
+        
+        The famous **sandpile model** illustrates this: as you slowly add grains of sand to a pile, 
+        it eventually reaches a critical slope. At this point, adding just one more grain can cause 
+        anything from a tiny slide to a massive avalanche. The system organizes itself to this 
+        critical state without any external tuning.
+        
+        ### Transfer to Financial Markets
+        
+        In the 1990s, researchers recognized that financial markets exhibit strikingly similar behavior:
+        
+        - **Benoit Mandelbrot** demonstrated that market returns follow "fat-tailed" distributions—extreme 
+          events occur far more frequently than traditional models predict.
+        
+        - **Didier Sornette** applied SOC principles to predict market crashes, showing that bubbles 
+          exhibit characteristic patterns of accelerating oscillations before collapse.
+        
+        - Markets, like sandpiles, accumulate stress (through leverage, speculation, herding behavior) 
+          until they reach a critical state where a small trigger can cause disproportionate moves.
+        
+        ### Why It Works
+        
+        Traditional finance assumes markets are **efficient** and returns are **normally distributed**. 
+        Reality shows otherwise:
+        
+        1. **Volatility Clustering**: Large price changes tend to follow large changes, and small 
+           changes follow small changes (GARCH effects). This is the market "remembering" recent stress.
+        
+        2. **Power Laws**: The distribution of returns follows a power law, not a bell curve. This means 
+           "once in a century" events happen every few years.
+        
+        3. **Feedback Loops**: Markets are reflexive—prices affect fundamentals which affect prices. 
+           This creates self-reinforcing cycles that drive the system toward criticality.
+        
+        4. **Phase Transitions**: Markets shift between stable and unstable regimes. By monitoring 
+           volatility relative to trend, we can identify when the system approaches a critical state.
+        
+        ---
+        
+        ### Signal Legend
+        
+        | Signal | Condition | Interpretation |
+        |--------|-----------|----------------|
+        | 🟢 **ACCUMULATE** | Low Volatility + Uptrend | System stable, safe to build positions |
+        | 🔴 **CRASH RISK** | High Volatility + Downtrend | Critical state, high probability of cascading sell-off |
+        | 🟠 **OVERHEATED** | High Volatility + Uptrend | Approaching criticality, correction risk elevated |
+        | ⚪ **NEUTRAL** | Mixed conditions | Range-bound, wait for clearer signal |
+        
+        ---
+        
+        *References: Bak, Tang & Wiesenfeld (1987) "Self-organized criticality"; Mandelbrot (1963) 
+        "The variation of certain speculative prices"; Sornette (2003) "Why Stock Markets Crash"*
         """)
 
 
