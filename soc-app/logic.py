@@ -489,172 +489,196 @@ class SOCAnalyzer:
         Returns:
             Dictionary containing signal statistics and prose report.
         """
-        if self.metrics_df.empty or len(self.metrics_df) < 50:
-            return {"error": "Insufficient data for historical analysis"}
-        
-        df = self.metrics_df.copy()
-        
-        # Calculate signals for each day in history
-        vol_low = self.calculator.vol_low_threshold
-        vol_high = self.calculator.vol_high_threshold
-        
-        # Determine trend and stress for each row
-        df['is_bullish'] = df['close'] > df['sma_200']
-        df['is_bearish'] = df['close'] < df['sma_200']
-        df['is_high_vol'] = df['volatility'] > vol_high
-        df['is_low_vol'] = df['volatility'] <= vol_low
-        
-        # Assign signals
-        def assign_signal(row):
-            if row['is_bullish']:
-                if row['is_low_vol']:
-                    return 'ACCUMULATE'
-                elif row['is_high_vol']:
-                    return 'OVERHEATED'
-                else:
-                    return 'NEUTRAL'
-            elif row['is_bearish']:
-                if row['is_high_vol']:
-                    return 'CRASH_RISK'
-                elif row['is_low_vol']:
-                    return 'CAPITULATION'
-                else:
-                    return 'NEUTRAL'
-            return 'NEUTRAL'
-        
-        df['signal'] = df.apply(assign_signal, axis=1)
-        
-        # Calculate PRIOR returns - what happened BEFORE the signal (looking backward)
-        df['prior_5d'] = df['close'].pct_change(5)
-        df['prior_10d'] = df['close'].pct_change(10)
-        df['prior_20d'] = df['close'].pct_change(20)
-        df['prior_30d'] = df['close'].pct_change(30)
-        
-        # Calculate forward returns - SHORT TERM (from signal start)
-        df['return_1d'] = df['close'].pct_change(1).shift(-1)
-        df['return_3d'] = df['close'].pct_change(3).shift(-3)
-        df['return_5d'] = df['close'].pct_change(5).shift(-5)
-        df['return_10d'] = df['close'].pct_change(10).shift(-10)
-        
-        # Calculate forward returns - LONG TERM
-        df['return_30d'] = df['close'].pct_change(30).shift(-30)
-        df['return_60d'] = df['close'].pct_change(60).shift(-60)
-        df['return_90d'] = df['close'].pct_change(90).shift(-90)
-        
-        # Identify signal phases (consecutive periods of same signal)
-        df['signal_change'] = (df['signal'] != df['signal'].shift()).cumsum()
-        
-        # Mark first day of each phase (signal START)
-        df['is_phase_start'] = df['signal'] != df['signal'].shift()
-        
-        # Analyze each signal type
-        signal_stats = {}
-        for signal_type in ['ACCUMULATE', 'CRASH_RISK', 'OVERHEATED', 'CAPITULATION', 'NEUTRAL']:
-            signal_df = df[df['signal'] == signal_type]
+        try:
+            if self.metrics_df is None or self.metrics_df.empty or len(self.metrics_df) < 50:
+                return {"error": "Insufficient data for historical analysis"}
             
-            if len(signal_df) == 0:
+            df = self.metrics_df.copy()
+            
+            # Ensure required columns exist
+            required_cols = ['close', 'sma_200', 'volatility']
+            for col in required_cols:
+                if col not in df.columns:
+                    return {"error": f"Missing required column: {col}"}
+            
+            # Drop any remaining NaN values in critical columns
+            df = df.dropna(subset=['close', 'sma_200', 'volatility'])
+            
+            if len(df) < 50:
+                return {"error": "Insufficient data after cleaning"}
+            
+            # Calculate signals for each day in history
+            vol_low = self.calculator.vol_low_threshold
+            vol_high = self.calculator.vol_high_threshold
+            
+            # Handle None thresholds
+            if vol_low is None or vol_high is None:
+                return {"error": "Could not calculate volatility thresholds"}
+            
+            # Determine trend and stress for each row
+            df['is_bullish'] = df['close'] > df['sma_200']
+            df['is_bearish'] = df['close'] < df['sma_200']
+            df['is_high_vol'] = df['volatility'] > vol_high
+            df['is_low_vol'] = df['volatility'] <= vol_low
+            
+            # Assign signals
+            def assign_signal(row):
+                if row['is_bullish']:
+                    if row['is_low_vol']:
+                        return 'ACCUMULATE'
+                    elif row['is_high_vol']:
+                        return 'OVERHEATED'
+                    else:
+                        return 'NEUTRAL'
+                elif row['is_bearish']:
+                    if row['is_high_vol']:
+                        return 'CRASH_RISK'
+                    elif row['is_low_vol']:
+                        return 'CAPITULATION'
+                    else:
+                        return 'NEUTRAL'
+                return 'NEUTRAL'
+            
+            df['signal'] = df.apply(assign_signal, axis=1)
+            
+            # Calculate PRIOR returns - what happened BEFORE the signal (looking backward)
+            df['prior_5d'] = df['close'].pct_change(5)
+            df['prior_10d'] = df['close'].pct_change(10)
+            df['prior_20d'] = df['close'].pct_change(20)
+            df['prior_30d'] = df['close'].pct_change(30)
+            
+            # Calculate forward returns - SHORT TERM (from signal start)
+            df['return_1d'] = df['close'].pct_change(1).shift(-1)
+            df['return_3d'] = df['close'].pct_change(3).shift(-3)
+            df['return_5d'] = df['close'].pct_change(5).shift(-5)
+            df['return_10d'] = df['close'].pct_change(10).shift(-10)
+            
+            # Calculate forward returns - LONG TERM
+            df['return_30d'] = df['close'].pct_change(30).shift(-30)
+            df['return_60d'] = df['close'].pct_change(60).shift(-60)
+            df['return_90d'] = df['close'].pct_change(90).shift(-90)
+            
+            # Identify signal phases (consecutive periods of same signal)
+            df['signal_change'] = (df['signal'] != df['signal'].shift()).cumsum()
+            
+            # Mark first day of each phase (signal START)
+            df['is_phase_start'] = df['signal'] != df['signal'].shift()
+            
+            # Analyze each signal type
+            signal_stats = {}
+            for signal_type in ['ACCUMULATE', 'CRASH_RISK', 'OVERHEATED', 'CAPITULATION', 'NEUTRAL']:
+                signal_df = df[df['signal'] == signal_type]
+                
+                if len(signal_df) == 0:
+                    signal_stats[signal_type] = {
+                        'total_days': 0,
+                        'phase_count': 0,
+                        'avg_duration': 0,
+                        'max_duration': 0,
+                        'avg_price_change_during': 0,
+                        'pct_of_time': 0,
+                        # PRIOR returns
+                        'prior_5d': 0,
+                        'prior_10d': 0,
+                        'prior_20d': 0,
+                        'prior_30d': 0,
+                        # Short-term returns (from signal START only)
+                        'start_return_1d': 0,
+                        'start_return_3d': 0,
+                        'start_return_5d': 0,
+                        'start_return_10d': 0,
+                        # Long-term returns (any day in phase)
+                        'avg_return_30d': 0,
+                        'avg_return_60d': 0,
+                        'avg_return_90d': 0
+                    }
+                    continue
+                
+                # Get only the FIRST DAY of each phase for short-term analysis
+                phase_starts = signal_df[signal_df['is_phase_start']]
+                
+                # Count distinct phases
+                phases = signal_df.groupby('signal_change').agg({
+                    'close': ['first', 'last', 'count'],
+                    'return_30d': 'first',  # Return from phase start
+                    'return_60d': 'first',
+                    'return_90d': 'first'
+                })
+                phases.columns = ['price_start', 'price_end', 'duration', 'ret_30', 'ret_60', 'ret_90']
+                phases['price_change_pct'] = (phases['price_end'] - phases['price_start']) / phases['price_start'] * 100
+                
+                # Calculate PRIOR returns (what happened before signal fired) - from phase START only
+                prior_5d = phase_starts['prior_5d'].mean() * 100 if len(phase_starts) > 0 and not phase_starts['prior_5d'].isna().all() else 0
+                prior_10d = phase_starts['prior_10d'].mean() * 100 if len(phase_starts) > 0 and not phase_starts['prior_10d'].isna().all() else 0
+                prior_20d = phase_starts['prior_20d'].mean() * 100 if len(phase_starts) > 0 and not phase_starts['prior_20d'].isna().all() else 0
+                prior_30d = phase_starts['prior_30d'].mean() * 100 if len(phase_starts) > 0 and not phase_starts['prior_30d'].isna().all() else 0
+                
+                # Calculate short-term FORWARD returns from phase START only
+                start_1d = phase_starts['return_1d'].mean() * 100 if len(phase_starts) > 0 and not phase_starts['return_1d'].isna().all() else 0
+                start_3d = phase_starts['return_3d'].mean() * 100 if len(phase_starts) > 0 and not phase_starts['return_3d'].isna().all() else 0
+                start_5d = phase_starts['return_5d'].mean() * 100 if len(phase_starts) > 0 and not phase_starts['return_5d'].isna().all() else 0
+                start_10d = phase_starts['return_10d'].mean() * 100 if len(phase_starts) > 0 and not phase_starts['return_10d'].isna().all() else 0
+                
                 signal_stats[signal_type] = {
-                    'total_days': 0,
-                    'phase_count': 0,
-                    'avg_duration': 0,
-                    'max_duration': 0,
-                    'avg_price_change_during': 0,
-                    'pct_of_time': 0,
-                    # Short-term returns (from signal START only)
-                    'start_return_1d': 0,
-                    'start_return_3d': 0,
-                    'start_return_5d': 0,
-                    'start_return_10d': 0,
-                    # Long-term returns (any day in phase)
-                    'avg_return_30d': 0,
-                    'avg_return_60d': 0,
-                    'avg_return_90d': 0
+                    'total_days': len(signal_df),
+                    'phase_count': len(phases),
+                    'avg_duration': phases['duration'].mean() if len(phases) > 0 else 0,
+                    'max_duration': phases['duration'].max() if len(phases) > 0 else 0,
+                    'avg_price_change_during': phases['price_change_pct'].mean() if len(phases) > 0 else 0,
+                    'pct_of_time': len(signal_df) / len(df) * 100,
+                    # PRIOR returns (what led to this signal)
+                    'prior_5d': prior_5d,
+                    'prior_10d': prior_10d,
+                    'prior_20d': prior_20d,
+                    'prior_30d': prior_30d,
+                    # Short-term FORWARD returns (from signal START only)
+                    'start_return_1d': start_1d,
+                    'start_return_3d': start_3d,
+                    'start_return_5d': start_5d,
+                    'start_return_10d': start_10d,
+                    # Long-term FORWARD returns (from phase start)
+                    'avg_return_30d': phases['ret_30'].mean() * 100 if len(phases) > 0 and not phases['ret_30'].isna().all() else 0,
+                    'avg_return_60d': phases['ret_60'].mean() * 100 if len(phases) > 0 and not phases['ret_60'].isna().all() else 0,
+                    'avg_return_90d': phases['ret_90'].mean() * 100 if len(phases) > 0 and not phases['ret_90'].isna().all() else 0
                 }
-                continue
             
-            # Get only the FIRST DAY of each phase for short-term analysis
-            phase_starts = signal_df[signal_df['is_phase_start']]
+            # Current signal streak
+            current_signal = df['signal'].iloc[-1]
+            current_streak = 1
+            for i in range(len(df) - 2, -1, -1):
+                if df['signal'].iloc[i] == current_signal:
+                    current_streak += 1
+                else:
+                    break
             
-            # Count distinct phases
-            phases = signal_df.groupby('signal_change').agg({
-                'close': ['first', 'last', 'count'],
-                'return_30d': 'first',  # Return from phase start
-                'return_60d': 'first',
-                'return_90d': 'first'
-            })
-            phases.columns = ['price_start', 'price_end', 'duration', 'ret_30', 'ret_60', 'ret_90']
-            phases['price_change_pct'] = (phases['price_end'] - phases['price_start']) / phases['price_start'] * 100
+            # Data range info
+            years_of_data = (df.index[-1] - df.index[0]).days / 365.25
             
-            # Calculate PRIOR returns (what happened before signal fired) - from phase START only
-            prior_5d = phase_starts['prior_5d'].mean() * 100 if not phase_starts['prior_5d'].isna().all() else 0
-            prior_10d = phase_starts['prior_10d'].mean() * 100 if not phase_starts['prior_10d'].isna().all() else 0
-            prior_20d = phase_starts['prior_20d'].mean() * 100 if not phase_starts['prior_20d'].isna().all() else 0
-            prior_30d = phase_starts['prior_30d'].mean() * 100 if not phase_starts['prior_30d'].isna().all() else 0
+            # Generate prose report
+            report = self._generate_prose_report(
+                signal_stats, 
+                current_signal, 
+                current_streak, 
+                years_of_data,
+                df
+            )
+        
+            # Calculate crash warning score
+            crash_warning = self._calculate_crash_warning_score(df, signal_stats, current_signal, current_streak)
             
-            # Calculate short-term FORWARD returns from phase START only
-            start_1d = phase_starts['return_1d'].mean() * 100 if not phase_starts['return_1d'].isna().all() else 0
-            start_3d = phase_starts['return_3d'].mean() * 100 if not phase_starts['return_3d'].isna().all() else 0
-            start_5d = phase_starts['return_5d'].mean() * 100 if not phase_starts['return_5d'].isna().all() else 0
-            start_10d = phase_starts['return_10d'].mean() * 100 if not phase_starts['return_10d'].isna().all() else 0
-            
-            signal_stats[signal_type] = {
-                'total_days': len(signal_df),
-                'phase_count': len(phases),
-                'avg_duration': phases['duration'].mean(),
-                'max_duration': phases['duration'].max(),
-                'avg_price_change_during': phases['price_change_pct'].mean(),
-                'pct_of_time': len(signal_df) / len(df) * 100,
-                # PRIOR returns (what led to this signal)
-                'prior_5d': prior_5d,
-                'prior_10d': prior_10d,
-                'prior_20d': prior_20d,
-                'prior_30d': prior_30d,
-                # Short-term FORWARD returns (from signal START only)
-                'start_return_1d': start_1d,
-                'start_return_3d': start_3d,
-                'start_return_5d': start_5d,
-                'start_return_10d': start_10d,
-                # Long-term FORWARD returns (from phase start)
-                'avg_return_30d': phases['ret_30'].mean() * 100 if not phases['ret_30'].isna().all() else 0,
-                'avg_return_60d': phases['ret_60'].mean() * 100 if not phases['ret_60'].isna().all() else 0,
-                'avg_return_90d': phases['ret_90'].mean() * 100 if not phases['ret_90'].isna().all() else 0
+            return {
+                'signal_stats': signal_stats,
+                'current_signal': current_signal,
+                'current_streak_days': current_streak,
+                'years_of_data': years_of_data,
+                'total_trading_days': len(df),
+                'data_start': df.index[0].strftime('%Y-%m-%d'),
+                'data_end': df.index[-1].strftime('%Y-%m-%d'),
+                'prose_report': report,
+                'crash_warning': crash_warning
             }
-        
-        # Current signal streak
-        current_signal = df['signal'].iloc[-1]
-        current_streak = 1
-        for i in range(len(df) - 2, -1, -1):
-            if df['signal'].iloc[i] == current_signal:
-                current_streak += 1
-            else:
-                break
-        
-        # Data range info
-        years_of_data = (df.index[-1] - df.index[0]).days / 365.25
-        
-        # Generate prose report
-        report = self._generate_prose_report(
-            signal_stats, 
-            current_signal, 
-            current_streak, 
-            years_of_data,
-            df
-        )
-        
-        # Calculate crash warning score
-        crash_warning = self._calculate_crash_warning_score(df, signal_stats, current_signal, current_streak)
-        
-        return {
-            'signal_stats': signal_stats,
-            'current_signal': current_signal,
-            'current_streak_days': current_streak,
-            'years_of_data': years_of_data,
-            'total_trading_days': len(df),
-            'data_start': df.index[0].strftime('%Y-%m-%d'),
-            'data_end': df.index[-1].strftime('%Y-%m-%d'),
-            'prose_report': report,
-            'crash_warning': crash_warning
-        }
+        except Exception as e:
+            return {"error": f"Analysis error: {str(e)}"}
     
     def _calculate_crash_warning_score(self, df: pd.DataFrame, signal_stats: Dict, 
                                         current_signal: str, current_streak: int) -> Dict[str, Any]:
