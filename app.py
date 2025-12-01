@@ -255,7 +255,7 @@ def render_header():
     with col_logo:
         # Logo image
         try:
-            st.image("assets/logo-soc.png", width=80)
+            st.image("assets/logo-soc.png", width=160)
         except Exception:
             st.markdown('<div class="logo">⚡</div>', unsafe_allow_html=True)
     
