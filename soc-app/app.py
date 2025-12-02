@@ -384,7 +384,7 @@ def render_asset_list(results: List[Dict[str, Any]], selected_idx: int) -> int:
         with col3:
             st.markdown(f"<span style='color:{color}'>{r['signal']}</span>", unsafe_allow_html=True)
         
-        if st.button("Select", key=f"select_{i}", use_container_width=True, 
+        if st.button("Select", key=f"select_{i}", width="stretch", 
                      type="primary" if is_selected else "secondary"):
             return i
     
@@ -427,7 +427,7 @@ def render_detail_panel(result: Dict[str, Any]):
     if not df.empty:
         analyzer = SOCAnalyzer(df, symbol, result.get('info'))
         figs = analyzer.get_plotly_figures(dark_mode=is_dark)
-        st.plotly_chart(figs['chart3'], use_container_width=True)
+        st.plotly_chart(figs['chart3'], width="stretch")
         
         # Historical Signal Analysis Report
         with st.expander("📈 Historical Signal Analysis & Performance Report"):
@@ -684,11 +684,11 @@ def main():
     # Run button
     col1, col2 = st.columns([5, 1])
     with col1:
-        if st.button("RUN SOC ANALYSIS", type="primary", use_container_width=True):
+        if st.button("RUN SOC ANALYSIS", type="primary", width="stretch"):
             st.session_state.scan_results = run_analysis(tickers)
             st.session_state.selected_asset = 0
     with col2:
-        if st.button("Clear", use_container_width=True):
+        if st.button("Clear", width="stretch"):
             st.session_state.pop('scan_results', None)
             st.rerun()
     
@@ -714,7 +714,7 @@ def main():
                 if st.button(
                     btn_label,
                     key=f"asset_{i}",
-                    use_container_width=True,
+                    width="stretch",
                     type="primary" if is_selected else "secondary"
                 ):
                     st.session_state.selected_asset = i
