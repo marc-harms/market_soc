@@ -2,10 +2,10 @@
 SOC Market Seismograph - Streamlit Application
 ==============================================
 A market analysis dashboard based on Self-Organized Criticality (SOC) theory.
-Master-Detail layout for seamless asset analysis workflow.
+5-Tier Traffic Light System for market phase classification.
 
 Author: Market Analysis Team
-Version: 3.0 (Beta)
+Version: 4.0 (5-Tier System)
 """
 
 # =============================================================================
@@ -17,8 +17,10 @@ from typing import List, Dict, Any
 import streamlit as st
 import pandas as pd
 import yfinance as yf
+import plotly.express as px
+import plotly.graph_objects as go
 
-from logic import DataFetcher, SOCAnalyzer
+from logic import DataFetcher, SOCAnalyzer, run_dca_simulation
 
 # =============================================================================
 # PAGE CONFIGURATION
@@ -41,11 +43,14 @@ MIN_DATA_POINTS = 200
 
 FOOTER_TICKERS = {"Bitcoin": "BTC-USD", "S&P 500": "^GSPC", "Gold": "GC=F"}
 
+# Precious metals excluded from main risk scan - they act as hedges (inverse correlation)
+# and distort market risk scoring. Available separately in "Hedge Assets" category.
+PRECIOUS_METALS = {'GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV'}
+
 MARKET_SETS = {
     "US Big Tech": ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'AMD', 'NFLX'],
     "DAX Top 10": ['^GDAXI', 'SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'AIR.DE', 'BMW.DE', 'VOW3.DE', 'BAS.DE', 'MUV2.DE'],
-    "Crypto Assets": ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD'],
-    "Precious Metals": ['GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV']
+    "Crypto Assets": ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD']
 }
 
 TICKER_NAME_FIXES = {
@@ -75,7 +80,6 @@ def get_theme_css(is_dark: bool) -> str:
     
     return f"""
 <style>
-    /* Global Theme */
     .stApp, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {{
         background-color: {c['bg']} !important;
     }}
@@ -83,27 +87,19 @@ def get_theme_css(is_dark: bool) -> str:
     .stApp h1, .stApp h2, .stApp h3, .stMarkdown, .stMarkdown p {{
         color: {c['text']} !important;
     }}
-    
-    /* Inputs & Controls */
     .stTextInput input, .stTextArea textarea, [data-baseweb="select"], [data-baseweb="select"] > div {{
         background-color: {c['input']} !important;
         color: {c['text']} !important;
         border-color: {c['border']} !important;
     }}
-    
-    /* Expanders */
     .streamlit-expanderHeader {{ background-color: {c['card']} !important; }}
     .streamlit-expanderContent {{ background-color: {c['bg2']} !important; }}
-    
-    /* Tables */
     .stDataFrame, [data-testid="stDataFrame"], .stDataFrame div, .stDataFrame table,
     .stDataFrame th, .stDataFrame td, [data-testid="glideDataEditor"], .dvn-scroller {{
         background-color: {c['card']} !important;
         color: {c['text']} !important;
     }}
     .stDataFrame th {{ background-color: {c['bg2']} !important; }}
-    
-    /* Buttons */
     .stButton > button {{
         background-color: {c['card']} !important;
         color: {c['text']} !important;
@@ -117,22 +113,14 @@ def get_theme_css(is_dark: bool) -> str:
         color: white !important;
         border-color: #667eea !important;
     }}
-    
-    /* Radio */
     .stRadio label {{ color: {c['text']} !important; }}
     .stRadio [role="radiogroup"] label {{ background-color: {c['card']} !important; border-color: {c['border']} !important; }}
-    
-    /* Metrics */
     [data-testid="stMetricValue"] {{ color: {c['text']} !important; }}
     [data-testid="stMetricLabel"] {{ color: {c['muted']} !important; }}
-    
-    /* Layout */
     [data-testid="stSidebar"] {{ display: none; }}
     .stDeployButton {{ visibility: hidden; }}
     .block-container {{ padding-top: 2rem; max-width: 1400px; margin: 0 auto; }}
     hr {{ border-color: {c['border']} !important; }}
-    
-    /* Custom Components */
     .app-header {{
         display: flex; align-items: center; gap: 1rem;
         padding: 0.75rem 0; border-bottom: 2px solid {c['border']}; margin-bottom: 1rem;
@@ -143,8 +131,6 @@ def get_theme_css(is_dark: bool) -> str:
                   background: linear-gradient(90deg, #667eea, #764ba2);
                   -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }}
     .app-subtitle {{ font-size: 0.8rem; color: {c['muted']} !important; margin: 0; }}
-    
-    /* Asset List Item */
     .asset-item {{
         padding: 0.6rem 0.8rem; border-radius: 6px; margin-bottom: 4px;
         cursor: pointer; transition: all 0.15s ease;
@@ -155,15 +141,11 @@ def get_theme_css(is_dark: bool) -> str:
     .asset-symbol {{ font-weight: 600; font-size: 0.95rem; }}
     .asset-price {{ color: {c['muted']}; font-size: 0.85rem; }}
     .asset-signal {{ font-size: 0.8rem; }}
-    
-    /* Detail Panel */
     .detail-header {{ padding: 1rem; background: {c['card']}; border-radius: 8px; margin-bottom: 1rem; }}
     .signal-badge {{
         display: inline-block; padding: 0.4rem 0.8rem; border-radius: 6px;
         font-weight: 600; font-size: 0.9rem;
     }}
-    
-    /* Footer */
     .footer {{ border-top: 1px solid {c['border']}; padding-top: 0.75rem; margin-top: 1.5rem; }}
     .footer-item {{ display: inline-block; margin-right: 1.5rem; font-size: 0.8rem; color: {c['muted']}; }}
 </style>
@@ -182,18 +164,34 @@ def clean_name(name: str) -> str:
 
 
 def get_signal_color(signal: str) -> str:
-    """Get color for SOC signal."""
-    if "ACCUMULATE" in signal: return "#00FF00"
-    if "CRASH" in signal: return "#FF0000"
-    if "OVERHEATED" in signal: return "#FFA500"
+    """Get color for 5-tier regime system (compliance-safe naming)."""
+    signal_upper = signal.upper()
+    if "STABLE" in signal_upper:
+        return "#00FF00"
+    if "CRITICAL" in signal_upper:
+        return "#FF0000"
+    if "HIGH_ENERGY" in signal_upper or "HIGH ENERGY" in signal_upper:
+        return "#FF6600"
+    if "ACTIVE" in signal_upper:
+        return "#FFCC00"
+    if "DORMANT" in signal_upper:
+        return "#888888"
     return "#888888"
 
 
 def get_signal_bg(signal: str) -> str:
-    """Get background color for signal badge."""
-    if "ACCUMULATE" in signal: return "rgba(0, 255, 0, 0.15)"
-    if "CRASH" in signal: return "rgba(255, 0, 0, 0.15)"
-    if "OVERHEATED" in signal: return "rgba(255, 165, 0, 0.15)"
+    """Get background color for regime badge."""
+    signal_upper = signal.upper()
+    if "STABLE" in signal_upper:
+        return "rgba(0, 255, 0, 0.15)"
+    if "CRITICAL" in signal_upper:
+        return "rgba(255, 0, 0, 0.15)"
+    if "HIGH_ENERGY" in signal_upper or "HIGH ENERGY" in signal_upper:
+        return "rgba(255, 102, 0, 0.15)"
+    if "ACTIVE" in signal_upper:
+        return "rgba(255, 204, 0, 0.15)"
+    if "DORMANT" in signal_upper:
+        return "rgba(136, 136, 136, 0.2)"
     return "rgba(136, 136, 136, 0.15)"
 
 
@@ -237,7 +235,7 @@ def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
         except Exception:
             pass
         progress.progress((i + 1) / len(tickers))
-    
+        
     status.empty()
     progress.empty()
     return results
@@ -253,7 +251,6 @@ def render_header():
     col_logo, col_title, col_theme = st.columns([1, 6, 1])
     
     with col_logo:
-        # Logo image
         try:
             st.image("assets/logo-soc.png", width=160)
         except Exception:
@@ -264,8 +261,8 @@ def render_header():
         <div style="padding-top: 10px;">
             <h1 class="app-title">Market Seismograph</h1>
             <p class="app-subtitle">Self-Organized Criticality Analysis</p>
-        </div>
-        """, unsafe_allow_html=True)
+                    </div>
+                    """, unsafe_allow_html=True)
     
     with col_theme:
         if st.button("🌙" if is_dark else "☀️", key="theme"):
@@ -279,84 +276,98 @@ def render_theory():
     """Render theory expander with comprehensive SOC explanation."""
     with st.expander("📖 How this theory works"):
         st.markdown("""
-        ## Self-Organized Criticality (SOC)
-        
-        ### Origins
-        
-        Self-Organized Criticality was introduced by physicists **Per Bak, Chao Tang, and Kurt Wiesenfeld** 
-        in 1987. They discovered that certain complex systems naturally evolve toward a "critical state" 
-        where small perturbations can trigger chain reactions of all sizes—from minor fluctuations to 
-        catastrophic avalanches.
-        
-        The famous **sandpile model** illustrates this: as you slowly add grains of sand to a pile, 
-        it eventually reaches a critical slope. At this point, adding just one more grain can cause 
-        anything from a tiny slide to a massive avalanche. The system organizes itself to this 
-        critical state without any external tuning.
-        
-        ### Transfer to Financial Markets
-        
-        In the 1990s, researchers recognized that financial markets exhibit strikingly similar behavior:
-        
-        - **Benoit Mandelbrot** demonstrated that market returns follow "fat-tailed" distributions—extreme 
-          events occur far more frequently than traditional models predict.
-        
-        - **Didier Sornette** applied SOC principles to predict market crashes, showing that bubbles 
-          exhibit characteristic patterns of accelerating oscillations before collapse.
-        
-        - Markets, like sandpiles, accumulate stress (through leverage, speculation, herding behavior) 
-          until they reach a critical state where a small trigger can cause disproportionate moves.
-        
-        ### Why It Works
-        
-        Traditional finance assumes markets are **efficient** and returns are **normally distributed**. 
-        Reality shows otherwise:
-        
-        1. **Volatility Clustering**: Large price changes tend to follow large changes, and small 
-           changes follow small changes (GARCH effects). This is the market "remembering" recent stress.
-        
-        2. **Power Laws**: The distribution of returns follows a power law, not a bell curve. This means 
-           "once in a century" events happen every few years.
-        
-        3. **Feedback Loops**: Markets are reflexive—prices affect fundamentals which affect prices. 
-           This creates self-reinforcing cycles that drive the system toward criticality.
-        
-        4. **Phase Transitions**: Markets shift between stable and unstable regimes. By monitoring 
-           volatility relative to trend, we can identify when the system approaches a critical state.
-        
-        ---
-        
-        ### Signal Legend
-        
-        | Signal | Condition | Interpretation |
-        |--------|-----------|----------------|
-        | 🟢 **ACCUMULATE** | Low Volatility + Uptrend | System stable, safe to build positions |
-        | 🔴 **CRASH RISK** | High Volatility + Downtrend | Critical state, high probability of cascading sell-off |
-        | 🟠 **OVERHEATED** | High Volatility + Uptrend | Approaching criticality, correction risk elevated |
-        | 🟡 **CAPITULATION** | Low Volatility + Downtrend | Selling exhaustion, potential bottom forming |
-        | ⚪ **NEUTRAL** | Mixed conditions | Range-bound, wait for clearer signal |
-        
-        ---
-        
-        ### Understanding Capitulation
-        
-        The **🟡 CAPITULATION** signal deserves special attention. It occurs when:
-        - Price is **below** the 200-day moving average (downtrend)
-        - Volatility has **dropped** to low levels
-        
-        This combination often marks the **final phase of a bear market**. After panic selling (high volatility), 
-        the market enters a quiet period where:
-        - Weak hands have already sold
-        - Remaining holders refuse to sell at lower prices
-        - Volume and volatility dry up
-        
-        Historically, capitulation phases can be **excellent long-term entry points**, but timing is difficult. 
-        The signal suggests the worst may be over, but confirmation (transition to ACCUMULATE) is recommended 
-        before aggressive positioning.
-        
-        ---
-        
-        *References: Bak, Tang & Wiesenfeld (1987) "Self-organized criticality"; Mandelbrot (1963) 
-        "The variation of certain speculative prices"; Sornette (2003) "Why Stock Markets Crash"*
+## Self-Organized Criticality (SOC)
+
+### Origins
+
+Self-Organized Criticality was introduced by physicists **Per Bak, Chao Tang, and Kurt Wiesenfeld** 
+in 1987. They discovered that certain complex systems naturally evolve toward a "critical state" 
+where small perturbations can trigger chain reactions of all sizes—from minor fluctuations to 
+catastrophic avalanches.
+
+The famous **sandpile model** illustrates this: as you slowly add grains of sand to a pile, 
+it eventually reaches a critical slope. At this point, adding just one more grain can cause 
+anything from a tiny slide to a massive avalanche. The system organizes itself to this 
+critical state without any external tuning.
+
+### Transfer to Financial Markets
+
+In the 1990s, researchers recognized that financial markets exhibit strikingly similar behavior:
+
+- **Benoit Mandelbrot** demonstrated that market returns follow "fat-tailed" distributions—extreme 
+  events occur far more frequently than traditional models predict.
+
+- **Didier Sornette** applied SOC principles to predict market crashes, showing that bubbles 
+  exhibit characteristic patterns of accelerating oscillations before collapse.
+
+- Markets, like sandpiles, accumulate stress (through leverage, speculation, herding behavior) 
+  until they reach a critical state where a small trigger can cause disproportionate moves.
+
+### Why It Works
+
+Traditional finance assumes markets are **efficient** and returns are **normally distributed**. 
+Reality shows otherwise:
+
+1. **Volatility Clustering**: Large price changes tend to follow large changes, and small 
+   changes follow small changes (GARCH effects). This is the market "remembering" recent stress.
+
+2. **Power Laws**: The distribution of returns follows a power law, not a bell curve. This means 
+   "once in a century" events happen every few years.
+
+3. **Feedback Loops**: Markets are reflexive—prices affect fundamentals which affect prices. 
+   This creates self-reinforcing cycles that drive the system toward criticality.
+
+4. **Phase Transitions**: Markets shift between stable and unstable regimes. By monitoring 
+   volatility relative to trend, we can identify when the system approaches a critical state.
+
+---
+
+### 5-Tier Regime Classification (Energy States)
+
+Markets exhibit characteristics similar to physical systems. Each regime represents a 
+distinct **energy state** — not investment advice, but observable market conditions:
+
+| Regime | Color | Physical State | Statistical Characteristics |
+|--------|-------|----------------|----------------------------|
+| ⚪ **DORMANT** | Grey | Low Energy, Below Equilibrium | Price < SMA200, Low volatility (reduced activity) |
+| 🟢 **STABLE** | Green | Low Energy, Above Equilibrium | Price > SMA200, Low/normal volatility (ordered state) |
+| 🟡 **ACTIVE** | Yellow | Medium Energy | Price > SMA200, Medium volatility (increased activity) |
+| 🟠 **HIGH ENERGY** | Orange | High Energy | Price > SMA200, High volatility >80th percentile (excited state) |
+| 🔴 **CRITICAL** | Red | Critical Energy | High stress with downtrend OR Extreme vol >99th percentile |
+
+---
+
+### Systemic Stress Level (0-100)
+
+The **Systemic Stress Level** is a statistical measure of how far the market deviates 
+from its baseline equilibrium. This is purely a measurement, not a prediction.
+
+**Components:**
+- **Volatility Percentile** (0-100): Current 30-day volatility vs. 2-year historical range
+- **Trend Deviation**: +10 if price significantly below SMA200
+- **Extension Deviation**: +10 if price >30% above SMA200 (statistically rare)
+
+**Statistical Interpretation:**
+- **0-25 (Baseline)**: Metrics near historical averages
+- **26-50 (Moderate)**: Some elevated metrics
+- **51-75 (Heightened)**: Above-average energy state
+- **76-100 (Elevated)**: Statistical similarities to previous high-volatility periods
+
+---
+
+### Understanding DORMANT Regime
+
+The **⚪ DORMANT** regime represents a low-energy market state:
+- Price is **below** the 200-day moving average 
+- Volatility is **low** (reduced market activity)
+
+This state often indicates reduced participation and can persist for extended periods. 
+It represents a statistical observation of market conditions, not a trading signal.
+
+---
+
+*References: Bak, Tang & Wiesenfeld (1987) "Self-organized criticality"; Mandelbrot (1963) 
+"The variation of certain speculative prices"; Sornette (2003) "Why Stock Markets Crash"*
         """)
 
 
@@ -368,27 +379,6 @@ def render_market_selection() -> List[str]:
         raw = st.text_input("Tickers (comma-separated):", "NVDA, BTC-USD, GLD")
         return [t.strip().upper() for t in raw.replace("\n", ",").split(",") if t.strip()]
     return MARKET_SETS[universe]
-
-
-def render_asset_list(results: List[Dict[str, Any]], selected_idx: int) -> int:
-    """Render clickable asset list and return selected index."""
-    for i, r in enumerate(results):
-        is_selected = i == selected_idx
-        color = get_signal_color(r['signal'])
-        
-        col1, col2, col3 = st.columns([2, 2, 3])
-        with col1:
-            st.markdown(f"**{r['symbol']}**")
-        with col2:
-            st.markdown(f"${r['price']:,.2f}")
-        with col3:
-            st.markdown(f"<span style='color:{color}'>{r['signal']}</span>", unsafe_allow_html=True)
-        
-        if st.button("Select", key=f"select_{i}", width="stretch", 
-                     type="primary" if is_selected else "secondary"):
-            return i
-    
-    return selected_idx
 
 
 def render_detail_panel(result: Dict[str, Any]):
@@ -414,11 +404,12 @@ def render_detail_panel(result: Dict[str, Any]):
     </div>
     """, unsafe_allow_html=True)
     
-    # Metrics row
-    col1, col2, col3 = st.columns(3)
+    # Metrics row - including new Criticality Score
+    col1, col2, col3, col4 = st.columns(4)
     col1.metric("Price", f"${result['price']:,.2f}")
-    col2.metric("Stress Score", f"{result['stress_score']:.2f}")
-    col3.metric("Trend", result['trend'])
+    col2.metric("Criticality", f"{result.get('criticality_score', 0)}/100")
+    col3.metric("Vol %ile", f"{result.get('vol_percentile', 50):.0f}th")
+    col4.metric("Trend", result['trend'])
     
     # Chart
     fetcher = DataFetcher(cache_enabled=True)
@@ -437,22 +428,21 @@ def render_detail_panel(result: Dict[str, Any]):
             if 'error' in analysis:
                 st.warning(analysis['error'])
             else:
-                # === CRASH WARNING SCORE (Premium Feature) ===
-                crash_warning = analysis.get('crash_warning', {})
-                if crash_warning:
-                    score = crash_warning.get('score', 0)
-                    level = crash_warning.get('level', 'LOW')
-                    level_color = crash_warning.get('level_color', '#00CC00')
-                    level_emoji = crash_warning.get('level_emoji', '✅')
-                    interpretation = crash_warning.get('interpretation', '')
-                    risk_factors = crash_warning.get('risk_factors', [])
-                    asset_name = crash_warning.get('asset_name', symbol)
+                # === SYSTEMIC STRESS LEVEL (Compliance-safe) ===
+                stress_data = analysis.get('crash_warning', {})
+                if stress_data:
+                    score = stress_data.get('score', 0)
+                    level = stress_data.get('level', 'BASELINE')
+                    level_color = stress_data.get('level_color', '#00CC00')
+                    level_emoji = stress_data.get('level_emoji', '📊')
+                    interpretation = stress_data.get('interpretation', '')
+                    statistical_factors = stress_data.get('risk_factors', [])
                     
                     # Determine background color based on level
-                    if level == "CRITICAL":
+                    if level == "ELEVATED":
                         bg_color = "rgba(255, 0, 0, 0.15)"
                         border_color = "#FF0000"
-                    elif level == "ELEVATED":
+                    elif level == "HEIGHTENED":
                         bg_color = "rgba(255, 102, 0, 0.15)"
                         border_color = "#FF6600"
                     elif level == "MODERATE":
@@ -462,14 +452,14 @@ def render_detail_panel(result: Dict[str, Any]):
                         bg_color = "rgba(0, 204, 0, 0.1)"
                         border_color = "#00CC00"
                     
-                    # Build risk factors HTML
-                    risk_html = ""
-                    if risk_factors:
-                        risk_html = "<div style='margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2);'>"
-                        risk_html += "<strong>Risk Factors:</strong><ul style='margin: 8px 0 0 0; padding-left: 20px;'>"
-                        for factor in risk_factors:
-                            risk_html += f"<li style='margin: 4px 0;'>{factor}</li>"
-                        risk_html += "</ul></div>"
+                    # Build statistical factors HTML
+                    factors_html = ""
+                    if statistical_factors:
+                        factors_html = "<div style='margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2);'>"
+                        factors_html += "<strong>Statistical Indicators:</strong><ul style='margin: 8px 0 0 0; padding-left: 20px;'>"
+                        for factor in statistical_factors:
+                            factors_html += f"<li style='margin: 4px 0;'>{factor}</li>"
+                        factors_html += "</ul></div>"
                     
                     st.markdown(f"""
                     <div style="
@@ -482,7 +472,7 @@ def render_detail_panel(result: Dict[str, Any]):
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                             <div>
                                 <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 4px;">
-                                    🎯 Crash Warning Score
+                                    📊 Systemic Stress Level
                                 </div>
                                 <div style="font-size: 42px; font-weight: bold; color: {level_color};">
                                     {score}<span style="font-size: 20px; opacity: 0.7;">/100</span>
@@ -491,7 +481,7 @@ def render_detail_panel(result: Dict[str, Any]):
                             <div style="text-align: right;">
                                 <div style="
                                     background: {level_color};
-                                    color: {'#000' if level in ['LOW', 'MODERATE'] else '#FFF'};
+                                    color: {'#000' if level in ['BASELINE', 'MODERATE'] else '#FFF'};
                                     padding: 8px 16px;
                                     border-radius: 20px;
                                     font-weight: bold;
@@ -504,9 +494,9 @@ def render_detail_panel(result: Dict[str, Any]):
                         <div style="margin-top: 12px; font-size: 14px; opacity: 0.9;">
                             {interpretation}
                         </div>
-                        {risk_html}
-                        <div style="margin-top: 12px; font-size: 11px; opacity: 0.6; text-align: right;">
-                            ⭐ Premium Feature
+                        {factors_html}
+                        <div style="margin-top: 12px; font-size: 10px; opacity: 0.6; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+                            ⚠️ Purely statistical analysis. Past performance is not indicative of future results.
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
@@ -514,110 +504,81 @@ def render_detail_panel(result: Dict[str, Any]):
                 # Display the prose report
                 st.markdown(analysis['prose_report'])
                 
-                # Additional statistics in columns
+                # Additional statistics in columns - Regime Distribution
                 st.markdown("---")
-                st.markdown("#### 📊 Signal Distribution Summary")
+                st.markdown("#### 📊 Historical Regime Distribution")
                 
                 stats = analysis['signal_stats']
-                col1, col2, col3, col4 = st.columns(4)
+                col1, col2, col3, col4, col5 = st.columns(5)
                 
                 with col1:
-                    accum = stats.get('ACCUMULATE', {})
-                    st.metric(
-                        "🟢 Accumulate", 
-                        f"{accum.get('phase_count', 0)} phases",
-                        f"{accum.get('pct_of_time', 0):.1f}% of time"
-                    )
+                    stable = stats.get('STABLE', {})
+                    st.metric("🟢 STABLE", f"{stable.get('phase_count', 0)} periods", f"{stable.get('pct_of_time', 0):.1f}%")
                 
                 with col2:
-                    crash = stats.get('CRASH_RISK', {})
-                    st.metric(
-                        "🔴 Crash Risk",
-                        f"{crash.get('phase_count', 0)} phases",
-                        f"{crash.get('pct_of_time', 0):.1f}% of time"
-                    )
+                    active = stats.get('ACTIVE', {})
+                    st.metric("🟡 ACTIVE", f"{active.get('phase_count', 0)} periods", f"{active.get('pct_of_time', 0):.1f}%")
                 
                 with col3:
-                    overheat = stats.get('OVERHEATED', {})
-                    st.metric(
-                        "🟠 Overheated",
-                        f"{overheat.get('phase_count', 0)} phases",
-                        f"{overheat.get('pct_of_time', 0):.1f}% of time"
-                    )
+                    high_energy = stats.get('HIGH_ENERGY', {})
+                    st.metric("🟠 HIGH ENERGY", f"{high_energy.get('phase_count', 0)} periods", f"{high_energy.get('pct_of_time', 0):.1f}%")
                 
                 with col4:
-                    neutral = stats.get('NEUTRAL', {})
-                    st.metric(
-                        "⚪ Neutral",
-                        f"{neutral.get('phase_count', 0)} phases",
-                        f"{neutral.get('pct_of_time', 0):.1f}% of time"
-                    )
+                    critical = stats.get('CRITICAL', {})
+                    st.metric("🔴 CRITICAL", f"{critical.get('phase_count', 0)} periods", f"{critical.get('pct_of_time', 0):.1f}%")
                 
-                # Performance tables - Prior, Short-term, and Long-term
+                with col5:
+                    dormant = stats.get('DORMANT', {})
+                    st.metric("⚪ DORMANT", f"{dormant.get('phase_count', 0)} periods", f"{dormant.get('pct_of_time', 0):.1f}%")
                 
-                # Prior returns - what happened BEFORE the signal
-                st.markdown("#### 📉 What Happened BEFORE Signal (Prior Returns)")
-                st.caption("Shows market movement that triggered each signal")
+                # Performance tables - Regime Statistics
+                st.markdown("#### 📊 Historical Returns by Regime")
+                st.caption("Statistical analysis of price movements following each regime classification")
                 
-                signal_order = ['ACCUMULATE', 'CRASH_RISK', 'OVERHEATED', 'CAPITULATION', 'NEUTRAL']
-                prior_rows = []
+                signal_order = ['STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL', 'DORMANT']
+                signal_names = {
+                    'STABLE': 'Stable', 'ACTIVE': 'Active', 
+                    'HIGH_ENERGY': 'High Energy', 'CRITICAL': 'Critical', 'DORMANT': 'Dormant'
+                }
+                signal_emojis = {'STABLE': '🟢', 'ACTIVE': '🟡', 'HIGH_ENERGY': '🟠', 'CRITICAL': '🔴', 'DORMANT': '⚪'}
                 
+                forward_rows = []
                 for sig in signal_order:
                     data = stats.get(sig, {})
                     phase_count = data.get('phase_count', 0)
                     if phase_count > 0:
-                        emoji = '🟢' if sig == 'ACCUMULATE' else '🔴' if sig == 'CRASH_RISK' else '🟠' if sig == 'OVERHEATED' else '🟡' if sig == 'CAPITULATION' else '⚪'
+                        emoji = signal_emojis[sig]
+                        forward_rows.append({
+                            'Regime': f"{emoji} {signal_names[sig]}",
+                            'Periods': str(phase_count),
+                            '10d': f"{data.get('start_return_10d', 0):+.1f}%",
+                            '30d': f"{data.get('avg_return_30d', 0):+.1f}%",
+                            '90d': f"{data.get('avg_return_90d', 0):+.1f}%",
+                            'Max Var (10d)': f"{data.get('worst_max_dd_10d', 0):.1f}%"
+                        })
+                
+                if forward_rows:
+                    st.table(pd.DataFrame(forward_rows))
+                
+                # Prior conditions
+                st.markdown("#### 📊 Pre-Regime Market Conditions")
+                st.caption("Historical price movements BEFORE each regime was classified")
+                
+                prior_rows = []
+                for sig in signal_order:
+                    data = stats.get(sig, {})
+                    phase_count = data.get('phase_count', 0)
+                    if phase_count > 0:
+                        emoji = signal_emojis[sig]
                         prior_rows.append({
-                            'Signal': f"{emoji} {sig}",
-                            'Phases': str(phase_count),
+                            'Regime': f"{emoji} {signal_names[sig]}",
                             'Prior 5d': f"{data.get('prior_5d', 0):+.1f}%",
                             'Prior 10d': f"{data.get('prior_10d', 0):+.1f}%",
-                            'Prior 20d': f"{data.get('prior_20d', 0):+.1f}%",
                             'Prior 30d': f"{data.get('prior_30d', 0):+.1f}%"
                         })
                 
                 if prior_rows:
                     st.table(pd.DataFrame(prior_rows))
-                
-                # Forward returns - short-term
-                st.markdown("#### ⚡ What Happens AFTER Signal (1-10 Days Forward)")
-                
-                short_term_rows = []
-                for sig in signal_order:
-                    data = stats.get(sig, {})
-                    phase_count = data.get('phase_count', 0)
-                    if phase_count > 0:
-                        emoji = '🟢' if sig == 'ACCUMULATE' else '🔴' if sig == 'CRASH_RISK' else '🟠' if sig == 'OVERHEATED' else '🟡' if sig == 'CAPITULATION' else '⚪'
-                        short_term_rows.append({
-                            'Signal': f"{emoji} {sig}",
-                            '1d': f"{data.get('start_return_1d', 0):+.2f}%",
-                            '3d': f"{data.get('start_return_3d', 0):+.2f}%",
-                            '5d': f"{data.get('start_return_5d', 0):+.2f}%",
-                            '10d': f"{data.get('start_return_10d', 0):+.2f}%"
-                        })
-                
-                if short_term_rows:
-                    st.table(pd.DataFrame(short_term_rows))
-                
-                # Forward returns - long-term
-                st.markdown("#### 📅 Long-term Trajectory (30-90 Days Forward)")
-                
-                long_term_rows = []
-                for sig in signal_order:
-                    data = stats.get(sig, {})
-                    phase_count = data.get('phase_count', 0)
-                    if phase_count > 0:
-                        emoji = '🟢' if sig == 'ACCUMULATE' else '🔴' if sig == 'CRASH_RISK' else '🟠' if sig == 'OVERHEATED' else '🟡' if sig == 'CAPITULATION' else '⚪'
-                        long_term_rows.append({
-                            'Signal': f"{emoji} {sig}",
-                            'Avg Duration': f"{data.get('avg_duration', 0):.0f}d",
-                            '30d': f"{data.get('avg_return_30d', 0):+.1f}%",
-                            '60d': f"{data.get('avg_return_60d', 0):+.1f}%",
-                            '90d': f"{data.get('avg_return_90d', 0):+.1f}%"
-                        })
-                
-                if long_term_rows:
-                    st.table(pd.DataFrame(long_term_rows))
 
 
 def render_footer():
@@ -634,6 +595,372 @@ def render_footer():
                 unsafe_allow_html=True
             )
         st.markdown('</div>', unsafe_allow_html=True)
+
+
+# =============================================================================
+# INVESTMENT SIMULATION UI
+# =============================================================================
+def render_dca_simulation(tickers: List[str]):
+    """Render Lump Sum Investment Simulation tab."""
+    is_dark = st.session_state.get('dark_mode', True)
+    
+    st.markdown("### 📊 Portfolio Simulation (Lump Sum)")
+    st.caption("Compare Buy & Hold vs. SOC Dynamic Position Sizing")
+    
+    # Basic parameters
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        sim_ticker = st.selectbox(
+            "Select Asset:",
+            options=tickers if tickers else ['BTC-USD', 'AAPL', 'MSFT'],
+            index=0
+        )
+    
+    with col2:
+        initial_capital = st.number_input(
+            "Initial Capital (€):",
+            min_value=1000,
+            max_value=1000000,
+            value=10000,
+            step=1000
+        )
+    
+    with col3:
+        years_back = st.selectbox(
+            "Simulation Period:",
+            options=[3, 5, 7, 10, 15],
+            index=2,
+            format_func=lambda x: f"{x} Years"
+        )
+    
+    # Strategy Mode Selection
+    st.markdown("#### 🎯 SOC Strategy Mode")
+    strategy_mode = st.radio(
+        "Choose SOC risk profile:",
+        options=["defensive", "aggressive"],
+        index=0,
+        format_func=lambda x: "🛡️ Defensive (Max Safety)" if x == "defensive" else "🚀 Aggressive (Max Return)",
+        horizontal=True
+    )
+    
+    # Strategy explanation
+    if strategy_mode == "defensive":
+        st.info("""
+        **🛡️ DEFENSIVE** - Max safety, reduce exposure early
+        - Bear Market: 0% | Critical: 0% | High Energy: 50% | Stable: 100%
+        """)
+    else:
+        st.warning("""
+        **🚀 AGGRESSIVE** - Max return, ride momentum longer
+        - Bear Market: 0% | Critical: 50% | High Energy: 100% | Stable: 100%
+        """)
+    
+    # Reality Settings (Fees & Interest)
+    with st.expander("⚙️ Reality Settings (Fees & Interest)"):
+        col_fee, col_interest = st.columns(2)
+        
+        with col_fee:
+            trading_fee_pct = st.slider(
+                "Trading Fee & Slippage (%):",
+                min_value=0.0, max_value=2.0, value=0.5, step=0.1,
+                format="%.1f%%"
+            )
+        
+        with col_interest:
+            interest_rate_annual = st.slider(
+                "Interest on Cash (% p.a.):",
+                min_value=0.0, max_value=5.0, value=3.0, step=0.5,
+                format="%.1f%%"
+            )
+    
+    # Run simulation button
+    if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
+        from datetime import datetime, timedelta
+        
+        start_date = (datetime.now() - timedelta(days=years_back * 365)).strftime('%Y-%m-%d')
+        
+        # === LUMP SUM MODE ===
+        with st.spinner(f"Simulating {years_back} years for {sim_ticker} ({strategy_mode.upper()} mode)..."):
+            results = run_dca_simulation(
+                sim_ticker, 
+                initial_capital=initial_capital, 
+                start_date=start_date, 
+                years_back=years_back,
+                strategy_mode=strategy_mode,
+                trading_fee_pct=trading_fee_pct / 100,
+                interest_rate_annual=interest_rate_annual / 100
+            )
+        
+        if 'error' in results:
+            st.error(results['error'])
+            return
+        
+        summary = results.get('summary', {})
+        
+        # Results header
+        st.markdown("---")
+        st.markdown("#### 📊 Lump Sum Simulation Results")
+        
+        # Key metrics - Top row
+        col1, col2, col3, col4 = st.columns(4)
+        
+        with col1:
+            st.metric(
+                "Initial Capital",
+                f"€{summary.get('initial_capital', 0):,.0f}",
+                f"{summary.get('total_days', 0):,} days"
+            )
+        
+        with col2:
+            st.metric(
+                "Buy & Hold Final",
+                f"€{summary.get('buyhold_final', 0):,.0f}",
+                f"{summary.get('buyhold_return_pct', 0):+.1f}%"
+            )
+        
+        with col3:
+            st.metric(
+                "SOC Dynamic Final",
+                f"€{summary.get('soc_final', 0):,.0f}",
+                f"{summary.get('soc_return_pct', 0):+.1f}%"
+            )
+        
+        with col4:
+            outperformance = summary.get('outperformance_pct', 0)
+            st.metric(
+                "SOC Outperformance",
+                f"{outperformance:+.1f}%",
+                f"€{results.get('outperformance_abs', 0):+,.0f}",
+                delta_color="normal" if outperformance >= 0 else "inverse"
+            )
+        
+        # Risk metrics - Second row
+        st.markdown("#### 🛡️ Risk Metrics")
+        col_dd1, col_dd2, col_dd3, col_exp = st.columns(4)
+        
+        with col_dd1:
+            max_dd_bh = summary.get('max_dd_buyhold', 0)
+            st.metric(
+                "Max Drawdown (B&H)",
+                f"{max_dd_bh:.1f}%",
+                delta=None
+            )
+        
+        with col_dd2:
+            max_dd_soc = summary.get('max_dd_soc', 0)
+            st.metric(
+                "Max Drawdown (SOC)",
+                f"{max_dd_soc:.1f}%",
+                delta=None
+            )
+        
+        with col_dd3:
+            dd_reduction = summary.get('drawdown_reduction', 0)
+            st.metric(
+                "Drawdown Reduction",
+                f"{dd_reduction:+.1f}%",
+                "Less risk" if dd_reduction > 0 else "More risk",
+                delta_color="normal" if dd_reduction > 0 else "inverse"
+            )
+        
+        with col_exp:
+            avg_exp = summary.get('avg_exposure', 100)
+            days_cash = summary.get('days_in_cash', 0)
+            st.metric(
+                "Avg. Exposure",
+                f"{avg_exp:.0f}%",
+                f"{days_cash} days in cash"
+            )
+        
+        # Friction costs - Third row
+        st.markdown("#### 💸 Friction Costs (Reality Check)")
+        col_trades, col_fees, col_interest, col_net = st.columns(4)
+        
+        with col_trades:
+            trade_count = summary.get('trade_count', 0)
+            st.metric(
+                "Total Trades",
+                f"{trade_count}",
+                f"~{trade_count / (years_back * 12):.1f}/month" if years_back > 0 else ""
+            )
+        
+        with col_fees:
+            total_fees = summary.get('total_fees_paid', 0)
+            st.metric(
+                "Fees Paid",
+                f"€{total_fees:,.0f}",
+                f"-{(total_fees / initial_capital) * 100:.1f}% of capital",
+                delta_color="inverse"
+            )
+        
+        with col_interest:
+            total_interest = summary.get('total_interest_earned', 0)
+            st.metric(
+                "Interest Earned",
+                f"€{total_interest:,.0f}",
+                f"+{(total_interest / initial_capital) * 100:.1f}% of capital",
+                delta_color="normal"
+            )
+        
+        with col_net:
+            net_friction = summary.get('net_friction', 0)
+            st.metric(
+                "Net Friction",
+                f"€{net_friction:+,.0f}",
+                "Interest > Fees" if net_friction > 0 else "Fees > Interest",
+                delta_color="normal" if net_friction > 0 else "inverse"
+            )
+        
+        # Equity curves chart
+        st.markdown("#### 📈 Equity Curves Comparison")
+        
+        equity_df = results.get('equity_curve', pd.DataFrame())
+        
+        if not equity_df.empty:
+            fig = go.Figure()
+            
+            # Buy & Hold line
+            fig.add_trace(go.Scatter(
+                x=equity_df['date'],
+                y=equity_df['buyhold_value'],
+                name='Buy & Hold',
+                line=dict(color='#888888', width=2),
+                mode='lines'
+            ))
+            
+            # SOC Dynamic line
+            fig.add_trace(go.Scatter(
+                x=equity_df['date'],
+                y=equity_df['soc_value'],
+                name='SOC Dynamic',
+                line=dict(color='#667eea', width=2),
+                mode='lines'
+            ))
+            
+            # Initial capital line
+            fig.add_trace(go.Scatter(
+                x=equity_df['date'],
+                y=[initial_capital] * len(equity_df),
+                name='Initial Capital',
+                line=dict(color='#FF6600', width=1, dash='dash'),
+                mode='lines'
+            ))
+            
+            fig.update_layout(
+                template="plotly_dark" if is_dark else "plotly_white",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                height=400,
+                margin=dict(t=20, b=40, l=40, r=20),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="center",
+                    x=0.5
+                ),
+                xaxis_title="Date",
+                yaxis_title="Portfolio Value (€)",
+                hovermode='x unified'
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+        
+        # Drawdown comparison chart
+        daily_data = results.get('daily_data', pd.DataFrame())
+        if not daily_data.empty and 'buyhold_drawdown' in daily_data.columns:
+            st.markdown("#### 📉 Drawdown Comparison")
+            
+            fig_dd = go.Figure()
+            
+            fig_dd.add_trace(go.Scatter(
+                x=daily_data.index,
+                y=daily_data['buyhold_drawdown'],
+                name='Buy & Hold Drawdown',
+                fill='tozeroy',
+                line=dict(color='rgba(255,100,100,0.8)', width=1),
+                fillcolor='rgba(255,100,100,0.3)'
+            ))
+            
+            fig_dd.add_trace(go.Scatter(
+                x=daily_data.index,
+                y=daily_data['soc_drawdown'],
+                name='SOC Dynamic Drawdown',
+                fill='tozeroy',
+                line=dict(color='rgba(102,126,234,0.8)', width=1),
+                fillcolor='rgba(102,126,234,0.3)'
+            ))
+            
+            fig_dd.update_layout(
+                template="plotly_dark" if is_dark else "plotly_white",
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                height=250,
+                margin=dict(t=20, b=40, l=40, r=20),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="center",
+                    x=0.5
+                ),
+                xaxis_title="Date",
+                yaxis_title="Drawdown (%)",
+                hovermode='x unified'
+            )
+            
+            st.plotly_chart(fig_dd, use_container_width=True)
+        
+        # Strategy explanation
+        with st.expander("ℹ️ Strategy Explanation"):
+            soc_data = results.get('soc_dynamic', {})
+            buyhold_data = results.get('buyhold', {})
+            mode_name = summary.get('strategy_mode', 'Defensive')
+            high_exp = summary.get('high_stress_exposure', 20)
+            med_exp = summary.get('medium_stress_exposure', 50)
+            
+            fee_pct = summary.get('trading_fee_pct', 0.5)
+            int_pct = summary.get('interest_rate_annual', 3.0)
+            
+            st.markdown(f"""
+            **Buy & Hold (Benchmark):**
+            - 100% invested in {sim_ticker} at all times
+            - Simple, passive strategy
+            - Final Return: **{buyhold_data.get('total_return_pct', 0):+.1f}%**
+            - Max Drawdown: **{buyhold_data.get('max_drawdown_pct', 0):.1f}%**
+            
+            **SOC Dynamic Exposure ({mode_name} Mode):**
+            - Adjusts portfolio exposure DAILY based on market conditions
+            - Reduces exposure during high volatility (criticality) periods
+            - Moves to 0% in bear markets (Price < SMA200)
+            
+            **Exposure Rules ({mode_name}):**
+            - Bear Market (Price < SMA200): **0%** invested
+            - Critical/Red (Criticality > 80): **{high_exp:.0f}%** invested
+            - High Energy/Orange (Criticality > 60): **{med_exp:.0f}%** invested
+            - Stable/Green (Uptrend, low stress): **100%** invested
+            
+            **Exposure Statistics:**
+            - Days fully invested (100%): **{soc_data.get('days_full_invested', 0):,}** ({soc_data.get('pct_full_invested', 0):.1f}%)
+            - Days partial exposure: **{soc_data.get('days_partial', 0):,}**
+            - Days in cash (0%): **{soc_data.get('days_cash', 0):,}** ({soc_data.get('pct_cash', 0):.1f}%)
+            - Average exposure: **{soc_data.get('avg_exposure_pct', 100):.1f}%**
+            
+            **Friction Costs (included in results):**
+            - Trading fee: **{fee_pct:.1f}%** per trade
+            - Cash interest: **{int_pct:.1f}%** p.a.
+            - Total trades: **{soc_data.get('trade_count', 0)}**
+            - Fees paid: **€{soc_data.get('total_fees_paid', 0):,.0f}**
+            - Interest earned: **€{soc_data.get('total_interest_earned', 0):,.0f}**
+            
+            **Risk-Adjusted Performance:**
+            - Buy & Hold Sharpe: **{buyhold_data.get('sharpe_ratio', 0):.2f}**
+            - SOC Dynamic Sharpe: **{soc_data.get('sharpe_ratio', 0):.2f}**
+            
+            *⚠️ This is a historical backtest simulation for educational purposes only. 
+            Past performance is not indicative of future results.*
+            """)
 
 
 # =============================================================================
@@ -692,38 +1019,43 @@ def main():
             st.session_state.pop('scan_results', None)
             st.rerun()
     
-    # Results - Master-Detail Layout
+    # Results - Tabbed Layout
     if 'scan_results' in st.session_state and st.session_state.scan_results:
         results = st.session_state.scan_results
         
         st.divider()
         st.markdown("### Analysis Results")
         
-        # Master-Detail Layout
-        col_list, col_detail = st.columns([1, 2])
+        # Create tabs for different views (reordered as requested)
+        tab_detail, tab_simulation = st.tabs([
+            "🔍 Asset Deep Dive", 
+            "📊 Position Sizing Simulation"
+        ])
         
-        with col_list:
-            st.markdown("**Select an asset:**")
+        with tab_detail:
+            # Master-Detail Layout
+            col_list, col_detail = st.columns([1, 2])
             
-            # Asset list as selectable items
-            for i, r in enumerate(results):
-                is_selected = i == st.session_state.selected_asset
+            with col_list:
+                st.markdown("**Select an asset:**")
                 
-                # Create a button for each asset
-                btn_label = f"{r['symbol']} | ${r['price']:,.0f} | {r['signal'].split()[0]}"
-                if st.button(
-                    btn_label,
-                    key=f"asset_{i}",
-                    width="stretch",
-                    type="primary" if is_selected else "secondary"
-                ):
-                    st.session_state.selected_asset = i
-                    st.rerun()
+                for i, r in enumerate(results):
+                    is_selected = i == st.session_state.selected_asset
+                    btn_label = f"{r['symbol']} | ${r['price']:,.0f} | {r['signal'].split()[0]}"
+                    if st.button(btn_label, key=f"asset_{i}", width="stretch",
+                                type="primary" if is_selected else "secondary"):
+                        st.session_state.selected_asset = i
+                        st.rerun()
+            
+            with col_detail:
+                if results:
+                    selected = results[st.session_state.selected_asset]
+                    render_detail_panel(selected)
         
-        with col_detail:
-            if results:
-                selected = results[st.session_state.selected_asset]
-                render_detail_panel(selected)
+        with tab_simulation:
+            # Get ticker list from results
+            result_tickers = [r['symbol'] for r in results]
+            render_dca_simulation(result_tickers)
     
     # Footer
     render_footer()
