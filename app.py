@@ -465,17 +465,151 @@ It represents a statistical observation of market conditions, not a trading sign
 
 def render_market_selection() -> List[str]:
     """
-    Render market universe selection UI (US Tech, DAX, Crypto, or Custom).
+    Render market universe selection UI with clickable panel cards.
+    
+    Features centered panels for US Tech, DAX, Crypto with icons.
+    Custom option is greyed out (coming soon).
     
     Returns:
         List of ticker symbols to analyze.
     """
-    universe = st.radio("Asset Universe:", list(MARKET_SETS.keys()) + ["Custom"], horizontal=True)
+    # Initialize selected universe in session state
+    if 'selected_universe' not in st.session_state:
+        st.session_state.selected_universe = "US Big Tech"
     
-    if universe == "Custom":
-        raw = st.text_input("Tickers (comma-separated):", "NVDA, BTC-USD, GLD")
-        return [t.strip().upper() for t in raw.replace("\n", ",").split(",") if t.strip()]
-    return MARKET_SETS[universe]
+    # Market panel definitions with icons and descriptions
+    market_panels = {
+        "US Big Tech": {
+            "icon": "🇺🇸",
+            "description": "NVIDIA, Apple, Microsoft, Amazon, Google, Tesla, Meta, AMD, Netflix",
+            "count": len(MARKET_SETS["US Big Tech"])
+        },
+        "DAX Top 10": {
+            "icon": "🇩🇪",
+            "description": "SAP, Siemens, Allianz, Deutsche Telekom, Airbus, BMW, VW, BASF, Munich Re",
+            "count": len(MARKET_SETS["DAX Top 10"])
+        },
+        "Crypto Assets": {
+            "icon": "₿",
+            "description": "Bitcoin, Ethereum, Solana, BNB, XRP, Dogecoin, Cardano",
+            "count": len(MARKET_SETS["Crypto Assets"])
+        }
+    }
+    
+    # CSS for market panels
+    st.markdown("""
+    <style>
+        .market-panel {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 2px solid #333;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            height: 160px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .market-panel:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        }
+        .market-panel.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #1e2a4a 0%, #1a2744 100%);
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.4);
+        }
+        .market-panel-icon {
+            font-size: 2.5rem;
+            margin-bottom: 8px;
+        }
+        .market-panel-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #FAFAFA;
+        }
+        .market-panel-desc {
+            font-size: 0.75rem;
+            color: #888;
+            line-height: 1.3;
+        }
+        .market-panel-count {
+            font-size: 0.8rem;
+            color: #667eea;
+            margin-top: 8px;
+        }
+        .market-panel-disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            background: #1a1a1a;
+        }
+        .market-panel-disabled:hover {
+            transform: none;
+            box-shadow: none;
+            border-color: #333;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Create 4 columns for panels (3 active + 1 disabled)
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        panel = market_panels["US Big Tech"]
+        is_selected = st.session_state.selected_universe == "US Big Tech"
+        if st.button(
+            f"{panel['icon']}\n\n**US Big Tech**\n\n{panel['count']} assets",
+            key="panel_us",
+            type="primary" if is_selected else "secondary",
+            use_container_width=True
+        ):
+            st.session_state.selected_universe = "US Big Tech"
+            st.rerun()
+    
+    with col2:
+        panel = market_panels["DAX Top 10"]
+        is_selected = st.session_state.selected_universe == "DAX Top 10"
+        if st.button(
+            f"{panel['icon']}\n\n**DAX Top 10**\n\n{panel['count']} assets",
+            key="panel_dax",
+            type="primary" if is_selected else "secondary",
+            use_container_width=True
+        ):
+            st.session_state.selected_universe = "DAX Top 10"
+            st.rerun()
+    
+    with col3:
+        panel = market_panels["Crypto Assets"]
+        is_selected = st.session_state.selected_universe == "Crypto Assets"
+        if st.button(
+            f"{panel['icon']}\n\n**Crypto**\n\n{panel['count']} assets",
+            key="panel_crypto",
+            type="primary" if is_selected else "secondary",
+            use_container_width=True
+        ):
+            st.session_state.selected_universe = "Crypto Assets"
+            st.rerun()
+    
+    with col4:
+        # Disabled Custom panel
+        st.markdown("""
+        <div class="market-panel market-panel-disabled">
+            <div class="market-panel-icon">⚙️</div>
+            <div class="market-panel-title">Custom</div>
+            <div class="market-panel-desc">Coming soon</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    # Show selected universe description
+    selected = st.session_state.selected_universe
+    panel_info = market_panels[selected]
+    st.caption(f"📋 **{selected}**: {panel_info['description']}")
+    
+    return MARKET_SETS[selected]
 
 
 def render_detail_panel(result: Dict[str, Any]):
@@ -1272,27 +1406,37 @@ def main():
     render_header()
     render_theory()
     
-    # Market selection
-    st.markdown("### Market Selection")
+    # Market selection - centered title and subtitle
+    st.markdown("""
+    <div style="text-align: center; margin-top: 1.5rem;">
+        <h3 style="margin-bottom: 0.3rem;">Market Selection</h3>
+        <p style="color: #888; font-size: 0.95rem; margin-bottom: 1.5rem;">Select your Market Universe</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
     tickers = render_market_selection()
     
-    # Run button
-    col1, col2 = st.columns([5, 1])
-    with col1:
-        if st.button("RUN SOC ANALYSIS", type="primary", width="stretch"):
+    # Centered Fetch Data button
+    st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
+    
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+    with col_center:
+        if st.button("🔍  Fetch Data", type="primary", use_container_width=True):
             st.session_state.scan_results = run_analysis(tickers)
             st.session_state.selected_asset = 0
-    with col2:
-        if st.button("Clear", width="stretch"):
-            st.session_state.pop('scan_results', None)
-            st.rerun()
     
     # Results - Tabbed Layout
     if 'scan_results' in st.session_state and st.session_state.scan_results:
         results = st.session_state.scan_results
         
         st.divider()
-        st.markdown("### Analysis Results")
+        
+        # Centered "Analysis of Results" title
+        st.markdown("""
+        <div style="text-align: center;">
+            <h3>Analysis of Results</h3>
+        </div>
+        """, unsafe_allow_html=True)
         
         # Create tabs for different views (reordered as requested)
         tab_detail, tab_simulation = st.tabs([
