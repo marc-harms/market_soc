@@ -259,12 +259,17 @@ def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
     For each ticker: fetches data, calculates metrics, determines market
     phase (5-tier classification), and returns analysis results.
     
+    Includes robust API error handling with user-friendly messages.
+    
     Returns:
         List of dictionaries containing symbol, price, signal, trend,
         criticality_score, and other phase metrics.
     """
     fetcher = DataFetcher(cache_enabled=True)
     results = []
+    failed_tickers = []
+    api_error_count = 0
+    
     progress = st.progress(0)
     status = st.empty()
     
@@ -279,12 +284,46 @@ def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
                 phase['info'] = info
                 phase['name'] = clean_name(info.get('name', symbol))
                 results.append(phase)
-        except Exception:
-            pass
-        progress.progress((i + 1) / len(tickers))
+            else:
+                failed_tickers.append(symbol)
+                api_error_count += 1
+        except ConnectionError:
+            failed_tickers.append(symbol)
+            api_error_count += 1
+        except TimeoutError:
+            failed_tickers.append(symbol)
+            api_error_count += 1
+        except Exception as e:
+            error_msg = str(e).lower()
+            if 'rate limit' in error_msg or 'too many requests' in error_msg:
+                api_error_count += 1
+            elif 'connection' in error_msg or 'timeout' in error_msg or 'network' in error_msg:
+                api_error_count += 1
+            failed_tickers.append(symbol)
         
+        progress.progress((i + 1) / len(tickers))
+    
     status.empty()
     progress.empty()
+    
+    # Show API error warning if significant failures
+    if api_error_count >= len(tickers) * 0.5:  # More than 50% failed
+        st.error("""
+        ⚠️ **Data Provider Unavailable**
+        
+        The market data API (Yahoo Finance) appears to be experiencing issues.
+        This could be due to:
+        - Rate limiting (too many requests)
+        - Temporary service outage
+        - Network connectivity issues
+        
+        **Please try again in 5-10 minutes.**
+        
+        If the problem persists, check [Yahoo Finance Status](https://finance.yahoo.com).
+        """)
+    elif failed_tickers:
+        st.warning(f"⚠️ Could not fetch data for: {', '.join(failed_tickers[:5])}{'...' if len(failed_tickers) > 5 else ''}")
+    
     return results
 
 
@@ -1038,6 +1077,137 @@ def render_dca_simulation(tickers: List[str]):
 
 
 # =============================================================================
+# LEGAL DISCLAIMER
+# =============================================================================
+
+LEGAL_DISCLAIMER = """
+## ⚖️ Legal Disclaimer & Terms of Use
+
+**IMPORTANT: Please read this disclaimer carefully before using this application.**
+
+---
+
+### 1. Educational & Informational Purpose Only
+
+This application ("SOC Market Seismograph") is provided **exclusively for educational 
+and informational purposes**. The analysis, data, charts, signals, and any other 
+information displayed are intended solely to help users understand market dynamics 
+through the lens of Self-Organized Criticality (SOC) theory.
+
+### 2. No Financial Advice
+
+**THIS APPLICATION DOES NOT PROVIDE FINANCIAL, INVESTMENT, TAX, LEGAL, OR 
+PROFESSIONAL ADVICE OF ANY KIND.**
+
+- The content is not a recommendation to buy, sell, or hold any security, 
+  cryptocurrency, or financial instrument.
+- No fiduciary relationship is established between you and the creators of this application.
+- The "signals," "regimes," and "scores" are purely statistical observations based on 
+  historical data and mathematical models. They are NOT predictions of future performance.
+
+### 3. No Guarantees or Warranties
+
+- Past performance is **NOT indicative of future results**.
+- All investment involves risk, including the potential loss of principal.
+- The accuracy, completeness, or reliability of the data and analysis is NOT guaranteed.
+- The application is provided "AS IS" without warranty of any kind, express or implied.
+
+### 4. Limitation of Liability
+
+To the fullest extent permitted by applicable law:
+
+- The creators, developers, and operators of this application shall NOT be liable for 
+  any direct, indirect, incidental, special, consequential, or punitive damages arising 
+  from your use of or reliance on this application.
+- This includes, but is not limited to, any losses, damages, or claims arising from 
+  investment decisions made based on information displayed in this application.
+
+### 5. Independent Verification Required
+
+Before making any financial decision, you should:
+
+- Consult with a qualified financial advisor, broker, or other professional.
+- Conduct your own independent research and due diligence.
+- Consider your personal financial situation, risk tolerance, and investment objectives.
+
+### 6. Data Sources
+
+Market data is sourced from third-party providers (Yahoo Finance). We do not control 
+or guarantee the accuracy, timeliness, or availability of this data.
+
+### 7. Jurisdiction
+
+This disclaimer is governed by applicable laws. If any provision is found unenforceable, 
+the remaining provisions shall continue in full force and effect.
+
+---
+
+**By clicking "I Understand & Accept" below, you acknowledge that:**
+
+✓ You have read and understood this disclaimer in its entirety.
+
+✓ You agree that this application provides NO financial advice.
+
+✓ You accept full responsibility for any decisions you make.
+
+✓ You waive any claims against the creators arising from your use of this application.
+"""
+
+
+def render_disclaimer():
+    """
+    Render legal disclaimer page that must be accepted before using the app.
+    Uses session state to track acceptance.
+    """
+    st.markdown("""
+    <style>
+        .stApp { background-color: #0E1117; }
+        .disclaimer-box {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 24px;
+            margin: 20px 0;
+        }
+    </style>
+                    """, unsafe_allow_html=True)
+                
+    st.title("🔬 SOC Market Seismograph")
+    st.caption("Self-Organized Criticality Analysis Tool")
+    
+    st.markdown("---")
+    
+    # Display disclaimer in scrollable container
+    with st.container():
+        st.markdown(LEGAL_DISCLAIMER)
+    
+    st.markdown("---")
+    
+    # Acceptance checkbox and button
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        accepted = st.checkbox(
+            "I have read, understood, and agree to the terms above",
+            key="disclaimer_checkbox"
+        )
+        
+        if st.button(
+            "✅ I Understand & Accept",
+            type="primary",
+            disabled=not accepted,
+            use_container_width=True
+        ):
+            st.session_state.disclaimer_accepted = True
+            st.rerun()
+        
+        if not accepted:
+            st.caption("⚠️ You must check the box above to continue")
+    
+    st.stop()
+
+
+# =============================================================================
 # AUTHENTICATION
 # =============================================================================
 
@@ -1066,21 +1236,29 @@ def main():
     Main application entry point.
     
     Flow:
-        1. Initialize session state (auth, theme, selected asset)
-        2. Check authentication
-        3. Apply theme CSS
-        4. Render header, theory, market selection
-        5. Run SOC analysis on button click
-        6. Display results in tabbed layout (Deep Dive, Simulation)
-        7. Render footer
+        1. Show legal disclaimer (must accept to continue)
+        2. Initialize session state (auth, theme, selected asset)
+        3. Check authentication
+        4. Apply theme CSS
+        5. Render header, theory, market selection
+        6. Run SOC analysis on button click
+        7. Display results in tabbed layout (Deep Dive, Simulation)
+        8. Render footer
     """
     # Session state initialization
+    if 'disclaimer_accepted' not in st.session_state:
+        st.session_state.disclaimer_accepted = False
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     if 'dark_mode' not in st.session_state:
         st.session_state.dark_mode = True
     if 'selected_asset' not in st.session_state:
         st.session_state.selected_asset = 0
+    
+    # Legal disclaimer gate (must accept before anything else)
+    if not st.session_state.disclaimer_accepted:
+        render_disclaimer()
+        return
     
     # Auth gate
     if not st.session_state.authenticated:
