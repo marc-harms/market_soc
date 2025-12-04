@@ -1425,47 +1425,132 @@ def main():
             st.session_state.scan_results = run_analysis(tickers)
             st.session_state.selected_asset = 0
     
-    # Results - Tabbed Layout
+    # Results - Redesigned Layout
     if 'scan_results' in st.session_state and st.session_state.scan_results:
         results = st.session_state.scan_results
+        
+        # Initialize analysis mode in session state
+        if 'analysis_mode' not in st.session_state:
+            st.session_state.analysis_mode = "deep_dive"
         
         st.divider()
         
         # Centered "Analysis of Results" title
         st.markdown("""
-        <div style="text-align: center;">
+        <div style="text-align: center; margin-bottom: 1rem;">
             <h3>Analysis of Results</h3>
         </div>
         """, unsafe_allow_html=True)
         
-        # Create tabs for different views (reordered as requested)
-        tab_detail, tab_simulation = st.tabs([
-            "🔍 Asset Deep Dive", 
-            "📊 Position Sizing Simulation"
-        ])
+        # === ASSET SELECTION GRID (max 3 columns) ===
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 0.5rem;">
+            <span style="color: #888; font-size: 0.9rem;">Select an asset to analyze</span>
+        </div>
+        """, unsafe_allow_html=True)
         
-        with tab_detail:
-            # Master-Detail Layout
-            col_list, col_detail = st.columns([1, 2])
-            
-            with col_list:
-                st.markdown("**Select an asset:**")
+        # Calculate number of columns (max 3)
+        num_assets = len(results)
+        num_cols = min(3, num_assets)
+        
+        # Create asset button grid
+        cols = st.columns(num_cols)
+        for i, r in enumerate(results):
+            col_idx = i % num_cols
+            with cols[col_idx]:
+                is_selected = i == st.session_state.selected_asset
+                # Compact label with emoji for regime
+                regime_emoji = r['signal'].split()[0] if r['signal'] else "⚪"
+                btn_label = f"{regime_emoji} {r['symbol']}\n${r['price']:,.0f}"
                 
-                for i, r in enumerate(results):
-                    is_selected = i == st.session_state.selected_asset
-                    btn_label = f"{r['symbol']} | ${r['price']:,.0f} | {r['signal'].split()[0]}"
-                    if st.button(btn_label, key=f"asset_{i}", width="stretch",
-                                type="primary" if is_selected else "secondary"):
-                        st.session_state.selected_asset = i
-                        st.rerun()
-            
-            with col_detail:
-                if results:
-                    selected = results[st.session_state.selected_asset]
-                    render_detail_panel(selected)
+                if st.button(
+                    btn_label, 
+                    key=f"asset_{i}", 
+                    use_container_width=True,
+                    type="primary" if is_selected else "secondary"
+                ):
+                    st.session_state.selected_asset = i
+                    st.rerun()
         
-        with tab_simulation:
-            # Get ticker list from results
+        st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
+        
+        # === ANALYSIS MODE SELECTION (centered) ===
+        st.markdown("""
+        <div style="text-align: center; margin-bottom: 0.5rem;">
+            <span style="color: #888; font-size: 0.9rem;">Choose analysis type</span>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Centered analysis option buttons
+        col_spacer1, col_opt1, col_opt2, col_spacer2 = st.columns([1, 2, 2, 1])
+        
+        with col_opt1:
+            if st.button(
+                "🔍 Asset Deep Dive",
+                key="btn_deep_dive",
+                use_container_width=True,
+                type="primary" if st.session_state.analysis_mode == "deep_dive" else "secondary"
+            ):
+                st.session_state.analysis_mode = "deep_dive"
+                st.rerun()
+        
+        with col_opt2:
+            if st.button(
+                "📊 Portfolio Simulation",
+                key="btn_simulation",
+                use_container_width=True,
+                type="primary" if st.session_state.analysis_mode == "simulation" else "secondary"
+            ):
+                st.session_state.analysis_mode = "simulation"
+                st.rerun()
+        
+        # === ANALYSIS EXPLANATION EXPANDER ===
+        analysis_explanations = {
+            "deep_dive": {
+                "title": "🔍 Asset Deep Dive",
+                "description": """
+                **What this analysis shows:**
+                
+                - **SOC Chart**: Visualizes price movements overlaid with volatility bars colored by regime (5-tier system)
+                - **Systemic Stress Level**: A 0-100 score indicating current market stress based on volatility percentile
+                - **Historical Regime Analysis**: Statistics on how the asset behaved in each regime historically
+                - **Forward Returns**: What happened 1, 3, 5, 10, 30, 60, 90 days after similar signals in the past
+                - **Regime Persistence**: How long the asset typically stays in each phase
+                
+                Use this to understand the current market state and historical context for your selected asset.
+                """
+            },
+            "simulation": {
+                "title": "📊 Portfolio Simulation",
+                "description": """
+                **What this simulation shows:**
+                
+                - **Buy & Hold vs SOC Dynamic**: Compare passive investing against volatility-adjusted position sizing
+                - **Strategy Modes**: Choose between Defensive (max safety) or Aggressive (max return)
+                - **Friction Costs**: Include realistic trading fees and cash interest in the simulation
+                - **Equity Curves**: Visual comparison of portfolio growth over time
+                - **Risk Metrics**: Max drawdown comparison, Sharpe ratios, and exposure statistics
+                
+                Use this to backtest how an SOC-based position sizing strategy would have performed historically.
+                """
+            }
+        }
+        
+        current_explanation = analysis_explanations[st.session_state.analysis_mode]
+        with st.expander(f"ℹ️ About: {current_explanation['title']}", expanded=False):
+            st.markdown(current_explanation['description'])
+        
+        st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
+        st.divider()
+        
+        # === RENDER SELECTED ANALYSIS ===
+        if st.session_state.analysis_mode == "deep_dive":
+            # Deep Dive Analysis
+            if results:
+                selected = results[st.session_state.selected_asset]
+                render_detail_panel(selected)
+        else:
+            # Portfolio Simulation
             result_tickers = [r['symbol'] for r in results]
             render_dca_simulation(result_tickers)
     
