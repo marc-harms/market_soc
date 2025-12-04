@@ -558,6 +558,16 @@ def render_market_selection() -> List[str]:
     # Create 4 columns for panels (3 active + 1 disabled)
     col1, col2, col3, col4 = st.columns(4)
     
+    # Helper function to handle universe change
+    def change_universe(new_universe: str):
+        """Change universe and clear previous results."""
+        if st.session_state.selected_universe != new_universe:
+            st.session_state.selected_universe = new_universe
+            # Clear previous analysis results when universe changes
+            st.session_state.pop('scan_results', None)
+            st.session_state.selected_asset = 0
+            st.rerun()
+    
     with col1:
         panel = market_panels["US Big Tech"]
         is_selected = st.session_state.selected_universe == "US Big Tech"
@@ -567,8 +577,7 @@ def render_market_selection() -> List[str]:
             type="primary" if is_selected else "secondary",
             use_container_width=True
         ):
-            st.session_state.selected_universe = "US Big Tech"
-            st.rerun()
+            change_universe("US Big Tech")
     
     with col2:
         panel = market_panels["DAX Top 10"]
@@ -579,8 +588,7 @@ def render_market_selection() -> List[str]:
             type="primary" if is_selected else "secondary",
             use_container_width=True
         ):
-            st.session_state.selected_universe = "DAX Top 10"
-            st.rerun()
+            change_universe("DAX Top 10")
     
     with col3:
         panel = market_panels["Crypto Assets"]
@@ -591,8 +599,7 @@ def render_market_selection() -> List[str]:
             type="primary" if is_selected else "secondary",
             use_container_width=True
         ):
-            st.session_state.selected_universe = "Crypto Assets"
-            st.rerun()
+            change_universe("Crypto Assets")
     
     with col4:
         # Disabled Custom panel
@@ -843,7 +850,7 @@ def render_dca_simulation(tickers: List[str]):
     Render Lump Sum Investment Simulation tab.
     
     Allows users to:
-        - Select asset and simulation parameters
+        - Uses selected asset from Analysis Results section
         - Choose strategy mode (Defensive/Aggressive)
         - Configure friction costs (fees and interest)
         - Run simulation comparing Buy & Hold vs SOC Dynamic
@@ -851,20 +858,34 @@ def render_dca_simulation(tickers: List[str]):
     """
     is_dark = st.session_state.get('dark_mode', True)
     
+    # Initialize strategy mode in session state
+    if 'strategy_mode' not in st.session_state:
+        st.session_state.strategy_mode = "defensive"
+    
     st.markdown("### 📊 Portfolio Simulation (Lump Sum)")
     st.caption("Compare Buy & Hold vs. SOC Dynamic Position Sizing")
     
-    # Basic parameters
-    col1, col2, col3 = st.columns(3)
+    # Get selected asset from Analysis Results section
+    selected_idx = st.session_state.get('selected_asset', 0)
+    if tickers and selected_idx < len(tickers):
+        sim_ticker = tickers[selected_idx]
+    else:
+        sim_ticker = tickers[0] if tickers else 'BTC-USD'
+    
+    # Show currently selected asset
+    st.markdown(f"""
+    <div style="background: rgba(102, 126, 234, 0.1); border: 1px solid #667eea; 
+                border-radius: 8px; padding: 12px; margin-bottom: 1rem; text-align: center;">
+        <span style="color: #888; font-size: 0.85rem;">Simulating for:</span>
+        <span style="color: #667eea; font-weight: 600; font-size: 1.1rem; margin-left: 8px;">{sim_ticker}</span>
+        <span style="color: #666; font-size: 0.8rem; margin-left: 8px;">(change in Asset Selection above)</span>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Parameters row
+    col1, col2 = st.columns(2)
     
     with col1:
-        sim_ticker = st.selectbox(
-            "Select Asset:",
-            options=tickers if tickers else ['BTC-USD', 'AAPL', 'MSFT'],
-            index=0
-        )
-    
-    with col2:
         initial_capital = st.number_input(
             "Initial Capital (€):",
             min_value=1000,
@@ -873,7 +894,7 @@ def render_dca_simulation(tickers: List[str]):
             step=1000
         )
     
-    with col3:
+    with col2:
         years_back = st.selectbox(
             "Simulation Period:",
             options=[3, 5, 7, 10, 15],
@@ -881,27 +902,41 @@ def render_dca_simulation(tickers: List[str]):
             format_func=lambda x: f"{x} Years"
         )
     
-    # Strategy Mode Selection
-    st.markdown("#### 🎯 SOC Strategy Mode")
-    strategy_mode = st.radio(
-        "Choose SOC risk profile:",
-        options=["defensive", "aggressive"],
-        index=0,
-        format_func=lambda x: "🛡️ Defensive (Max Safety)" if x == "defensive" else "🚀 Aggressive (Max Return)",
-        horizontal=True
-    )
+    # Strategy Mode Selection - inline with clickable buttons
+    st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
     
-    # Strategy explanation
+    col_label, col_def, col_agg = st.columns([2, 1.5, 1.5])
+    
+    with col_label:
+        st.markdown("#### Choose your risk profile")
+    
+    with col_def:
+        if st.button(
+            "🛡️ Defensive",
+            key="btn_strategy_def",
+            use_container_width=True,
+            type="primary" if st.session_state.strategy_mode == "defensive" else "secondary"
+        ):
+            st.session_state.strategy_mode = "defensive"
+            st.rerun()
+    
+    with col_agg:
+        if st.button(
+            "🚀 Aggressive",
+            key="btn_strategy_agg",
+            use_container_width=True,
+            type="primary" if st.session_state.strategy_mode == "aggressive" else "secondary"
+        ):
+            st.session_state.strategy_mode = "aggressive"
+            st.rerun()
+    
+    strategy_mode = st.session_state.strategy_mode
+    
+    # Strategy explanation (compact)
     if strategy_mode == "defensive":
-        st.info("""
-        **🛡️ DEFENSIVE** - Max safety, reduce exposure early
-        - Bear Market: 0% | Critical: 0% | High Energy: 50% | Stable: 100%
-        """)
+        st.caption("**Defensive**: Max safety — Bear: 0% | Critical: 0% | High Energy: 50% | Stable: 100%")
     else:
-        st.warning("""
-        **🚀 AGGRESSIVE** - Max return, ride momentum longer
-        - Bear Market: 0% | Critical: 50% | High Energy: 100% | Stable: 100%
-        """)
+        st.caption("**Aggressive**: Max return — Bear: 0% | Critical: 50% | High Energy: 100% | Stable: 100%")
     
     # Reality Settings (Fees & Interest)
     with st.expander("⚙️ Reality Settings (Fees & Interest)"):
@@ -921,8 +956,13 @@ def render_dca_simulation(tickers: List[str]):
                 format="%.1f%%"
             )
     
-    # Run simulation button
-    if st.button("🚀 Run Simulation", type="primary", use_container_width=True):
+    # Run simulation button - centered and smaller
+    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+    col_left, col_btn, col_right = st.columns([1, 1, 1])
+    with col_btn:
+        run_clicked = st.button("Run Simulation", type="primary", use_container_width=True)
+    
+    if run_clicked:
         from datetime import datetime, timedelta
         
         start_date = (datetime.now() - timedelta(days=years_back * 365)).strftime('%Y-%m-%d')
