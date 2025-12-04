@@ -1,10 +1,26 @@
 """
-SOC Logic Module
-Consolidated backend logic for Market SOC Application.
-Includes Data Fetching, Metric Calculation, and Analysis Engine.
+SOC Logic Module - Market Seismograph Backend
+==============================================
+
+Core business logic for Self-Organized Criticality (SOC) market analysis.
+
+This module provides:
+- Data fetching from Yahoo Finance and Binance APIs
+- SOC metrics calculation (volatility, SMA, criticality scores)
+- 5-Tier regime classification system (Dormant→Stable→Active→High Energy→Critical)
+- Historical signal analysis with forward/backward return statistics
+- Dynamic position sizing simulation with friction costs
+
+Theory Background:
+    Self-Organized Criticality (SOC) is a physics concept that describes systems
+    naturally evolving toward critical states where small inputs can trigger
+    events of any size. Financial markets exhibit similar behavior through
+    volatility clustering and fat-tailed return distributions.
+
+Author: Market Analysis Team
+Version: 6.0 (Cleaned & Documented)
 """
 
-import time
 import json
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -71,10 +87,25 @@ class SOCMetricsCalculator:
         self._validate_dataframe()
 
     def _validate_dataframe(self) -> None:
+        """Ensure DataFrame has required 'close' column for calculations."""
         if "close" not in self.df.columns:
             raise ValueError("DataFrame must contain 'close' column")
 
     def calculate_all_metrics(self) -> pd.DataFrame:
+        """
+        Calculate all SOC metrics and add them as DataFrame columns.
+        
+        Computed metrics:
+            - returns: Daily percentage change
+            - abs_returns: Absolute value of returns
+            - sma_200: 200-day Simple Moving Average (trend indicator)
+            - volatility: 30-day rolling standard deviation of returns
+            - vol_percentile: Current volatility rank vs 2-year history (0-100)
+            - vol_zone: 5-tier classification (low/normal/medium/high/extreme)
+        
+        Returns:
+            DataFrame with all calculated metrics, NaN rows dropped.
+        """
         # Calculate returns
         self.df["returns"] = self.df["close"].pct_change()
         self.df["abs_returns"] = self.df["returns"].abs()
@@ -124,6 +155,13 @@ class SOCMetricsCalculator:
         return zones
 
     def get_summary_stats(self) -> dict:
+        """
+        Get summary statistics for the calculated metrics.
+        
+        Returns:
+            Dictionary with total records, date range, current values,
+            and volatility thresholds for all 5 tiers.
+        """
         if self.df.empty:
             return {}
         return {
@@ -143,18 +181,26 @@ class SOCMetricsCalculator:
         }
 
 
-# --- DATA FETCHING ---
+# =============================================================================
+# DATA FETCHING
+# =============================================================================
 
 class DataProvider(ABC):
+    """Abstract base class for data providers (Binance, Yahoo Finance, etc.)."""
+    
     @abstractmethod
     def fetch_data(self, symbol: str, interval: str, lookback_days: int) -> pd.DataFrame:
+        """Fetch OHLCV data for a symbol."""
         pass
 
     @abstractmethod
     def fetch_info(self, symbol: str) -> Dict[str, Any]:
+        """Fetch asset metadata (name, sector, description)."""
         pass
 
+
 class BinanceProvider(DataProvider):
+    """Data provider for Binance cryptocurrency exchange."""
     def __init__(self):
         self.base_url = BINANCE_BASE_URL
 
@@ -213,6 +259,8 @@ class BinanceProvider(DataProvider):
         return df[["open", "high", "low", "close", "volume"]]
 
 class YFinanceProvider(DataProvider):
+    """Data provider for Yahoo Finance (stocks, ETFs, indices)."""
+    
     def fetch_info(self, symbol: str) -> Dict[str, Any]:
         try:
             ticker = yf.Ticker(symbol)
@@ -253,6 +301,16 @@ class YFinanceProvider(DataProvider):
             return pd.DataFrame()
 
 class DataFetcher:
+    """
+    Unified data fetcher that routes requests to appropriate provider.
+    
+    Automatically selects Binance for USDT/BUSD pairs, Yahoo Finance for
+    stocks/indices. Supports optional CSV caching for performance.
+    
+    Args:
+        cache_enabled: If True, cache fetched data to disk (default: True)
+    """
+    
     def __init__(self, cache_enabled: bool = True):
         self.cache_enabled = cache_enabled
         self.cache_dir = Path(CACHE_DIR)
@@ -262,6 +320,16 @@ class DataFetcher:
         self.yfinance = YFinanceProvider()
 
     def fetch_data(self, symbol: str) -> pd.DataFrame:
+        """
+        Fetch OHLCV data for a symbol, using cache if available.
+        
+        Args:
+            symbol: Ticker symbol (e.g., 'AAPL', 'BTC-USD', 'BTCUSDT')
+            
+        Returns:
+            DataFrame with columns [open, high, low, close, volume],
+            indexed by timestamp.
+        """
         # Check cache
         cache_path = self._get_cache_path(symbol)
         if self.cache_enabled and cache_path.exists():
@@ -1602,471 +1670,11 @@ class DynamicExposureSimulator:
         }
         
         return results
-    
-    def run_savings_simulation(self, start_date: str = None,
-                                 monthly_amount: float = 500.0,
-                                 strategy_mode: str = "defensive",
-                                 dca_strategy: str = "trend_follower",
-                                 active_rebalancing: bool = False,
-                                 sniper_mode: bool = False,
-                                 hysteresis_pct: float = 0.03,
-                                 min_exposure: float = 0.30,
-                                 sell_threshold: float = 85.0,
-                                 buy_threshold: float = 40.0,
-                                 trading_fee_pct: float = 0.005,
-                                 interest_rate_annual: float = 0.03) -> Dict[str, Any]:
-        """
-        Run Monthly Savings Plan simulation: Blind DCA vs Smart SOC DCA.
-        
-        Strategy A (Blind DCA): Buy on 1st of each month, never sell.
-        Strategy B (Smart SOC DCA): 
-            - Without Active Rebalancing: Only manages monthly inflow
-            - With Active Rebalancing: Manages ENTIRE portfolio with hysteresis
-            - With Sniper Mode: Pro-active profit-taking & deep dip buying
-        
-        Args:
-            start_date: Optional start date (YYYY-MM-DD)
-            monthly_amount: Amount to invest each month (default: 500)
-            strategy_mode: "defensive" or "aggressive" (affects exposure levels)
-            dca_strategy: "trend_follower" or "smart_value" (only used when not active_rebalancing)
-            active_rebalancing: If True, actively sell/buy to match target exposure
-            sniper_mode: If True, use pro-active profit taking & deep dip buying
-            hysteresis_pct: Buffer zone around SMA to prevent whipsaws (default: 3%)
-            min_exposure: Minimum exposure even in crashes (default: 30% "core position")
-            sell_threshold: Criticality score above which to take profits (default: 85)
-            buy_threshold: Criticality score below which to go all-in (default: 40)
-            trading_fee_pct: Trading fee as decimal (default 0.005 = 0.5%)
-            interest_rate_annual: Annual interest on cash (default 0.03 = 3%)
-            
-        Returns:
-            Dictionary with simulation results for both strategies.
-        """
-        df = self.df.copy()
-        
-        # Filter by start date if provided
-        if start_date:
-            df = df[df.index >= pd.to_datetime(start_date)]
-        
-        if len(df) < 30:
-            return {"error": "Insufficient data for simulation"}
-        
-        # Daily interest rate
-        daily_interest_rate = interest_rate_annual / 365
-        
-        # Thresholds
-        high_stress_threshold = 80  # Critical/Red
-        medium_stress_threshold = 60  # High Energy/Orange
-        is_smart_value = dca_strategy.lower() == "smart_value"
-        is_aggressive = strategy_mode.lower() == "aggressive"
-        
-        # Calculate hysteresis bands
-        # Upper band: SMA * (1 + hysteresis) - price must cross above to go BULL
-        # Lower band: SMA * (1 - hysteresis) - price must cross below to go BEAR
-        df['sma_upper_band'] = df['sma_200'] * (1 + hysteresis_pct)
-        df['sma_lower_band'] = df['sma_200'] * (1 - hysteresis_pct)
-        
-        # Calculate hysteresis state (Bull/Bear with sticky logic)
-        # Start in Bull if price > SMA, else Bear
-        hysteresis_state = []
-        current_state = 'bull' if df['close'].iloc[0] > df['sma_200'].iloc[0] else 'bear'
-        
-        for idx, row in df.iterrows():
-            price = row['close']
-            upper = row['sma_upper_band']
-            lower = row['sma_lower_band']
-            
-            if current_state == 'bear':
-                # In Bear mode: only switch to Bull if price crosses ABOVE upper band
-                if price > upper:
-                    current_state = 'bull'
-            else:  # current_state == 'bull'
-                # In Bull mode: only switch to Bear if price crosses BELOW lower band
-                if price < lower:
-                    current_state = 'bear'
-            
-            hysteresis_state.append(current_state)
-        
-        df['hysteresis_state'] = hysteresis_state
-        
-        # Calculate deep crash level (20% below SMA)
-        df['deep_crash_level'] = df['sma_200'] * 0.80
-        
-        # Determine target exposure based on mode
-        def get_target_exposure(row):
-            """
-            Calculate target exposure for Active Rebalancing.
-            
-            Standard Mode (hysteresis-based):
-            - Bull (hysteresis state): 100%
-            - Bear (hysteresis state): min_exposure
-            
-            Sniper Mode (pro-active, criticality-based):
-            - Criticality > sell_threshold: 10% (SELL THE TOP!)
-            - Criticality < buy_threshold AND Price > SMA: 100% (ALL IN!)
-            - Price < SMA * 0.80 (deep crash): Deploy cash aggressively
-            """
-            crit_score = row['criticality_score']
-            price = row['close']
-            sma = row['sma_200']
-            state = row['hysteresis_state']
-            deep_crash = row['deep_crash_level']
-            
-            if sniper_mode:
-                # === SMART SNIPER MODE (Pro-Active) ===
-                
-                # SELL THE TOP: Criticality is extreme -> Take profits!
-                if crit_score > sell_threshold:
-                    return 0.10  # Sell 90% into cash
-                
-                # DEEP CRASH BUY: Price crashed 20%+ below trend -> Deploy cash
-                if price < deep_crash:
-                    return 0.50  # Keep 50% in, deploy 50% of cash
-                
-                # RE-ENTRY: Storm is over, trend is up -> GO ALL IN
-                if crit_score < buy_threshold and price > sma:
-                    return 1.0  # 100% exposure
-                
-                # NEUTRAL ZONE: Between thresholds -> Use hysteresis
-                if state == 'bear':
-                    return min_exposure
-                else:
-                    return 1.0
-            else:
-                # === STANDARD MODE (Hysteresis-based) ===
-                if state == 'bear':
-                    return min_exposure
-                else:
-                    return 1.0
-        
-        def get_market_condition(row):
-            """Determine market condition for display/logging."""
-            crit_score = row['criticality_score']
-            is_uptrend = row['is_uptrend']
-            
-            if crit_score > high_stress_threshold:
-                if not is_uptrend:
-                    return 'crash'
-                else:
-                    return 'overheated'
-            elif crit_score > medium_stress_threshold:
-                return 'active'
-            elif not is_uptrend:
-                return 'bear'
-            else:
-                return 'stable'
-        
-        df['target_exposure'] = df.apply(get_target_exposure, axis=1)
-        df['market_condition'] = df.apply(get_market_condition, axis=1)
-        df['year_month'] = df.index.to_period('M')
-        df['is_month_start'] = df['year_month'] != df['year_month'].shift()
-        
-        # Calculate exposure for non-active strategies (Trend Follower / Smart Value)
-        def calc_exposure_passive(row):
-            """Exposure for passive DCA (only controls inflow, not selling)"""
-            if not row['is_uptrend']:
-                return 0.0  # Bear market: don't buy
-            if row['criticality_score'] > high_stress_threshold:
-                return 0.5 if is_aggressive else 0.0
-            elif row['criticality_score'] > medium_stress_threshold:
-                return 1.0 if is_aggressive else 0.5
-            return 1.0
-        
-        df['passive_exposure'] = df.apply(calc_exposure_passive, axis=1)
-        
-        # Initialize strategies
-        blind_dca = {
-            'shares': 0, 'total_invested': 0, 'fees_paid': 0, 'trades': 0,
-            'equity_curve': [], 'buy_dates': []
-        }
-        
-        smart_soc = {
-            'shares': 0, 'cash_wallet': 0, 'total_invested': 0, 
-            'fees_paid': 0, 'interest_earned': 0, 'trades': 0,
-            'equity_curve': [], 'buy_dates': [], 'sell_dates': [], 'bulk_buy_dates': [],
-            'skipped_months': 0, 'prev_exposure': 1.0, 'dip_buys': 0, 'sell_count': 0,
-            'profit_takes': 0, 'deep_dip_buys': 0, 'prev_target_exp': 1.0
-        }
-        
-        # Process each day
-        for date, row in df.iterrows():
-            price = row['close']
-            target_exp = row['target_exposure']
-            passive_exp = row['passive_exposure']
-            market_cond = row['market_condition']
-            is_month_start = row['is_month_start']
-            
-            # === BLIND DCA: Buy on 1st of each month ===
-            if is_month_start:
-                blind_dca['total_invested'] += monthly_amount
-                fee = monthly_amount * trading_fee_pct
-                blind_dca['fees_paid'] += fee
-                blind_dca['trades'] += 1
-                net_amount = monthly_amount - fee
-                blind_dca['shares'] += net_amount / price
-                blind_dca['buy_dates'].append(date)
-            
-            # === SMART SOC DCA ===
-            # Apply daily interest to cash wallet
-            if smart_soc['cash_wallet'] > 0:
-                daily_interest = smart_soc['cash_wallet'] * daily_interest_rate
-                smart_soc['cash_wallet'] += daily_interest
-                smart_soc['interest_earned'] += daily_interest
-            
-            if active_rebalancing:
-                # ============ ACTIVE PORTFOLIO MANAGEMENT ============
-                # This is the key logic that can beat Blind DCA!
-                
-                if is_month_start:
-                    # Step 1: Add monthly contribution to cash wallet
-                    smart_soc['total_invested'] += monthly_amount
-                    smart_soc['cash_wallet'] += monthly_amount
-                    
-                    # Step 2: Calculate current portfolio state
-                    current_asset_value = smart_soc['shares'] * price
-                    total_wealth = current_asset_value + smart_soc['cash_wallet']
-                    
-                    # Step 3: Calculate target allocation
-                    target_asset_value = total_wealth * target_exp
-                    
-                    # Step 4: Rebalance
-                    delta = target_asset_value - current_asset_value
-                    
-                    # Track sniper-specific events
-                    crit_score = row['criticality_score']
-                    deep_crash = row['deep_crash_level']
-                    is_profit_take = (sniper_mode and crit_score > sell_threshold and 
-                                     smart_soc['prev_target_exp'] > target_exp)
-                    is_deep_dip = (sniper_mode and price < deep_crash)
-                    
-                    if delta > 1:  # Need to BUY (tolerance of €1)
-                        # Buy assets using available cash
-                        buy_amount = min(delta, smart_soc['cash_wallet'])
-                        if buy_amount > 0:
-                            fee = buy_amount * trading_fee_pct
-                            smart_soc['fees_paid'] += fee
-                            smart_soc['trades'] += 1
-                            net_amount = buy_amount - fee
-                            smart_soc['shares'] += net_amount / price
-                            smart_soc['cash_wallet'] -= buy_amount
-                            smart_soc['buy_dates'].append(date)
-                            
-                            # Mark as bulk buy if deploying significant cash
-                            if buy_amount > monthly_amount * 1.5:
-                                smart_soc['bulk_buy_dates'].append({'date': date, 'amount': buy_amount})
-                                smart_soc['dip_buys'] += 1
-                            
-                            # Track deep dip buys (sniper mode)
-                            if is_deep_dip:
-                                smart_soc['deep_dip_buys'] += 1
-                                
-                    elif delta < -1:  # Need to SELL (tolerance of €1)
-                        # SELL assets to protect capital!
-                        sell_value = abs(delta)
-                        shares_to_sell = sell_value / price
-                        
-                        if shares_to_sell > 0 and smart_soc['shares'] > 0:
-                            shares_to_sell = min(shares_to_sell, smart_soc['shares'])
-                            sell_proceeds = shares_to_sell * price
-                            fee = sell_proceeds * trading_fee_pct
-                            smart_soc['fees_paid'] += fee
-                            smart_soc['trades'] += 1
-                            smart_soc['shares'] -= shares_to_sell
-                            smart_soc['cash_wallet'] += (sell_proceeds - fee)
-                            smart_soc['sell_dates'].append(date)
-                            smart_soc['sell_count'] += 1
-                            
-                            # Track profit takes (sniper mode)
-                            if is_profit_take:
-                                smart_soc['profit_takes'] += 1
-                    
-                    # Track if we're in cash mode (not buying)
-                    if target_exp < 0.5:
-                        smart_soc['skipped_months'] += 1
-                    
-                    # Store for next iteration
-                    smart_soc['prev_target_exp'] = target_exp
-                        
-            else:
-                # ============ PASSIVE DCA (Original Logic) ============
-                # Only manages inflow, never sells existing positions
-                
-                if is_month_start:
-                    smart_soc['total_invested'] += monthly_amount
-                    
-                    if is_smart_value:
-                        # Smart Value: Skip when overheated, buy MORE during crashes
-                        if market_cond == 'overheated':
-                            smart_soc['cash_wallet'] += monthly_amount
-                            smart_soc['skipped_months'] += 1
-                        elif market_cond in ['crash', 'bear']:
-                            # Buy aggressively during crashes
-                            dip_rate = 0.25 if is_aggressive else 0.20
-                            cash_to_deploy = smart_soc['cash_wallet'] * dip_rate
-                            total_to_invest = monthly_amount + cash_to_deploy
-                            
-                            fee = total_to_invest * trading_fee_pct
-                            smart_soc['fees_paid'] += fee
-                            smart_soc['trades'] += 1
-                            net_amount = total_to_invest - fee
-                            smart_soc['shares'] += net_amount / price
-                            
-                            if cash_to_deploy > 0:
-                                smart_soc['bulk_buy_dates'].append({'date': date, 'amount': total_to_invest})
-                                smart_soc['dip_buys'] += 1
-                            
-                            smart_soc['cash_wallet'] -= cash_to_deploy
-                            smart_soc['buy_dates'].append(date)
-                        else:
-                            # Normal market - buy normally
-                            fee = monthly_amount * trading_fee_pct
-                            smart_soc['fees_paid'] += fee
-                            smart_soc['trades'] += 1
-                            net_amount = monthly_amount - fee
-                            smart_soc['shares'] += net_amount / price
-                            smart_soc['buy_dates'].append(date)
-                    else:
-                        # Trend Follower: Skip during crashes, deploy on recovery
-                        if passive_exp > 0:
-                            total_to_invest = monthly_amount + smart_soc['cash_wallet']
-                            fee = total_to_invest * trading_fee_pct
-                            smart_soc['fees_paid'] += fee
-                            smart_soc['trades'] += 1
-                            net_amount = total_to_invest - fee
-                            smart_soc['shares'] += net_amount / price
-                            
-                            if smart_soc['cash_wallet'] > 0:
-                                smart_soc['bulk_buy_dates'].append({'date': date, 'amount': total_to_invest})
-                            
-                            smart_soc['cash_wallet'] = 0
-                            smart_soc['buy_dates'].append(date)
-                        else:
-                            smart_soc['cash_wallet'] += monthly_amount
-                            smart_soc['skipped_months'] += 1
-                
-                # Re-entry trigger (only for Trend Follower, non-active)
-                elif not is_smart_value and passive_exp > 0 and smart_soc['prev_exposure'] == 0 and smart_soc['cash_wallet'] > 0:
-                    total_to_invest = smart_soc['cash_wallet']
-                    fee = total_to_invest * trading_fee_pct
-                    smart_soc['fees_paid'] += fee
-                    smart_soc['trades'] += 1
-                    net_amount = total_to_invest - fee
-                    smart_soc['shares'] += net_amount / price
-                    smart_soc['bulk_buy_dates'].append({'date': date, 'amount': total_to_invest})
-                    smart_soc['cash_wallet'] = 0
-                
-                smart_soc['prev_exposure'] = passive_exp
-            
-            # Record daily equity (for chart)
-            if is_month_start or date == df.index[-1]:
-                blind_value = blind_dca['shares'] * price
-                smart_value = smart_soc['shares'] * price + smart_soc['cash_wallet']
-                
-                blind_dca['equity_curve'].append({
-                    'date': date, 
-                    'value': blind_value,
-                    'invested': blind_dca['total_invested']
-                })
-                smart_soc['equity_curve'].append({
-                    'date': date, 
-                    'value': smart_value,
-                    'invested': smart_soc['total_invested']
-                })
-        
-        # Final calculations
-        final_price = df['close'].iloc[-1]
-        total_months = df['year_month'].nunique()
-        total_invested = monthly_amount * total_months
-        
-        # Blind DCA results
-        blind_final = blind_dca['shares'] * final_price
-        blind_return_pct = ((blind_final - total_invested) / total_invested * 100) if total_invested > 0 else 0
-        
-        blind_equity_df = pd.DataFrame(blind_dca['equity_curve'])
-        if not blind_equity_df.empty:
-            blind_equity_df['peak'] = blind_equity_df['value'].cummax()
-            blind_equity_df['drawdown'] = (blind_equity_df['value'] - blind_equity_df['peak']) / blind_equity_df['peak'] * 100
-            blind_max_dd = blind_equity_df['drawdown'].min()
-        else:
-            blind_max_dd = 0
-        
-        # Smart SOC results
-        smart_final = smart_soc['shares'] * final_price + smart_soc['cash_wallet']
-        smart_return_pct = ((smart_final - total_invested) / total_invested * 100) if total_invested > 0 else 0
-        
-        smart_equity_df = pd.DataFrame(smart_soc['equity_curve'])
-        if not smart_equity_df.empty:
-            smart_equity_df['peak'] = smart_equity_df['value'].cummax()
-            smart_equity_df['drawdown'] = (smart_equity_df['value'] - smart_equity_df['peak']) / smart_equity_df['peak'] * 100
-            smart_max_dd = smart_equity_df['drawdown'].min()
-        else:
-            smart_max_dd = 0
-        
-        # Determine strategy label
-        if sniper_mode:
-            strategy_label = 'Smart Sniper'
-        elif active_rebalancing:
-            strategy_label = 'Active Rebalancing'
-        elif is_smart_value:
-            strategy_label = 'Smart Value'
-        else:
-            strategy_label = 'Trend Follower'
-        
-        # Count state transitions (for hysteresis effectiveness)
-        state_changes = (df['hysteresis_state'] != df['hysteresis_state'].shift()).sum() - 1
-        
-        results = {
-            'symbol': self.symbol,
-            'monthly_amount': monthly_amount,
-            'total_months': total_months,
-            'total_invested': total_invested,
-            'start_date': df.index[0] if len(df) > 0 else None,
-            'end_date': df.index[-1] if len(df) > 0 else None,
-            'strategy_mode': 'Aggressive' if is_aggressive else 'Defensive',
-            'dca_strategy': strategy_label,
-            'active_rebalancing': active_rebalancing,
-            'sniper_mode': sniper_mode,
-            'hysteresis_pct': hysteresis_pct,
-            'min_exposure': min_exposure,
-            'sell_threshold': sell_threshold,
-            'buy_threshold': buy_threshold,
-            'state_transitions': max(0, state_changes),
-            
-            'blind_dca': {
-                'final_value': blind_final,
-                'return_pct': blind_return_pct,
-                'max_drawdown': blind_max_dd,
-                'fees_paid': blind_dca['fees_paid'],
-                'trades': blind_dca['trades'],
-                'equity_df': blind_equity_df,
-                'final_shares': blind_dca['shares']
-            },
-            
-            'smart_soc': {
-                'final_value': smart_final,
-                'return_pct': smart_return_pct,
-                'max_drawdown': smart_max_dd,
-                'fees_paid': smart_soc['fees_paid'],
-                'interest_earned': smart_soc['interest_earned'],
-                'trades': smart_soc['trades'],
-                'equity_df': smart_equity_df,
-                'final_shares': smart_soc['shares'],
-                'final_cash': smart_soc['cash_wallet'],
-                'skipped_months': smart_soc['skipped_months'],
-                'bulk_buy_dates': smart_soc['bulk_buy_dates'],
-                'dip_buys': smart_soc.get('dip_buys', 0),
-                'sell_count': smart_soc.get('sell_count', 0),
-                'sell_dates': smart_soc.get('sell_dates', []),
-                'profit_takes': smart_soc.get('profit_takes', 0),
-                'deep_dip_buys': smart_soc.get('deep_dip_buys', 0)
-            },
-            
-            'outperformance_pct': smart_return_pct - blind_return_pct,
-            'outperformance_abs': smart_final - blind_final,
-            'drawdown_improvement': smart_max_dd - blind_max_dd
-        }
-        
-        return results
 
+
+# =============================================================================
+# CONVENIENCE FUNCTIONS
+# =============================================================================
 
 def run_dca_simulation(symbol: str, initial_capital: float = 10000.0, 
                        start_date: str = None, years_back: int = 10,
@@ -2074,7 +1682,26 @@ def run_dca_simulation(symbol: str, initial_capital: float = 10000.0,
                        trading_fee_pct: float = 0.005,
                        interest_rate_annual: float = 0.03) -> Dict[str, Any]:
     """
-    Convenience function to run Dynamic Position Sizing (Lump Sum) simulation.
+    Run Lump Sum Investment Simulation with Dynamic Position Sizing.
+    
+    Compares Buy & Hold against SOC-based Dynamic Exposure strategy.
+    Includes realistic friction costs (trading fees and cash interest).
+    
+    Args:
+        symbol: Ticker symbol (e.g., 'AAPL', 'BTC-USD')
+        initial_capital: Starting investment amount (default: 10000)
+        start_date: Optional simulation start date (YYYY-MM-DD)
+        years_back: Number of years of history (default: 10)
+        strategy_mode: "defensive" (max safety) or "aggressive" (max return)
+        trading_fee_pct: Fee per trade as decimal (default: 0.5%)
+        interest_rate_annual: Annual cash interest rate (default: 3%)
+        
+    Returns:
+        Dictionary with simulation results including:
+        - summary: Key metrics (returns, drawdowns, fees, etc.)
+        - equity_curve: Monthly portfolio values
+        - daily_data: Full daily DataFrame
+        - buyhold/soc_dynamic: Detailed stats for each strategy
     """
     try:
         lookback_days = years_back * 365 + 365
@@ -2103,69 +1730,3 @@ def run_dca_simulation(symbol: str, initial_capital: float = 10000.0,
     
     simulator = DynamicExposureSimulator(df, symbol, initial_capital)
     return simulator.run_simulation(start_date, strategy_mode, trading_fee_pct, interest_rate_annual)
-
-
-def run_savings_simulation(symbol: str, monthly_amount: float = 500.0,
-                            start_date: str = None, years_back: int = 10,
-                            strategy_mode: str = "defensive",
-                            dca_strategy: str = "trend_follower",
-                            active_rebalancing: bool = False,
-                            sniper_mode: bool = False,
-                            hysteresis_pct: float = 0.03,
-                            min_exposure: float = 0.30,
-                            sell_threshold: float = 85.0,
-                            buy_threshold: float = 40.0,
-                            trading_fee_pct: float = 0.005,
-                            interest_rate_annual: float = 0.03) -> Dict[str, Any]:
-    """
-    Convenience function to run Monthly Savings Plan simulation.
-    
-    Args:
-        symbol: Ticker symbol
-        monthly_amount: Amount to invest each month (default: 500)
-        start_date: Optional start date
-        years_back: Number of years (default: 10)
-        strategy_mode: "defensive" or "aggressive"
-        dca_strategy: "trend_follower" (safety) or "smart_value" (buy the dip)
-        active_rebalancing: If True, actively sell positions during crashes
-        sniper_mode: If True, use pro-active profit taking & deep dip buying
-        hysteresis_pct: Buffer zone around SMA to prevent whipsaws (default: 3%)
-        min_exposure: Minimum exposure even in crashes (default: 30%)
-        sell_threshold: Criticality score to trigger profit taking (default: 85)
-        buy_threshold: Criticality score to trigger all-in buying (default: 40)
-        trading_fee_pct: Trading fee (default: 0.5%)
-        interest_rate_annual: Interest on cash (default: 3%)
-    """
-    try:
-        lookback_days = years_back * 365 + 365
-        start = datetime.now() - timedelta(days=lookback_days)
-        
-        df = yf.download(symbol, start=start, progress=False, auto_adjust=True)
-        
-        if df.empty:
-            return {"error": f"Could not fetch data for {symbol}"}
-        
-        if isinstance(df.columns, pd.MultiIndex):
-            try:
-                df.columns = df.columns.get_level_values(0)
-            except Exception:
-                pass
-        df.columns = [str(c).lower() for c in df.columns]
-        df.index = pd.to_datetime(df.index)
-        df.index.name = "timestamp"
-        
-        required = ["open", "high", "low", "close", "volume"]
-        available = [c for c in required if c in df.columns]
-        df = df[available]
-        
-    except Exception as e:
-        return {"error": f"Error fetching data: {str(e)}"}
-    
-    simulator = DynamicExposureSimulator(df, symbol, 0)
-    return simulator.run_savings_simulation(start_date, monthly_amount, strategy_mode,
-                                            dca_strategy, active_rebalancing, sniper_mode,
-                                            hysteresis_pct, min_exposure,
-                                            sell_threshold, buy_threshold,
-                                            trading_fee_pct, interest_rate_annual)
-
-

@@ -1,11 +1,23 @@
 """
 SOC Market Seismograph - Streamlit Application
 ==============================================
-A market analysis dashboard based on Self-Organized Criticality (SOC) theory.
-5-Tier Traffic Light System for market phase classification.
+
+Interactive web dashboard for Self-Organized Criticality (SOC) market analysis.
+
+Features:
+    - Multi-asset scanning with 5-Tier regime classification
+    - Deep dive analysis with historical signal performance
+    - Systemic Stress Level indicator (0-100)
+    - Lump Sum investment simulation with Dynamic Position Sizing
+    - Dark/Light theme support
+
+Theory:
+    Markets exhibit Self-Organized Criticality - they naturally evolve toward
+    critical states where small inputs can trigger events of any size.
+    This app visualizes market "energy states" through volatility clustering.
 
 Author: Market Analysis Team
-Version: 4.0 (5-Tier System)
+Version: 6.0 (Cleaned & Documented)
 """
 
 # =============================================================================
@@ -67,7 +79,12 @@ SPECIAL_TICKER_NAMES = {"^GDAXI": "DAX 40 Index"}
 # STYLING
 # =============================================================================
 def get_theme_css(is_dark: bool) -> str:
-    """Generate theme-aware CSS."""
+    """
+    Generate comprehensive CSS styles for theme (dark/light mode).
+    
+    Handles styling for: app background, text colors, inputs, tables,
+    buttons, cards, asset list items, and footer elements.
+    """
     c = {
         "bg": "#0E1117" if is_dark else "#FFFFFF",
         "bg2": "#262730" if is_dark else "#F0F2F6",
@@ -154,8 +171,14 @@ def get_theme_css(is_dark: bool) -> str:
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
 def clean_name(name: str) -> str:
-    """Clean ticker names from Yahoo Finance."""
+    """
+    Clean and normalize ticker names from Yahoo Finance.
+    
+    Handles German stock suffixes (SE, AG), fixes common formatting issues,
+    and applies hardcoded fixes for known problematic names (DAX stocks).
+    """
     name = name.replace(" SE", "").replace(" AG", "").strip()
     if name in TICKER_NAME_FIXES:
         return TICKER_NAME_FIXES[name]
@@ -164,7 +187,16 @@ def clean_name(name: str) -> str:
 
 
 def get_signal_color(signal: str) -> str:
-    """Get color for 5-tier regime system (compliance-safe naming)."""
+    """
+    Get display color for 5-tier regime classification.
+    
+    Mapping:
+        STABLE → Green (#00FF00)
+        ACTIVE → Yellow (#FFCC00)
+        HIGH_ENERGY → Orange (#FF6600)
+        CRITICAL → Red (#FF0000)
+        DORMANT → Grey (#888888)
+    """
     signal_upper = signal.upper()
     if "STABLE" in signal_upper:
         return "#00FF00"
@@ -180,7 +212,7 @@ def get_signal_color(signal: str) -> str:
 
 
 def get_signal_bg(signal: str) -> str:
-    """Get background color for regime badge."""
+    """Get semi-transparent background color for regime badge display."""
     signal_upper = signal.upper()
     if "STABLE" in signal_upper:
         return "rgba(0, 255, 0, 0.15)"
@@ -198,9 +230,15 @@ def get_signal_bg(signal: str) -> str:
 # =============================================================================
 # DATA FUNCTIONS
 # =============================================================================
+
 @st.cache_data(ttl=3600)
 def fetch_footer_data() -> List[Dict[str, Any]]:
-    """Fetch footer market indicators."""
+    """
+    Fetch current prices for footer market pulse indicators.
+    
+    Cached for 1 hour. Returns Bitcoin, S&P 500, and Gold prices
+    with daily percentage change.
+    """
     results = []
     fetcher = DataFetcher(cache_enabled=True)
     for name, symbol in FOOTER_TICKERS.items():
@@ -215,7 +253,16 @@ def fetch_footer_data() -> List[Dict[str, Any]]:
 
 
 def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
-    """Run SOC analysis on tickers."""
+    """
+    Run SOC analysis on multiple tickers with progress indicator.
+    
+    For each ticker: fetches data, calculates metrics, determines market
+    phase (5-tier classification), and returns analysis results.
+    
+    Returns:
+        List of dictionaries containing symbol, price, signal, trend,
+        criticality_score, and other phase metrics.
+    """
     fetcher = DataFetcher(cache_enabled=True)
     results = []
     progress = st.progress(0)
@@ -244,8 +291,9 @@ def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
 # =============================================================================
 # UI COMPONENTS
 # =============================================================================
+
 def render_header():
-    """Render app header with logo and theme toggle."""
+    """Render app header with logo, title, subtitle, and theme toggle button."""
     is_dark = st.session_state.get('dark_mode', True)
     
     col_logo, col_title, col_theme = st.columns([1, 6, 1])
@@ -273,7 +321,12 @@ def render_header():
 
 
 def render_theory():
-    """Render theory expander with comprehensive SOC explanation."""
+    """
+    Render expandable theory section explaining SOC methodology.
+    
+    Content: Origins, transfer to finance, why it works, 5-tier classification
+    system, systemic stress level explanation, and academic references.
+    """
     with st.expander("📖 How this theory works"):
         st.markdown("""
 ## Self-Organized Criticality (SOC)
@@ -372,7 +425,12 @@ It represents a statistical observation of market conditions, not a trading sign
 
 
 def render_market_selection() -> List[str]:
-    """Render market selection and return tickers."""
+    """
+    Render market universe selection UI (US Tech, DAX, Crypto, or Custom).
+    
+    Returns:
+        List of ticker symbols to analyze.
+    """
     universe = st.radio("Asset Universe:", list(MARKET_SETS.keys()) + ["Custom"], horizontal=True)
     
     if universe == "Custom":
@@ -382,7 +440,13 @@ def render_market_selection() -> List[str]:
 
 
 def render_detail_panel(result: Dict[str, Any]):
-    """Render detail panel for selected asset."""
+    """
+    Render detailed analysis panel for a selected asset.
+    
+    Displays: Header with regime badge, key metrics (price, criticality,
+    vol percentile, trend), SOC chart, historical signal analysis report
+    with Systemic Stress Level box, and regime distribution statistics.
+    """
     is_dark = st.session_state.get('dark_mode', True)
     symbol = result['symbol']
     signal = result['signal']
@@ -582,7 +646,7 @@ def render_detail_panel(result: Dict[str, Any]):
 
 
 def render_footer():
-    """Render footer with market pulse."""
+    """Render footer with market pulse indicators (BTC, S&P 500, Gold)."""
     data = fetch_footer_data()
     if data:
         st.markdown('<div class="footer">', unsafe_allow_html=True)
@@ -600,8 +664,18 @@ def render_footer():
 # =============================================================================
 # INVESTMENT SIMULATION UI
 # =============================================================================
+
 def render_dca_simulation(tickers: List[str]):
-    """Render Lump Sum Investment Simulation tab."""
+    """
+    Render Lump Sum Investment Simulation tab.
+    
+    Allows users to:
+        - Select asset and simulation parameters
+        - Choose strategy mode (Defensive/Aggressive)
+        - Configure friction costs (fees and interest)
+        - Run simulation comparing Buy & Hold vs SOC Dynamic
+        - View results: returns, drawdowns, risk metrics, equity curves
+    """
     is_dark = st.session_state.get('dark_mode', True)
     
     st.markdown("### 📊 Portfolio Simulation (Lump Sum)")
@@ -966,7 +1040,9 @@ def render_dca_simulation(tickers: List[str]):
 # =============================================================================
 # AUTHENTICATION
 # =============================================================================
+
 def check_auth():
+    """Validate access code from session state against ACCESS_CODE constant."""
     if st.session_state.get("pwd") == ACCESS_CODE:
         st.session_state.authenticated = True
         del st.session_state.pwd
@@ -975,6 +1051,7 @@ def check_auth():
 
 
 def login_page():
+    """Render login page and block access until authenticated."""
     st.title("🔒 Login Required")
     st.text_input("Access Code", type="password", key="pwd", on_change=check_auth)
     st.stop()
@@ -983,7 +1060,20 @@ def login_page():
 # =============================================================================
 # MAIN APPLICATION
 # =============================================================================
+
 def main():
+    """
+    Main application entry point.
+    
+    Flow:
+        1. Initialize session state (auth, theme, selected asset)
+        2. Check authentication
+        3. Apply theme CSS
+        4. Render header, theory, market selection
+        5. Run SOC analysis on button click
+        6. Display results in tabbed layout (Deep Dive, Simulation)
+        7. Render footer
+    """
     # Session state initialization
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
