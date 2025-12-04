@@ -847,23 +847,15 @@ def render_footer():
 
 def render_dca_simulation(tickers: List[str]):
     """
-    Render Lump Sum Investment Simulation tab.
+    Render Lump Sum Investment Simulation comparing all three strategies:
+    Buy & Hold, Defensive SOC, and Aggressive SOC.
     
-    Allows users to:
-        - Uses selected asset from Analysis Results section
-        - Choose strategy mode (Defensive/Aggressive)
-        - Configure friction costs (fees and interest)
-        - Run simulation comparing Buy & Hold vs SOC Dynamic
-        - View results: returns, drawdowns, risk metrics, equity curves
+    Shows combined equity curves, drawdown comparison, and metrics table.
     """
     is_dark = st.session_state.get('dark_mode', True)
     
-    # Initialize strategy mode in session state
-    if 'strategy_mode' not in st.session_state:
-        st.session_state.strategy_mode = "defensive"
-    
-    st.markdown("### 📊 Portfolio Simulation (Lump Sum)")
-    st.caption("Compare Buy & Hold vs. SOC Dynamic Position Sizing")
+    st.markdown("### 📊 Portfolio Simulation")
+    st.caption("Compare Buy & Hold vs. 🛡️ Defensive vs. 🚀 Aggressive SOC Strategies")
     
     # Get selected asset from Analysis Results section
     selected_idx = st.session_state.get('selected_asset', 0)
@@ -902,42 +894,6 @@ def render_dca_simulation(tickers: List[str]):
             format_func=lambda x: f"{x} Years"
         )
     
-    # Strategy Mode Selection - inline with clickable buttons
-    st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
-    
-    col_label, col_def, col_agg = st.columns([2, 1.5, 1.5])
-    
-    with col_label:
-        st.markdown("#### Choose your risk profile")
-    
-    with col_def:
-        if st.button(
-            "🛡️ Defensive",
-            key="btn_strategy_def",
-            use_container_width=True,
-            type="primary" if st.session_state.strategy_mode == "defensive" else "secondary"
-        ):
-            st.session_state.strategy_mode = "defensive"
-            st.rerun()
-    
-    with col_agg:
-        if st.button(
-            "🚀 Aggressive",
-            key="btn_strategy_agg",
-            use_container_width=True,
-            type="primary" if st.session_state.strategy_mode == "aggressive" else "secondary"
-        ):
-            st.session_state.strategy_mode = "aggressive"
-            st.rerun()
-    
-    strategy_mode = st.session_state.strategy_mode
-    
-    # Strategy explanation (compact)
-    if strategy_mode == "defensive":
-        st.caption("**Defensive**: Max safety — Bear: 0% | Critical: 0% | High Energy: 50% | Stable: 100%")
-    else:
-        st.caption("**Aggressive**: Max return — Bear: 0% | Critical: 50% | High Energy: 100% | Stable: 100%")
-    
     # Reality Settings (Fees & Interest)
     with st.expander("⚙️ Reality Settings (Fees & Interest)"):
         col_fee, col_interest = st.columns(2)
@@ -967,170 +923,202 @@ def render_dca_simulation(tickers: List[str]):
         
         start_date = (datetime.now() - timedelta(days=years_back * 365)).strftime('%Y-%m-%d')
         
-        # === LUMP SUM MODE ===
-        with st.spinner(f"Simulating {years_back} years for {sim_ticker} ({strategy_mode.upper()} mode)..."):
-            results = run_dca_simulation(
+        # === RUN BOTH SIMULATIONS ===
+        with st.spinner(f"Simulating {years_back} years for {sim_ticker} (Defensive + Aggressive)..."):
+            # Run Defensive simulation
+            results_def = run_dca_simulation(
                 sim_ticker, 
                 initial_capital=initial_capital, 
                 start_date=start_date, 
                 years_back=years_back,
-                strategy_mode=strategy_mode,
+                strategy_mode="defensive",
+                trading_fee_pct=trading_fee_pct / 100,
+                interest_rate_annual=interest_rate_annual / 100
+            )
+            
+            # Run Aggressive simulation
+            results_agg = run_dca_simulation(
+                sim_ticker, 
+                initial_capital=initial_capital, 
+                start_date=start_date, 
+                years_back=years_back,
+                strategy_mode="aggressive",
                 trading_fee_pct=trading_fee_pct / 100,
                 interest_rate_annual=interest_rate_annual / 100
             )
         
-        if 'error' in results:
-            st.error(results['error'])
+        # Check for errors
+        if 'error' in results_def:
+            st.error(f"Defensive simulation error: {results_def['error']}")
+            return
+        if 'error' in results_agg:
+            st.error(f"Aggressive simulation error: {results_agg['error']}")
             return
         
-        summary = results.get('summary', {})
+        sum_def = results_def.get('summary', {})
+        sum_agg = results_agg.get('summary', {})
         
         # Results header
         st.markdown("---")
-        st.markdown("#### 📊 Lump Sum Simulation Results")
+        st.markdown("#### 📊 Strategy Comparison Results")
         
-        # Key metrics - Top row
-        col1, col2, col3, col4 = st.columns(4)
+        # === COMPARISON TABLE ===
+        st.markdown("##### Performance Overview")
         
-        with col1:
-            st.metric(
-                "Initial Capital",
-                f"€{summary.get('initial_capital', 0):,.0f}",
-                f"{summary.get('total_days', 0):,} days"
-            )
+        # Build comparison data
+        bh_final = sum_def.get('buyhold_final', 0)
+        bh_return = sum_def.get('buyhold_return_pct', 0)
+        bh_dd = sum_def.get('max_dd_buyhold', 0)
         
-        with col2:
-            st.metric(
-                "Buy & Hold Final",
-                f"€{summary.get('buyhold_final', 0):,.0f}",
-                f"{summary.get('buyhold_return_pct', 0):+.1f}%"
-            )
+        def_final = sum_def.get('soc_final', 0)
+        def_return = sum_def.get('soc_return_pct', 0)
+        def_dd = sum_def.get('max_dd_soc', 0)
+        def_trades = sum_def.get('trade_count', 0)
+        def_exposure = sum_def.get('avg_exposure', 100)
         
-        with col3:
-            st.metric(
-                "SOC Dynamic Final",
-                f"€{summary.get('soc_final', 0):,.0f}",
-                f"{summary.get('soc_return_pct', 0):+.1f}%"
-            )
+        agg_final = sum_agg.get('soc_final', 0)
+        agg_return = sum_agg.get('soc_return_pct', 0)
+        agg_dd = sum_agg.get('max_dd_soc', 0)
+        agg_trades = sum_agg.get('trade_count', 0)
+        agg_exposure = sum_agg.get('avg_exposure', 100)
         
-        with col4:
-            outperformance = summary.get('outperformance_pct', 0)
-            st.metric(
-                "SOC Outperformance",
-                f"{outperformance:+.1f}%",
-                f"€{results.get('outperformance_abs', 0):+,.0f}",
-                delta_color="normal" if outperformance >= 0 else "inverse"
-            )
+        # Create comparison table
+        comparison_data = {
+            'Metric': [
+                'Final Value',
+                'Total Return',
+                'Max Drawdown',
+                'Avg. Exposure',
+                'Total Trades',
+                'vs. Buy & Hold'
+            ],
+            '📈 Buy & Hold': [
+                f"€{bh_final:,.0f}",
+                f"{bh_return:+.1f}%",
+                f"{bh_dd:.1f}%",
+                "100%",
+                "0",
+                "—"
+            ],
+            '🛡️ Defensive': [
+                f"€{def_final:,.0f}",
+                f"{def_return:+.1f}%",
+                f"{def_dd:.1f}%",
+                f"{def_exposure:.0f}%",
+                f"{def_trades}",
+                f"{def_return - bh_return:+.1f}%"
+            ],
+            '🚀 Aggressive': [
+                f"€{agg_final:,.0f}",
+                f"{agg_return:+.1f}%",
+                f"{agg_dd:.1f}%",
+                f"{agg_exposure:.0f}%",
+                f"{agg_trades}",
+                f"{agg_return - bh_return:+.1f}%"
+            ]
+        }
         
-        # Risk metrics - Second row
-        st.markdown("#### 🛡️ Risk Metrics")
-        col_dd1, col_dd2, col_dd3, col_exp = st.columns(4)
+        comparison_df = pd.DataFrame(comparison_data)
         
-        with col_dd1:
-            max_dd_bh = summary.get('max_dd_buyhold', 0)
-            st.metric(
-                "Max Drawdown (B&H)",
-                f"{max_dd_bh:.1f}%",
-                delta=None
-            )
+        # Style the table
+        st.markdown("""
+        <style>
+            .comparison-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin: 1rem 0;
+                font-size: 0.95rem;
+            }
+            .comparison-table th {
+                background: rgba(102, 126, 234, 0.2);
+                padding: 12px;
+                text-align: center;
+                border-bottom: 2px solid #667eea;
+            }
+            .comparison-table td {
+                padding: 10px 12px;
+                text-align: center;
+                border-bottom: 1px solid #333;
+            }
+            .comparison-table tr:hover {
+                background: rgba(102, 126, 234, 0.1);
+            }
+        </style>
+        """, unsafe_allow_html=True)
         
-        with col_dd2:
-            max_dd_soc = summary.get('max_dd_soc', 0)
-            st.metric(
-                "Max Drawdown (SOC)",
-                f"{max_dd_soc:.1f}%",
-                delta=None
-            )
+        st.dataframe(
+            comparison_df,
+            use_container_width=True,
+            hide_index=True
+        )
         
-        with col_dd3:
-            dd_reduction = summary.get('drawdown_reduction', 0)
-            st.metric(
-                "Drawdown Reduction",
-                f"{dd_reduction:+.1f}%",
-                "Less risk" if dd_reduction > 0 else "More risk",
-                delta_color="normal" if dd_reduction > 0 else "inverse"
-            )
+        # Key insight callout
+        best_return = max(bh_return, def_return, agg_return)
+        best_dd = max(bh_dd, def_dd, agg_dd)  # Less negative is better
         
-        with col_exp:
-            avg_exp = summary.get('avg_exposure', 100)
-            days_cash = summary.get('days_in_cash', 0)
-            st.metric(
-                "Avg. Exposure",
-                f"{avg_exp:.0f}%",
-                f"{days_cash} days in cash"
-            )
+        if def_return == best_return:
+            winner_return = "🛡️ Defensive"
+        elif agg_return == best_return:
+            winner_return = "🚀 Aggressive"
+        else:
+            winner_return = "📈 Buy & Hold"
         
-        # Friction costs - Third row
-        st.markdown("#### 💸 Friction Costs (Reality Check)")
-        col_trades, col_fees, col_interest, col_net = st.columns(4)
+        if def_dd == best_dd:
+            winner_dd = "🛡️ Defensive"
+        elif agg_dd == best_dd:
+            winner_dd = "🚀 Aggressive"
+        else:
+            winner_dd = "📈 Buy & Hold"
         
-        with col_trades:
-            trade_count = summary.get('trade_count', 0)
-            st.metric(
-                "Total Trades",
-                f"{trade_count}",
-                f"~{trade_count / (years_back * 12):.1f}/month" if years_back > 0 else ""
-            )
+        col_insight1, col_insight2 = st.columns(2)
+        with col_insight1:
+            st.success(f"**Best Return:** {winner_return} ({best_return:+.1f}%)")
+        with col_insight2:
+            st.info(f"**Lowest Drawdown:** {winner_dd} ({best_dd:.1f}%)")
         
-        with col_fees:
-            total_fees = summary.get('total_fees_paid', 0)
-            st.metric(
-                "Fees Paid",
-                f"€{total_fees:,.0f}",
-                f"-{(total_fees / initial_capital) * 100:.1f}% of capital",
-                delta_color="inverse"
-            )
-        
-        with col_interest:
-            total_interest = summary.get('total_interest_earned', 0)
-            st.metric(
-                "Interest Earned",
-                f"€{total_interest:,.0f}",
-                f"+{(total_interest / initial_capital) * 100:.1f}% of capital",
-                delta_color="normal"
-            )
-        
-        with col_net:
-            net_friction = summary.get('net_friction', 0)
-            st.metric(
-                "Net Friction",
-                f"€{net_friction:+,.0f}",
-                "Interest > Fees" if net_friction > 0 else "Fees > Interest",
-                delta_color="normal" if net_friction > 0 else "inverse"
-            )
-        
-        # Equity curves chart
+        # === EQUITY CURVES (3 lines) ===
         st.markdown("#### 📈 Equity Curves Comparison")
         
-        equity_df = results.get('equity_curve', pd.DataFrame())
+        equity_def = results_def.get('equity_curve', pd.DataFrame())
+        equity_agg = results_agg.get('equity_curve', pd.DataFrame())
         
-        if not equity_df.empty:
+        if not equity_def.empty:
             fig = go.Figure()
             
-            # Buy & Hold line
+            # Buy & Hold (grey)
             fig.add_trace(go.Scatter(
-                x=equity_df['date'],
-                y=equity_df['buyhold_value'],
-                name='Buy & Hold',
+                x=equity_def['date'],
+                y=equity_def['buyhold_value'],
+                name='📈 Buy & Hold',
                 line=dict(color='#888888', width=2),
                 mode='lines'
             ))
             
-            # SOC Dynamic line
+            # Defensive SOC (blue)
             fig.add_trace(go.Scatter(
-                x=equity_df['date'],
-                y=equity_df['soc_value'],
-                name='SOC Dynamic',
+                x=equity_def['date'],
+                y=equity_def['soc_value'],
+                name='🛡️ Defensive',
                 line=dict(color='#667eea', width=2),
                 mode='lines'
             ))
             
-            # Initial capital line
+            # Aggressive SOC (orange)
+            if not equity_agg.empty:
+                fig.add_trace(go.Scatter(
+                    x=equity_agg['date'],
+                    y=equity_agg['soc_value'],
+                    name='🚀 Aggressive',
+                    line=dict(color='#FF6600', width=2),
+                    mode='lines'
+                ))
+            
+            # Initial capital line (dashed)
             fig.add_trace(go.Scatter(
-                x=equity_df['date'],
-                y=[initial_capital] * len(equity_df),
+                x=equity_def['date'],
+                y=[initial_capital] * len(equity_def),
                 name='Initial Capital',
-                line=dict(color='#FF6600', width=1, dash='dash'),
+                line=dict(color='#444444', width=1, dash='dash'),
                 mode='lines'
             ))
             
@@ -1154,36 +1142,51 @@ def render_dca_simulation(tickers: List[str]):
             
             st.plotly_chart(fig, use_container_width=True)
         
-        # Drawdown comparison chart
-        daily_data = results.get('daily_data', pd.DataFrame())
-        if not daily_data.empty and 'buyhold_drawdown' in daily_data.columns:
+        # === DRAWDOWN COMPARISON (3 areas) ===
+        daily_def = results_def.get('daily_data', pd.DataFrame())
+        daily_agg = results_agg.get('daily_data', pd.DataFrame())
+        
+        if not daily_def.empty and 'buyhold_drawdown' in daily_def.columns:
             st.markdown("#### 📉 Drawdown Comparison")
             
             fig_dd = go.Figure()
             
+            # Buy & Hold (red)
             fig_dd.add_trace(go.Scatter(
-                x=daily_data.index,
-                y=daily_data['buyhold_drawdown'],
-                name='Buy & Hold Drawdown',
+                x=daily_def.index,
+                y=daily_def['buyhold_drawdown'],
+                name='📈 Buy & Hold',
                 fill='tozeroy',
                 line=dict(color='rgba(255,100,100,0.8)', width=1),
                 fillcolor='rgba(255,100,100,0.3)'
             ))
             
+            # Defensive (blue)
             fig_dd.add_trace(go.Scatter(
-                x=daily_data.index,
-                y=daily_data['soc_drawdown'],
-                name='SOC Dynamic Drawdown',
+                x=daily_def.index,
+                y=daily_def['soc_drawdown'],
+                name='🛡️ Defensive',
                 fill='tozeroy',
                 line=dict(color='rgba(102,126,234,0.8)', width=1),
                 fillcolor='rgba(102,126,234,0.3)'
             ))
             
+            # Aggressive (orange)
+            if not daily_agg.empty and 'soc_drawdown' in daily_agg.columns:
+                fig_dd.add_trace(go.Scatter(
+                    x=daily_agg.index,
+                    y=daily_agg['soc_drawdown'],
+                    name='🚀 Aggressive',
+                    fill='tozeroy',
+                    line=dict(color='rgba(255,140,0,0.8)', width=1),
+                    fillcolor='rgba(255,140,0,0.3)'
+                ))
+            
             fig_dd.update_layout(
                 template="plotly_dark" if is_dark else "plotly_white",
                 paper_bgcolor='rgba(0,0,0,0)',
                 plot_bgcolor='rgba(0,0,0,0)',
-                height=250,
+                height=280,
                 margin=dict(t=20, b=40, l=40, r=20),
                 legend=dict(
                     orientation="h",
@@ -1199,54 +1202,64 @@ def render_dca_simulation(tickers: List[str]):
             
             st.plotly_chart(fig_dd, use_container_width=True)
         
-        # Strategy explanation
+        # === FRICTION COSTS (for SOC strategies) ===
+        with st.expander("💸 Friction Costs Detail"):
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.markdown("**🛡️ Defensive Strategy:**")
+                def_fees = sum_def.get('total_fees_paid', 0)
+                def_interest = sum_def.get('total_interest_earned', 0)
+                st.markdown(f"""
+                - Trades: **{def_trades}** (~{def_trades / (years_back * 12):.1f}/month)
+                - Fees Paid: **€{def_fees:,.0f}**
+                - Interest Earned: **€{def_interest:,.0f}**
+                - Net Friction: **€{def_interest - def_fees:+,.0f}**
+                """)
+            
+            with col2:
+                st.markdown("**🚀 Aggressive Strategy:**")
+                agg_fees = sum_agg.get('total_fees_paid', 0)
+                agg_interest = sum_agg.get('total_interest_earned', 0)
+                st.markdown(f"""
+                - Trades: **{agg_trades}** (~{agg_trades / (years_back * 12):.1f}/month)
+                - Fees Paid: **€{agg_fees:,.0f}**
+                - Interest Earned: **€{agg_interest:,.0f}**
+                - Net Friction: **€{agg_interest - agg_fees:+,.0f}**
+                """)
+        
+        # === STRATEGY EXPLANATION ===
         with st.expander("ℹ️ Strategy Explanation"):
-            soc_data = results.get('soc_dynamic', {})
-            buyhold_data = results.get('buyhold', {})
-            mode_name = summary.get('strategy_mode', 'Defensive')
-            high_exp = summary.get('high_stress_exposure', 20)
-            med_exp = summary.get('medium_stress_exposure', 50)
-            
-            fee_pct = summary.get('trading_fee_pct', 0.5)
-            int_pct = summary.get('interest_rate_annual', 3.0)
-            
             st.markdown(f"""
-            **Buy & Hold (Benchmark):**
+            **📈 Buy & Hold (Benchmark):**
             - 100% invested in {sim_ticker} at all times
-            - Simple, passive strategy
-            - Final Return: **{buyhold_data.get('total_return_pct', 0):+.1f}%**
-            - Max Drawdown: **{buyhold_data.get('max_drawdown_pct', 0):.1f}%**
+            - Simple, passive strategy - no trading required
             
-            **SOC Dynamic Exposure ({mode_name} Mode):**
-            - Adjusts portfolio exposure DAILY based on market conditions
-            - Reduces exposure during high volatility (criticality) periods
-            - Moves to 0% in bear markets (Price < SMA200)
+            **🛡️ Defensive SOC:**
+            - Prioritizes capital protection
+            - **Exposure Rules:**
+              - Bear Market (Price < SMA200): **0%** invested
+              - Critical (Criticality > 80): **0%** invested
+              - High Energy (Criticality > 60): **50%** invested
+              - Stable (Uptrend, low stress): **100%** invested
             
-            **Exposure Rules ({mode_name}):**
-            - Bear Market (Price < SMA200): **0%** invested
-            - Critical/Red (Criticality > 80): **{high_exp:.0f}%** invested
-            - High Energy/Orange (Criticality > 60): **{med_exp:.0f}%** invested
-            - Stable/Green (Uptrend, low stress): **100%** invested
+            **🚀 Aggressive SOC:**
+            - Prioritizes returns, stays invested longer
+            - **Exposure Rules:**
+              - Bear Market (Price < SMA200): **0%** invested
+              - Critical (Criticality > 80): **50%** invested
+              - High Energy (Criticality > 60): **100%** invested
+              - Stable (Uptrend, low stress): **100%** invested
             
-            **Exposure Statistics:**
-            - Days fully invested (100%): **{soc_data.get('days_full_invested', 0):,}** ({soc_data.get('pct_full_invested', 0):.1f}%)
-            - Days partial exposure: **{soc_data.get('days_partial', 0):,}**
-            - Days in cash (0%): **{soc_data.get('days_cash', 0):,}** ({soc_data.get('pct_cash', 0):.1f}%)
-            - Average exposure: **{soc_data.get('avg_exposure_pct', 100):.1f}%**
+            **Key Insight:**
+            Defensive protects better during crashes but may miss upside.
+            Aggressive captures more upside but suffers more during corrections.
             
-            **Friction Costs (included in results):**
-            - Trading fee: **{fee_pct:.1f}%** per trade
-            - Cash interest: **{int_pct:.1f}%** p.a.
-            - Total trades: **{soc_data.get('trade_count', 0)}**
-            - Fees paid: **€{soc_data.get('total_fees_paid', 0):,.0f}**
-            - Interest earned: **€{soc_data.get('total_interest_earned', 0):,.0f}**
+            **Friction Costs Applied:**
+            - Trading fee: **{trading_fee_pct:.1f}%** per trade
+            - Cash interest: **{interest_rate_annual:.1f}%** p.a.
             
-            **Risk-Adjusted Performance:**
-            - Buy & Hold Sharpe: **{buyhold_data.get('sharpe_ratio', 0):.2f}**
-            - SOC Dynamic Sharpe: **{soc_data.get('sharpe_ratio', 0):.2f}**
-            
-            *⚠️ This is a historical backtest simulation for educational purposes only. 
-            Past performance is not indicative of future results.*
+            *⚠️ Historical backtest for educational purposes only. Past performance ≠ future results.*
             """)
 
 
