@@ -62,7 +62,8 @@ PRECIOUS_METALS = {'GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV'}
 MARKET_SETS = {
     "US Big Tech": ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'AMD', 'NFLX'],
     "DAX Top 10": ['^GDAXI', 'SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'AIR.DE', 'BMW.DE', 'VOW3.DE', 'BAS.DE', 'MUV2.DE'],
-    "Crypto Assets": ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD']
+    "Crypto Assets": ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD'],
+    "S&P 500 Top 10": ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'BRK-B', 'JPM', 'V', 'UNH']
 }
 
 TICKER_NAME_FIXES = {
@@ -493,6 +494,11 @@ def render_market_selection() -> List[str]:
             "icon": "₿",
             "description": "Bitcoin, Ethereum, Solana, BNB, XRP, Dogecoin, Cardano",
             "count": len(MARKET_SETS["Crypto Assets"])
+        },
+        "S&P 500 Top 10": {
+            "icon": "📈",
+            "description": "Apple, Microsoft, NVIDIA, Amazon, Google, Meta, Berkshire, JPMorgan, Visa, UnitedHealth",
+            "count": len(MARKET_SETS["S&P 500 Top 10"])
         }
     }
     
@@ -541,16 +547,6 @@ def render_market_selection() -> List[str]:
             font-size: 0.8rem;
             color: #667eea;
             margin-top: 8px;
-        }
-        .market-panel-disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-            background: #1a1a1a;
-        }
-        .market-panel-disabled:hover {
-            transform: none;
-            box-shadow: none;
-            border-color: #333;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -602,19 +598,30 @@ def render_market_selection() -> List[str]:
             change_universe("Crypto Assets")
     
     with col4:
-        # Disabled Custom panel
-        st.markdown("""
-        <div class="market-panel market-panel-disabled">
-            <div class="market-panel-icon">⚙️</div>
-            <div class="market-panel-title">Custom</div>
-            <div class="market-panel-desc">Coming soon</div>
-        </div>
-        """, unsafe_allow_html=True)
+        panel = market_panels["S&P 500 Top 10"]
+        is_selected = st.session_state.selected_universe == "S&P 500 Top 10"
+        if st.button(
+            f"{panel['icon']}\n\n**S&P 500**\n\n{panel['count']} assets",
+            key="panel_sp500",
+            type="primary" if is_selected else "secondary",
+            use_container_width=True
+        ):
+            change_universe("S&P 500 Top 10")
     
     # Show selected universe description
     selected = st.session_state.selected_universe
     panel_info = market_panels[selected]
     st.caption(f"📋 **{selected}**: {panel_info['description']}")
+    
+    # Planned features note
+    st.markdown("""
+    <div style="background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; 
+                padding: 8px 12px; margin-top: 0.5rem; border-radius: 4px;">
+        <span style="color: #888; font-size: 0.8rem;">
+            <b>Planned features:</b> Additional market universes, custom portfolio selection
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
     
     return MARKET_SETS[selected]
 
@@ -854,8 +861,8 @@ def render_dca_simulation(tickers: List[str]):
     """
     is_dark = st.session_state.get('dark_mode', True)
     
-    st.markdown("### 📊 Portfolio Simulation")
-    st.caption("Compare Buy & Hold vs. 🛡️ Defensive vs. 🚀 Aggressive SOC Strategies")
+    st.markdown("### Portfolio Simulation")
+    st.caption("Compare Buy & Hold vs. Defensive vs. Aggressive SOC Strategies")
     
     # Get selected asset from Analysis Results section
     selected_idx = st.session_state.get('selected_asset', 0)
@@ -1002,46 +1009,110 @@ def render_dca_simulation(tickers: List[str]):
     agg_trades = sum_agg.get('trade_count', 0)
     agg_exposure = sum_agg.get('avg_exposure', 100)
     
-    # Create comparison table (no icons in headers)
-    comparison_data = {
-        'Metric': [
-            'Final Value',
-            'Total Return',
-            'Max Drawdown',
-            'Avg. Exposure',
-            'Total Trades',
-            'vs. Buy & Hold'
-        ],
-            'Buy & Hold': [
-            f"€{bh_final:,.0f}",
-            f"{bh_return:+.1f}%",
-            f"{bh_dd:.1f}%",
-            "100%",
-            "0",
-            "—"
-        ],
-        'Defensive': [
-            f"€{def_final:,.0f}",
-            f"{def_return:+.1f}%",
-            f"{def_dd:.1f}%",
-            f"{def_exposure:.0f}%",
-            f"{def_trades}",
-            f"{def_return - bh_return:+.1f}%"
-        ],
-        'Aggressive': [
-            f"€{agg_final:,.0f}",
-            f"{agg_return:+.1f}%",
-            f"{agg_dd:.1f}%",
-            f"{agg_exposure:.0f}%",
-            f"{agg_trades}",
-            f"{agg_return - bh_return:+.1f}%"
-        ]
-    }
+    # Calculate trades per month
+    def_trades_per_month = def_trades / (years_back * 12) if years_back > 0 else 0
+    agg_trades_per_month = agg_trades / (years_back * 12) if years_back > 0 else 0
     
-    comparison_df = pd.DataFrame(comparison_data)
+    # Determine if trade frequency is high (warning indicator)
+    def_high_trades = def_trades_per_month > 2
+    agg_high_trades = agg_trades_per_month > 2
     
-    # Display table
-    st.table(comparison_df.set_index('Metric'))
+    # Build styled HTML table
+    def_trades_bg = "background: rgba(255, 100, 100, 0.2);" if def_high_trades else ""
+    agg_trades_bg = "background: rgba(255, 100, 100, 0.2);" if agg_high_trades else ""
+    
+    table_html = f"""
+    <style>
+        .perf-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }}
+        .perf-table th {{
+            background: rgba(102, 126, 234, 0.3);
+            padding: 12px 10px;
+            text-align: center;
+            font-weight: 700;
+            border-bottom: 2px solid #667eea;
+        }}
+        .perf-table td {{
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #444;
+        }}
+        .perf-table tr:hover {{
+            background: rgba(102, 126, 234, 0.05);
+        }}
+        .row-highlight {{
+            background: rgba(102, 126, 234, 0.15);
+            font-weight: 600;
+        }}
+        .row-bold {{
+            font-weight: 600;
+        }}
+        .metric-label {{
+            text-align: left;
+            padding-left: 15px;
+        }}
+    </style>
+    <table class="perf-table">
+        <thead>
+            <tr>
+                <th class="metric-label">Metric</th>
+                <th>Buy & Hold</th>
+                <th>Defensive</th>
+                <th>Aggressive</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr class="row-highlight">
+                <td class="metric-label"><b>Final Value</b></td>
+                <td><b>€{bh_final:,.0f}</b></td>
+                <td><b>€{def_final:,.0f}</b></td>
+                <td><b>€{agg_final:,.0f}</b></td>
+            </tr>
+            <tr>
+                <td class="metric-label">Total Return</td>
+                <td>{bh_return:+.1f}%</td>
+                <td>{def_return:+.1f}%</td>
+                <td>{agg_return:+.1f}%</td>
+            </tr>
+            <tr>
+                <td class="metric-label">Max Drawdown</td>
+                <td>{bh_dd:.1f}%</td>
+                <td>{def_dd:.1f}%</td>
+                <td>{agg_dd:.1f}%</td>
+            </tr>
+            <tr>
+                <td class="metric-label">Avg. Exposure</td>
+                <td>100%</td>
+                <td>{def_exposure:.0f}%</td>
+                <td>{agg_exposure:.0f}%</td>
+            </tr>
+            <tr>
+                <td class="metric-label">Total Trades</td>
+                <td>0</td>
+                <td style="{def_trades_bg}">{def_trades}</td>
+                <td style="{agg_trades_bg}">{agg_trades}</td>
+            </tr>
+            <tr>
+                <td class="metric-label">Trades/Month (Ø)</td>
+                <td>0</td>
+                <td style="{def_trades_bg}">{def_trades_per_month:.1f}</td>
+                <td style="{agg_trades_bg}">{agg_trades_per_month:.1f}</td>
+            </tr>
+            <tr class="row-highlight">
+                <td class="metric-label"><b>vs. Buy & Hold</b></td>
+                <td><b>—</b></td>
+                <td><b>{def_return - bh_return:+.1f}%</b></td>
+                <td><b>{agg_return - bh_return:+.1f}%</b></td>
+            </tr>
+        </tbody>
+    </table>
+    """
+    
+    st.markdown(table_html, unsafe_allow_html=True)
     
     # Key insight callout
     best_return = max(bh_return, def_return, agg_return)
@@ -1538,7 +1609,7 @@ def main():
         
         with col_opt1:
             if st.button(
-                "🔍 Asset Deep Dive",
+                "Asset Deep Dive",
                 key="btn_deep_dive",
                 use_container_width=True,
                 type="primary" if st.session_state.analysis_mode == "deep_dive" else "secondary"
@@ -1548,7 +1619,7 @@ def main():
         
         with col_opt2:
             if st.button(
-                "📊 Portfolio Simulation",
+                "Portfolio Simulation",
                 key="btn_simulation",
                 use_container_width=True,
                 type="primary" if st.session_state.analysis_mode == "simulation" else "secondary"
@@ -1559,7 +1630,7 @@ def main():
         # === ANALYSIS EXPLANATION EXPANDER ===
         analysis_explanations = {
             "deep_dive": {
-                "title": "🔍 Asset Deep Dive",
+                "title": "Asset Deep Dive",
                 "description": """
                 **What this analysis shows:**
                 
@@ -1573,7 +1644,7 @@ def main():
                 """
             },
             "simulation": {
-                "title": "📊 Portfolio Simulation",
+                "title": "Portfolio Simulation",
                 "description": """
                 **What this simulation shows:**
                 
