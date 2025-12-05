@@ -1673,6 +1673,273 @@ class DynamicExposureSimulator:
 
 
 # =============================================================================
+# MODEL AUDIT & STRESS TEST METRICS
+# =============================================================================
+
+def calculate_audit_metrics(daily_data: pd.DataFrame, strategy_mode: str = "defensive") -> Dict[str, Any]:
+    """
+    Calculate Model Audit & Stress Test metrics for transparency and trust.
+    
+    Analyzes how the model behaved during historical crashes:
+    - Crash detection statistics
+    - Protection efficiency during defensive periods
+    - "Big Short" checklist (top 5 crashes)
+    - False alarm analysis
+    
+    Args:
+        daily_data: DataFrame from simulation with columns:
+            - close, sma_200, criticality_score, exposure
+            - buyhold_equity, soc_equity, buyhold_drawdown, soc_drawdown
+        strategy_mode: "defensive" or "aggressive"
+    
+    Returns:
+        Dictionary with audit metrics
+    """
+    df = daily_data.copy()
+    
+    if df.empty or len(df) < 30:
+        return {"error": "Insufficient data for audit"}
+    
+    # Ensure index is datetime
+    if not isinstance(df.index, pd.DatetimeIndex):
+        df.index = pd.to_datetime(df.index)
+    
+    # Define defensive state (exposure < 100%)
+    df['is_defensive'] = df['exposure'] < 1.0
+    df['is_full_cash'] = df['exposure'] == 0.0
+    df['is_critical'] = (df['exposure'] <= 0.2) | (df['close'] < df['sma_200'])
+    
+    # ===========================================================================
+    # 1. CRASH STATS (Critical/Defensive Phase Statistics)
+    # ===========================================================================
+    
+    # Count total days in defensive/cash mode
+    total_defensive_days = df['is_defensive'].sum()
+    total_cash_days = df['is_full_cash'].sum()
+    total_critical_days = df['is_critical'].sum()
+    total_days = len(df)
+    
+    # Count separate crash/defensive phases (signal flips)
+    df['defensive_phase'] = (df['is_defensive'] != df['is_defensive'].shift()).cumsum()
+    df['defensive_phase'] = df['defensive_phase'] * df['is_defensive']  # Only count defensive phases
+    
+    # Get unique defensive phases (exclude 0 which is non-defensive)
+    defensive_phases = df[df['is_defensive']].groupby('defensive_phase').agg({
+        'close': 'count',  # Duration
+        'exposure': 'mean'  # Average exposure during phase
+    }).rename(columns={'close': 'duration'})
+    
+    crash_count = len(defensive_phases)
+    avg_crash_duration = defensive_phases['duration'].mean() if crash_count > 0 else 0
+    max_crash_duration = defensive_phases['duration'].max() if crash_count > 0 else 0
+    
+    crash_stats = {
+        'total_defensive_days': int(total_defensive_days),
+        'total_cash_days': int(total_cash_days),
+        'total_critical_days': int(total_critical_days),
+        'pct_time_defensive': round(total_defensive_days / total_days * 100, 1) if total_days > 0 else 0,
+        'crash_count': int(crash_count),
+        'avg_crash_duration': round(avg_crash_duration, 1),
+        'max_crash_duration': int(max_crash_duration)
+    }
+    
+    # ===========================================================================
+    # 2. PROTECTION EFFICIENCY (Performance during defensive periods)
+    # ===========================================================================
+    
+    # Calculate returns during defensive periods only
+    df['buyhold_daily_return'] = df['buyhold_equity'].pct_change()
+    df['soc_daily_return'] = df['soc_equity'].pct_change()
+    
+    defensive_days = df[df['is_defensive']]
+    
+    if len(defensive_days) > 0:
+        # Cumulative return during defensive periods
+        buyhold_return_during_defense = (1 + defensive_days['buyhold_daily_return'].fillna(0)).prod() - 1
+        soc_return_during_defense = (1 + defensive_days['soc_daily_return'].fillna(0)).prod() - 1
+        
+        protection_delta = (soc_return_during_defense - buyhold_return_during_defense) * 100
+        
+        # Protection efficiency: how much of the crash was avoided
+        if buyhold_return_during_defense < 0:
+            protection_efficiency = abs(protection_delta / (buyhold_return_during_defense * 100)) * 100
+        else:
+            protection_efficiency = 0
+    else:
+        buyhold_return_during_defense = 0
+        soc_return_during_defense = 0
+        protection_delta = 0
+        protection_efficiency = 0
+    
+    protection_stats = {
+        'buyhold_return_during_defense': round(buyhold_return_during_defense * 100, 2),
+        'soc_return_during_defense': round(soc_return_during_defense * 100, 2),
+        'protection_delta': round(protection_delta, 2),
+        'protection_efficiency': round(min(protection_efficiency, 100), 1)
+    }
+    
+    # ===========================================================================
+    # 3. BIG SHORT CHECKLIST (Top 5 Drawdown Analysis)
+    # ===========================================================================
+    
+    # Find the 5 worst 30-day rolling returns for Buy & Hold
+    df['rolling_30d_return'] = df['close'].pct_change(30) * 100
+    
+    # Find local minima (trough points) in drawdown
+    df['is_trough'] = (df['buyhold_drawdown'] < df['buyhold_drawdown'].shift(1)) & \
+                      (df['buyhold_drawdown'] < df['buyhold_drawdown'].shift(-1))
+    
+    # Get worst drawdown points
+    worst_drawdowns = df.nsmallest(20, 'buyhold_drawdown')[['buyhold_drawdown', 'close', 'exposure']]
+    
+    # Group nearby points (within 30 days) and take the worst from each cluster
+    big_short_events = []
+    used_dates = set()
+    
+    for date, row in worst_drawdowns.iterrows():
+        # Skip if too close to already-selected event
+        skip = False
+        for used_date in used_dates:
+            if abs((date - used_date).days) < 30:
+                skip = True
+                break
+        
+        if skip:
+            continue
+        
+        used_dates.add(date)
+        
+        # Check model status 7 days prior
+        prior_date = date - pd.Timedelta(days=7)
+        prior_data = df[df.index <= prior_date].tail(7)
+        
+        if len(prior_data) > 0:
+            avg_prior_exposure = prior_data['exposure'].mean()
+            was_defensive_prior = avg_prior_exposure < 0.8
+            
+            # Check status at the trough
+            at_trough_exposure = row['exposure']
+            
+            # Determine protection status
+            if was_defensive_prior and at_trough_exposure < 0.5:
+                status = "protected"
+                emoji = "✅"
+                description = "Model was defensive before and during crash"
+            elif at_trough_exposure < 0.8:
+                status = "late"
+                emoji = "⚠️"
+                description = "Model switched to defensive during crash"
+            else:
+                status = "missed"
+                emoji = "❌"
+                description = "Model stayed fully invested"
+            
+            big_short_events.append({
+                'date': date.strftime('%Y-%m-%d'),
+                'drawdown': round(row['buyhold_drawdown'], 1),
+                'prior_exposure': round(avg_prior_exposure * 100, 0),
+                'trough_exposure': round(at_trough_exposure * 100, 0),
+                'status': status,
+                'emoji': emoji,
+                'description': description
+            })
+        
+        if len(big_short_events) >= 5:
+            break
+    
+    # Sort by drawdown severity
+    big_short_events = sorted(big_short_events, key=lambda x: x['drawdown'])
+    
+    # Count results
+    protected_count = sum(1 for e in big_short_events if e['status'] == 'protected')
+    late_count = sum(1 for e in big_short_events if e['status'] == 'late')
+    missed_count = sum(1 for e in big_short_events if e['status'] == 'missed')
+    
+    big_short_stats = {
+        'events': big_short_events,
+        'protected_count': protected_count,
+        'late_count': late_count,
+        'missed_count': missed_count,
+        'protection_rate': round(protected_count / len(big_short_events) * 100, 0) if big_short_events else 0
+    }
+    
+    # ===========================================================================
+    # 4. FALSE ALARM ANALYSIS
+    # ===========================================================================
+    
+    # Identify defensive phases where the asset actually rose or dropped <5%
+    false_alarms = []
+    true_alerts = []
+    
+    for phase_id in defensive_phases.index:
+        phase_data = df[df['defensive_phase'] == phase_id]
+        
+        if len(phase_data) < 2:
+            continue
+        
+        # Calculate B&H return during this defensive phase
+        start_price = phase_data['close'].iloc[0]
+        end_price = phase_data['close'].iloc[-1]
+        phase_return = (end_price - start_price) / start_price * 100
+        
+        # Also check the max drawdown during this phase
+        phase_peak = phase_data['close'].cummax()
+        phase_drawdown = ((phase_data['close'] - phase_peak) / phase_peak * 100).min()
+        
+        phase_info = {
+            'start_date': phase_data.index[0].strftime('%Y-%m-%d'),
+            'end_date': phase_data.index[-1].strftime('%Y-%m-%d'),
+            'duration': len(phase_data),
+            'phase_return': round(phase_return, 1),
+            'max_drawdown': round(phase_drawdown, 1)
+        }
+        
+        # False alarm: price rose or dropped less than 5%
+        if phase_return >= 0 or phase_drawdown > -5:
+            false_alarms.append(phase_info)
+        else:
+            true_alerts.append(phase_info)
+    
+    total_alerts = len(false_alarms) + len(true_alerts)
+    false_alarm_rate = len(false_alarms) / total_alerts * 100 if total_alerts > 0 else 0
+    true_alert_rate = len(true_alerts) / total_alerts * 100 if total_alerts > 0 else 0
+    
+    # Calculate "insurance cost" - what we paid for false alarms
+    # This is the opportunity cost of being defensive when market rose
+    insurance_cost = sum(fa['phase_return'] for fa in false_alarms if fa['phase_return'] > 0)
+    
+    false_alarm_stats = {
+        'total_alerts': total_alerts,
+        'false_alarms': len(false_alarms),
+        'true_alerts': len(true_alerts),
+        'false_alarm_rate': round(false_alarm_rate, 1),
+        'true_alert_rate': round(true_alert_rate, 1),
+        'insurance_cost_pct': round(insurance_cost, 1),
+        'false_alarm_details': false_alarms[:5],  # Top 5 for display
+        'true_alert_details': true_alerts[:5]
+    }
+    
+    # ===========================================================================
+    # COMPILE FINAL AUDIT REPORT
+    # ===========================================================================
+    
+    audit_report = {
+        'crash_stats': crash_stats,
+        'protection_stats': protection_stats,
+        'big_short': big_short_stats,
+        'false_alarms': false_alarm_stats,
+        'strategy_mode': strategy_mode,
+        'total_days_analyzed': total_days,
+        'analysis_period': {
+            'start': df.index[0].strftime('%Y-%m-%d'),
+            'end': df.index[-1].strftime('%Y-%m-%d')
+        }
+    }
+    
+    return audit_report
+
+
+# =============================================================================
 # CONVENIENCE FUNCTIONS
 # =============================================================================
 

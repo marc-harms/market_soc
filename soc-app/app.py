@@ -33,7 +33,7 @@ import yfinance as yf
 import plotly.express as px
 import plotly.graph_objects as go
 
-from logic import DataFetcher, SOCAnalyzer, run_dca_simulation
+from logic import DataFetcher, SOCAnalyzer, run_dca_simulation, calculate_audit_metrics
 
 # =============================================================================
 # PAGE CONFIGURATION
@@ -1382,6 +1382,195 @@ def render_dca_simulation(tickers: List[str]):
         )
         
         st.plotly_chart(fig_dd, use_container_width=True)
+    
+    # === MODEL AUDIT & STRESS TEST ===
+    with st.expander("🛡️ Strategy Audit & Stress Test (Deep Dive)", expanded=False):
+        # Calculate audit metrics for both strategies
+        audit_def = calculate_audit_metrics(daily_def, strategy_mode="defensive") if not daily_def.empty else None
+        audit_agg = calculate_audit_metrics(daily_agg, strategy_mode="aggressive") if not daily_agg.empty else None
+        
+        if audit_def and 'error' not in audit_def:
+            crash_stats_def = audit_def.get('crash_stats', {})
+            protection_def = audit_def.get('protection_stats', {})
+            big_short_def = audit_def.get('big_short', {})
+            false_alarms_def = audit_def.get('false_alarms', {})
+            
+            crash_stats_agg = audit_agg.get('crash_stats', {}) if audit_agg else {}
+            protection_agg = audit_agg.get('protection_stats', {}) if audit_agg else {}
+            big_short_agg = audit_agg.get('big_short', {}) if audit_agg else {}
+            false_alarms_agg = audit_agg.get('false_alarms', {}) if audit_agg else {}
+            
+            # --- Row 1: Key Metrics ---
+            st.markdown("##### Crash Detection & Response")
+            
+            col_m1, col_m2, col_m3 = st.columns(3)
+            
+            with col_m1:
+                crash_count = crash_stats_def.get('crash_count', 0)
+                st.metric(
+                    label="Crash Phases Detected",
+                    value=f"{crash_count}",
+                    help="Number of separate periods where the model went defensive"
+                )
+            
+            with col_m2:
+                days_defensive = crash_stats_def.get('total_defensive_days', 0)
+                pct_defensive = crash_stats_def.get('pct_time_defensive', 0)
+                st.metric(
+                    label="Days in Defense",
+                    value=f"{days_defensive}",
+                    delta=f"{pct_defensive:.1f}% of time",
+                    delta_color="off"
+                )
+            
+            with col_m3:
+                protection_eff = protection_def.get('protection_efficiency', 0)
+                st.metric(
+                    label="Protection Efficiency",
+                    value=f"{protection_eff:.0f}%",
+                    help="How much of crash losses were avoided during defensive periods"
+                )
+            
+            # Protection detail
+            st.markdown(f"""
+            <div style="background: rgba(102, 126, 234, 0.1); border-radius: 8px; padding: 12px; margin: 0.5rem 0;">
+                <span style="font-size: 0.85rem;">
+                    During defensive periods: Buy & Hold returned <b>{protection_def.get('buyhold_return_during_defense', 0):+.1f}%</b> 
+                    vs. SOC Strategy <b>{protection_def.get('soc_return_during_defense', 0):+.1f}%</b>
+                    → <b>Protection Delta: {protection_def.get('protection_delta', 0):+.1f}%</b>
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+            
+            # --- Row 2: The Big Short Checklist ---
+            st.markdown("##### The Big Short Check (Top 5 Historical Crashes)")
+            
+            big_short_events = big_short_def.get('events', [])
+            
+            if big_short_events:
+                # Build HTML table for crash events
+                crash_rows = ""
+                for event in big_short_events:
+                    emoji = event.get('emoji', '❓')
+                    date = event.get('date', 'N/A')
+                    dd = event.get('drawdown', 0)
+                    prior_exp = event.get('prior_exposure', 0)
+                    trough_exp = event.get('trough_exposure', 0)
+                    desc = event.get('description', '')
+                    
+                    # Color code based on status
+                    status = event.get('status', '')
+                    if status == 'protected':
+                        bg_color = 'rgba(0, 200, 100, 0.15)'
+                    elif status == 'late':
+                        bg_color = 'rgba(255, 165, 0, 0.15)'
+                    else:
+                        bg_color = 'rgba(255, 80, 80, 0.15)'
+                    
+                    crash_rows += f"""
+                    <tr style="background: {bg_color};">
+                        <td style="padding: 8px; text-align: center; font-size: 1.2rem;">{emoji}</td>
+                        <td style="padding: 8px;">{date}</td>
+                        <td style="padding: 8px; text-align: center;"><b>{dd:.1f}%</b></td>
+                        <td style="padding: 8px; text-align: center;">{prior_exp:.0f}%</td>
+                        <td style="padding: 8px; text-align: center;">{trough_exp:.0f}%</td>
+                        <td style="padding: 8px; font-size: 0.85rem;">{desc}</td>
+                    </tr>
+                    """
+                
+                crash_table = f"""
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="background: rgba(102, 126, 234, 0.2); border-bottom: 2px solid #667eea;">
+                            <th style="padding: 10px; text-align: center;">Status</th>
+                            <th style="padding: 10px;">Date</th>
+                            <th style="padding: 10px; text-align: center;">Drawdown</th>
+                            <th style="padding: 10px; text-align: center;">7d Prior Exp.</th>
+                            <th style="padding: 10px; text-align: center;">At Trough</th>
+                            <th style="padding: 10px;">Model Response</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {crash_rows}
+                    </tbody>
+                </table>
+                """
+                st.markdown(crash_table, unsafe_allow_html=True)
+                
+                # Summary
+                protected = big_short_def.get('protected_count', 0)
+                late = big_short_def.get('late_count', 0)
+                missed = big_short_def.get('missed_count', 0)
+                total_events = len(big_short_events)
+                
+                st.markdown(f"""
+                <div style="margin-top: 0.5rem; font-size: 0.9rem;">
+                    <b>Summary:</b> ✅ Protected: {protected}/{total_events} | 
+                    ⚠️ Late: {late}/{total_events} | 
+                    ❌ Missed: {missed}/{total_events}
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("No significant crash events detected in this period.")
+            
+            st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+            
+            # --- Row 3: False Alarm Analysis ---
+            st.markdown("##### False Alarm Analysis (Insurance Premium)")
+            
+            total_alerts = false_alarms_def.get('total_alerts', 0)
+            false_count = false_alarms_def.get('false_alarms', 0)
+            true_count = false_alarms_def.get('true_alerts', 0)
+            false_rate = false_alarms_def.get('false_alarm_rate', 0)
+            true_rate = false_alarms_def.get('true_alert_rate', 0)
+            insurance_cost = false_alarms_def.get('insurance_cost_pct', 0)
+            
+            col_fa1, col_fa2, col_fa3 = st.columns(3)
+            
+            with col_fa1:
+                st.metric(
+                    label="Total Defensive Alerts",
+                    value=f"{total_alerts}",
+                    help="Number of times the model went defensive"
+                )
+            
+            with col_fa2:
+                # Color code based on false alarm rate
+                fa_color = "#00C864" if false_rate < 40 else "#FF6600" if false_rate < 60 else "#FF4040"
+                st.markdown(f"""
+                <div style="text-align: center;">
+                    <p style="margin-bottom: 0.25rem; font-size: 0.85rem; color: #888;">True Alerts vs False Alarms</p>
+                    <p style="font-size: 1.5rem; font-weight: 600;">
+                        <span style="color: #00C864;">✓ {true_count}</span> / 
+                        <span style="color: {fa_color};">✗ {false_count}</span>
+                    </p>
+                    <p style="font-size: 0.8rem; color: #888;">({true_rate:.0f}% accuracy)</p>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_fa3:
+                st.metric(
+                    label="Insurance Cost",
+                    value=f"{insurance_cost:+.1f}%",
+                    help="Opportunity cost from false alarms (being defensive when market rose)"
+                )
+            
+            # Explanation
+            st.markdown(f"""
+            <div style="background: rgba(255, 165, 0, 0.1); border-radius: 8px; padding: 12px; margin-top: 0.5rem;">
+                <span style="font-size: 0.85rem;">
+                    <b>How to read this:</b> A "false alarm" occurs when the model goes defensive but the asset 
+                    doesn't drop significantly (>5%). This is the "insurance premium" you pay for protection. 
+                    A {false_rate:.0f}% false alarm rate means {true_rate:.0f}% of defensive signals were 
+                    justified by subsequent declines.
+                </span>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        else:
+            st.warning("Could not calculate audit metrics. Insufficient data.")
 
 
 # =============================================================================
