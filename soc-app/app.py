@@ -111,8 +111,33 @@ def get_theme_css(is_dark: bool) -> str:
         color: {c['text']} !important;
         border-color: {c['border']} !important;
     }}
-    .streamlit-expanderHeader {{ background-color: {c['card']} !important; }}
-    .streamlit-expanderContent {{ background-color: {c['bg2']} !important; }}
+    .streamlit-expanderHeader {{ 
+        background-color: {c['card']} !important; 
+        color: {c['text']} !important;
+    }}
+    .streamlit-expanderHeader p, .streamlit-expanderHeader span,
+    .streamlit-expanderHeader svg {{ 
+        color: {c['text']} !important; 
+        fill: {c['text']} !important;
+    }}
+    .streamlit-expanderContent {{ 
+        background-color: {c['bg2']} !important; 
+        color: {c['text']} !important;
+    }}
+    .streamlit-expanderContent p, .streamlit-expanderContent span,
+    .streamlit-expanderContent label, .streamlit-expanderContent div {{
+        color: {c['text']} !important;
+    }}
+    [data-testid="stExpander"] {{
+        background-color: {c['card']} !important;
+        border-color: {c['border']} !important;
+    }}
+    [data-testid="stExpander"] details {{
+        background-color: {c['card']} !important;
+    }}
+    [data-testid="stExpander"] summary {{
+        color: {c['text']} !important;
+    }}
     .stDataFrame, [data-testid="stDataFrame"], .stDataFrame div, .stDataFrame table,
     .stDataFrame th, .stDataFrame td, [data-testid="glideDataEditor"], .dvn-scroller {{
         background-color: {c['card']} !important;
@@ -126,11 +151,23 @@ def get_theme_css(is_dark: bool) -> str:
         font-weight: bold;
         border-radius: 8px;
     }}
-    .stButton > button:hover {{ background-color: {c['bg2']} !important; }}
+    .stButton > button:hover {{ 
+        background-color: {c['bg2']} !important; 
+        color: {c['text']} !important;
+    }}
     .stButton > button[kind="primary"] {{
         background-color: #667eea !important;
         color: white !important;
         border-color: #667eea !important;
+    }}
+    .stButton > button[kind="secondary"] {{
+        background-color: {c['card']} !important;
+        color: {c['text']} !important;
+        border-color: {c['border']} !important;
+    }}
+    .stButton > button[kind="secondary"]:hover {{
+        background-color: #667eea !important;
+        color: white !important;
     }}
     .stRadio label {{ color: {c['text']} !important; }}
     .stRadio [role="radiogroup"] label {{ background-color: {c['card']} !important; border-color: {c['border']} !important; }}
@@ -1222,22 +1259,36 @@ def render_dca_simulation(tickers: List[str]):
             mode='lines'
         ))
         
+        # Theme-aware colors
+        axis_color = '#333333' if not is_dark else '#CCCCCC'
+        grid_color = '#E0E0E0' if not is_dark else '#333333'
+        
         fig.update_layout(
-            template="plotly_dark" if is_dark else "plotly_white",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
+            template="plotly_white" if not is_dark else "plotly_dark",
+            paper_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)',
+            plot_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(248,248,248,1)',
             height=400,
-            margin=dict(t=20, b=40, l=40, r=20),
+            margin=dict(t=20, b=50, l=60, r=20),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
                 xanchor="center",
                 x=0.5,
-                font=dict(color=legend_color)
+                font=dict(color=legend_color, size=13)
             ),
-            xaxis_title="Date",
-            yaxis_title="Portfolio Value (€)",
+            xaxis=dict(
+                title="Date",
+                titlefont=dict(color=axis_color, size=12),
+                tickfont=dict(color=axis_color, size=11),
+                gridcolor=grid_color
+            ),
+            yaxis=dict(
+                title="Portfolio Value (€)",
+                titlefont=dict(color=axis_color, size=12),
+                tickfont=dict(color=axis_color, size=11),
+                gridcolor=grid_color
+            ),
             hovermode='x unified'
         )
         
@@ -1286,22 +1337,36 @@ def render_dca_simulation(tickers: List[str]):
                 fillcolor='rgba(255,140,0,0.3)'
             ))
         
+        # Theme-aware colors for drawdown
+        axis_color_dd = '#333333' if not is_dark else '#CCCCCC'
+        grid_color_dd = '#E0E0E0' if not is_dark else '#333333'
+        
         fig_dd.update_layout(
-            template="plotly_dark" if is_dark else "plotly_white",
-            paper_bgcolor='rgba(0,0,0,0)',
-            plot_bgcolor='rgba(0,0,0,0)',
+            template="plotly_white" if not is_dark else "plotly_dark",
+            paper_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)',
+            plot_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(248,248,248,1)',
             height=280,
-            margin=dict(t=20, b=40, l=40, r=20),
+            margin=dict(t=20, b=50, l=60, r=20),
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
                 y=1.02,
                 xanchor="center",
                 x=0.5,
-                font=dict(color=legend_color_dd)
+                font=dict(color=legend_color_dd, size=13)
             ),
-            xaxis_title="Date",
-            yaxis_title="Drawdown (%)",
+            xaxis=dict(
+                title="Date",
+                titlefont=dict(color=axis_color_dd, size=12),
+                tickfont=dict(color=axis_color_dd, size=11),
+                gridcolor=grid_color_dd
+            ),
+            yaxis=dict(
+                title="Drawdown (%)",
+                titlefont=dict(color=axis_color_dd, size=12),
+                tickfont=dict(color=axis_color_dd, size=11),
+                gridcolor=grid_color_dd
+            ),
             hovermode='x unified'
         )
         
@@ -1483,7 +1548,7 @@ def main():
     if 'authenticated' not in st.session_state:
         st.session_state.authenticated = False
     if 'dark_mode' not in st.session_state:
-        st.session_state.dark_mode = True
+        st.session_state.dark_mode = False  # Light mode default
     if 'selected_asset' not in st.session_state:
         st.session_state.selected_asset = 0
     
