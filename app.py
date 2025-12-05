@@ -24,6 +24,7 @@ Version: 6.0 (Cleaned & Documented)
 # IMPORTS
 # =============================================================================
 import time
+import requests
 from typing import List, Dict, Any
 
 import streamlit as st
