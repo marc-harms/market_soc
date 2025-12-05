@@ -362,6 +362,55 @@ def render_header():
 
 
 
+def search_ticker(query: str) -> List[Dict[str, Any]]:
+    """
+    Search for tickers by company name or symbol using Yahoo Finance.
+    
+    Args:
+        query: Search term (company name or ticker symbol)
+    
+    Returns:
+        List of matching results with ticker, name, type, exchange
+    """
+    if not query or len(query) < 2:
+        return []
+    
+    try:
+        # Use Yahoo Finance search API
+        url = f"https://query2.finance.yahoo.com/v1/finance/search"
+        params = {
+            'q': query,
+            'quotesCount': 8,
+            'newsCount': 0,
+            'enableFuzzyQuery': True,
+            'quotesQueryId': 'tss_match_phrase_query'
+        }
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        
+        response = requests.get(url, params=params, headers=headers, timeout=5)
+        response.raise_for_status()
+        data = response.json()
+        
+        results = []
+        for quote in data.get('quotes', []):
+            # Filter for stocks, ETFs, and crypto only
+            quote_type = quote.get('quoteType', '').upper()
+            if quote_type in ['EQUITY', 'ETF', 'CRYPTOCURRENCY', 'INDEX', 'MUTUALFUND']:
+                results.append({
+                    'ticker': quote.get('symbol', ''),
+                    'name': quote.get('shortname') or quote.get('longname') or quote.get('symbol', ''),
+                    'type': quote_type,
+                    'exchange': quote.get('exchange', '')
+                })
+        
+        return results
+        
+    except requests.exceptions.RequestException:
+        return []
+    except Exception:
+        return []
+
+
 def validate_ticker(ticker: str) -> Dict[str, Any]:
     """
     Validate a ticker symbol using yfinance.
@@ -414,24 +463,28 @@ def validate_ticker(ticker: str) -> Dict[str, Any]:
 
 def render_ticker_search() -> List[str]:
     """
-    Render universal ticker search UI.
+    Render universal ticker search UI with autocomplete.
     
     Features:
-        - Text input for entering ticker symbols
-        - Autocomplete suggestions for popular tickers
+        - Search by company name OR ticker symbol
+        - Autocomplete dropdown with matching results
         - Real-time validation via yfinance
         - Error handling for API issues
     
     Returns:
         List of validated ticker symbols to analyze.
     """
-    # Initialize ticker list in session state
+    # Initialize session state
     if 'ticker_list' not in st.session_state:
         st.session_state.ticker_list = []
     if 'validated_tickers' not in st.session_state:
         st.session_state.validated_tickers = {}
+    if 'search_results' not in st.session_state:
+        st.session_state.search_results = []
+    if 'last_search' not in st.session_state:
+        st.session_state.last_search = ""
     
-    # CSS for search styling
+    # CSS for styling
     st.markdown("""
     <style>
         .ticker-chip {
@@ -439,7 +492,7 @@ def render_ticker_search() -> List[str]:
             background: rgba(102, 126, 234, 0.2);
             border: 1px solid #667eea;
             border-radius: 20px;
-            padding: 6px 12px;
+            padding: 6px 14px;
             margin: 4px;
             font-size: 0.9rem;
         }
@@ -447,84 +500,129 @@ def render_ticker_search() -> List[str]:
             background: rgba(0, 200, 0, 0.15);
             border-color: #00C800;
         }
-        .ticker-chip-invalid {
-            background: rgba(255, 100, 100, 0.15);
-            border-color: #FF6464;
-        }
-        .suggestion-chip {
-            display: inline-block;
-            background: rgba(100, 100, 100, 0.2);
-            border: 1px solid #555;
-            border-radius: 16px;
-            padding: 4px 10px;
-            margin: 2px;
-            font-size: 0.8rem;
+        .search-result {
+            padding: 8px 12px;
+            border-bottom: 1px solid #333;
             cursor: pointer;
         }
-        .suggestion-chip:hover {
-            background: rgba(102, 126, 234, 0.3);
-            border-color: #667eea;
+        .search-result:hover {
+            background: rgba(102, 126, 234, 0.2);
         }
     </style>
     """, unsafe_allow_html=True)
     
-    # Search input
-    st.markdown("#### Enter Ticker Symbols")
-    st.caption("Type ticker symbols separated by commas or spaces (e.g., AAPL, MSFT, BTC-USD)")
+    # Search input with autocomplete
+    st.markdown("#### Search Assets")
+    st.caption("Type a company name or ticker symbol (e.g., Tesla, AAPL, Bitcoin)")
     
-    # Text input for tickers
-    ticker_input = st.text_input(
-        "Search tickers:",
-        placeholder="e.g., Apple, AAPL, MSFT, BTC-USD, TSLA",
-        key="ticker_search_input",
+    # Search input
+    search_query = st.text_input(
+        "Search:",
+        placeholder="Type to search... (e.g., Tesla, Apple, Bitcoin, NVDA)",
+        key="ticker_search_query",
         label_visibility="collapsed"
     )
     
-    # Quick suggestion buttons
-    st.markdown("<div style='margin-top: 8px;'>", unsafe_allow_html=True)
-    st.caption("Quick add:")
+    # Search and show results as dropdown
+    if search_query and len(search_query) >= 2:
+        # Only search if query changed
+        if search_query != st.session_state.last_search:
+            st.session_state.last_search = search_query
+            with st.spinner("Searching..."):
+                st.session_state.search_results = search_ticker(search_query)
+        
+        # Display search results as selectable options
+        if st.session_state.search_results:
+            st.markdown("""
+            <div style="background: rgba(30,30,40,0.9); border: 1px solid #444; 
+                        border-radius: 8px; margin-top: -10px; max-height: 250px; overflow-y: auto;">
+            """, unsafe_allow_html=True)
+            
+            for i, result in enumerate(st.session_state.search_results[:8]):
+                ticker = result['ticker']
+                name = result['name']
+                asset_type = result['type']
+                exchange = result['exchange']
+                
+                # Type emoji
+                type_emoji = "📈" if asset_type == "EQUITY" else "📊" if asset_type == "ETF" else "₿" if asset_type == "CRYPTOCURRENCY" else "📉"
+                
+                col1, col2 = st.columns([4, 1])
+                with col1:
+                    st.markdown(f"**{ticker}** — {name[:35]}{'...' if len(name) > 35 else ''}")
+                    st.caption(f"{type_emoji} {asset_type} · {exchange}")
+                with col2:
+                    if st.button("Add", key=f"add_{ticker}_{i}", use_container_width=True):
+                        if ticker not in st.session_state.ticker_list:
+                            st.session_state.ticker_list.append(ticker)
+                            # Auto-validate when adding
+                            validation = validate_ticker(ticker)
+                            st.session_state.validated_tickers[ticker] = validation
+                        st.session_state.search_results = []
+                        st.session_state.last_search = ""
+                        st.rerun()
+                
+                st.markdown("<hr style='margin: 4px 0; border-color: #333;'>", unsafe_allow_html=True)
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        elif st.session_state.last_search == search_query:
+            st.warning(f"No results found for '{search_query}'. Try a different search term.")
     
-    col1, col2, col3, col4, col5 = st.columns(5)
-    quick_tickers = ['AAPL', 'NVDA', 'MSFT', 'BTC-USD', 'TSLA']
+    # Quick add buttons
+    st.markdown("<div style='margin-top: 1rem;'>", unsafe_allow_html=True)
+    st.caption("Quick add popular:")
     
-    for i, (col, ticker) in enumerate(zip([col1, col2, col3, col4, col5], quick_tickers)):
+    col1, col2, col3, col4, col5, col6 = st.columns(6)
+    quick_tickers = [('AAPL', 'Apple'), ('NVDA', 'NVIDIA'), ('MSFT', 'Microsoft'), 
+                     ('BTC-USD', 'Bitcoin'), ('TSLA', 'Tesla'), ('SPY', 'S&P 500')]
+    
+    for col, (ticker, name) in zip([col1, col2, col3, col4, col5, col6], quick_tickers):
         with col:
-            if st.button(ticker, key=f"quick_{ticker}", use_container_width=True):
+            if st.button(ticker, key=f"quick_{ticker}", help=name, use_container_width=True):
                 if ticker not in st.session_state.ticker_list:
                     st.session_state.ticker_list.append(ticker)
+                    validation = validate_ticker(ticker)
+                    st.session_state.validated_tickers[ticker] = validation
                     st.rerun()
     
     st.markdown("</div>", unsafe_allow_html=True)
     
-    # Process input when user types
-    if ticker_input:
-        # Parse input - split by comma, space, or newline
-        import re
-        raw_tickers = re.split(r'[,\s\n]+', ticker_input)
-        raw_tickers = [t.strip().upper() for t in raw_tickers if t.strip()]
-        
-        # Add new tickers to list
-        for ticker in raw_tickers:
-            if ticker and ticker not in st.session_state.ticker_list:
-                st.session_state.ticker_list.append(ticker)
-    
-    # Display current ticker list with validation
+    # Display selected tickers
     if st.session_state.ticker_list:
         st.markdown("---")
-        st.markdown("#### Selected Tickers")
+        st.markdown("#### Selected Assets")
         
-        # Validate button
-        col_validate, col_clear = st.columns([1, 1])
+        # Display as chips
+        ticker_html = "<div style='margin: 8px 0;'>"
+        valid_tickers = []
         
-        with col_validate:
-            if st.button("Validate All", type="primary", use_container_width=True):
-                with st.spinner("Validating tickers..."):
-                    for ticker in st.session_state.ticker_list:
-                        if ticker not in st.session_state.validated_tickers:
-                            result = validate_ticker(ticker)
-                            st.session_state.validated_tickers[ticker] = result
-                st.rerun()
+        for ticker in st.session_state.ticker_list:
+            validation = st.session_state.validated_tickers.get(ticker, {})
+            
+            if validation.get('valid'):
+                name = validation.get('name', ticker)
+                price = validation.get('price', 0)
+                display_name = name[:18] + '...' if len(name) > 18 else name
+                ticker_html += f"""
+                <span class="ticker-chip ticker-chip-valid">
+                    ✓ <b>{ticker}</b> ({display_name}) ${price:,.2f}
+                </span>
+                """
+                valid_tickers.append(ticker)
+            else:
+                error = validation.get('error', 'Validating...')
+                ticker_html += f"""
+                <span class="ticker-chip" style="background: rgba(255,100,100,0.15); border-color: #FF6464;">
+                    ✗ {ticker} - {error}
+                </span>
+                """
         
+        ticker_html += "</div>"
+        st.markdown(ticker_html, unsafe_allow_html=True)
+        
+        # Clear and remove buttons
+        col_clear, col_space = st.columns([1, 3])
         with col_clear:
             if st.button("Clear All", use_container_width=True):
                 st.session_state.ticker_list = []
@@ -532,74 +630,27 @@ def render_ticker_search() -> List[str]:
                 st.session_state.pop('scan_results', None)
                 st.rerun()
         
-        # Display ticker chips
-        ticker_html = "<div style='margin-top: 12px;'>"
-        valid_tickers = []
-        
-        for ticker in st.session_state.ticker_list:
-            validation = st.session_state.validated_tickers.get(ticker)
-            
-            if validation:
-                if validation['valid']:
-                    name = validation.get('name', ticker)
-                    price = validation.get('price', 0)
-                    ticker_html += f"""
-                    <span class="ticker-chip ticker-chip-valid">
-                        ✓ {ticker} ({name[:20]}{'...' if len(name) > 20 else ''}) - ${price:,.2f}
-                    </span>
-                    """
-                    valid_tickers.append(ticker)
-                else:
-                    error = validation.get('error', 'Invalid')
-                    ticker_html += f"""
-                    <span class="ticker-chip ticker-chip-invalid">
-                        ✗ {ticker} - {error}
-                    </span>
-                    """
-            else:
-                # Not validated yet
-                ticker_html += f"""
-                <span class="ticker-chip">
-                    ? {ticker} (not validated)
-                </span>
-                """
-        
-        ticker_html += "</div>"
-        st.markdown(ticker_html, unsafe_allow_html=True)
-        
-        # Show validation summary
-        total = len(st.session_state.ticker_list)
-        validated = len(st.session_state.validated_tickers)
-        valid_count = len(valid_tickers)
-        
-        if validated > 0:
-            if valid_count == total:
-                st.success(f"All {valid_count} tickers validated successfully!")
-            elif valid_count > 0:
-                st.warning(f"{valid_count} of {total} tickers valid. Invalid tickers will be skipped.")
-            else:
-                st.error("No valid tickers found. Please check your input.")
-        
         # Remove individual tickers
-        st.markdown("<div style='margin-top: 12px;'>", unsafe_allow_html=True)
-        st.caption("Click to remove:")
+        if len(st.session_state.ticker_list) > 0:
+            st.caption("Click to remove:")
+            num_cols = min(len(st.session_state.ticker_list), 6)
+            cols = st.columns(num_cols)
+            for i, ticker in enumerate(st.session_state.ticker_list[:6]):
+                with cols[i]:
+                    if st.button(f"✗ {ticker}", key=f"remove_{ticker}"):
+                        st.session_state.ticker_list.remove(ticker)
+                        st.session_state.validated_tickers.pop(ticker, None)
+                        st.session_state.pop('scan_results', None)
+                        st.rerun()
         
-        cols = st.columns(min(len(st.session_state.ticker_list), 6))
-        for i, ticker in enumerate(st.session_state.ticker_list[:6]):
-            with cols[i % 6]:
-                if st.button(f"✗ {ticker}", key=f"remove_{ticker}"):
-                    st.session_state.ticker_list.remove(ticker)
-                    st.session_state.validated_tickers.pop(ticker, None)
-                    st.session_state.pop('scan_results', None)
-                    st.rerun()
+        # Summary
+        if valid_tickers:
+            st.success(f"Ready to analyze {len(valid_tickers)} asset{'s' if len(valid_tickers) > 1 else ''}")
         
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-        # Return only valid tickers
         return valid_tickers
     
     else:
-        st.info("Enter ticker symbols above to begin analysis.")
+        st.info("Search for assets above or use quick add buttons to begin.")
         return []
 
 
