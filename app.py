@@ -606,8 +606,8 @@ def render_ticker_search() -> List[str]:
         st.markdown("#### Selected Assets")
         
         # Display as chips
-        ticker_html = "<div style='margin: 8px 0;'>"
         valid_tickers = []
+        chips_html = []
         
         for ticker in st.session_state.ticker_list:
             validation = st.session_state.validated_tickers.get(ticker, {})
@@ -616,21 +616,17 @@ def render_ticker_search() -> List[str]:
                 name = validation.get('name', ticker)
                 price = validation.get('price', 0)
                 display_name = name[:18] + '...' if len(name) > 18 else name
-                ticker_html += f"""
-                <span class="ticker-chip ticker-chip-valid">
-                    ✓ <b>{ticker}</b> ({display_name}) ${price:,.2f}
-                </span>
-                """
+                chips_html.append(
+                    f'<span class="ticker-chip ticker-chip-valid">✓ <b>{ticker}</b> ({display_name}) ${price:,.2f}</span>'
+                )
                 valid_tickers.append(ticker)
             else:
                 error = validation.get('error', 'Validating...')
-                ticker_html += f"""
-                <span class="ticker-chip" style="background: rgba(255,100,100,0.15); border-color: #FF6464;">
-                    ✗ {ticker} - {error}
-                </span>
-                """
+                chips_html.append(
+                    f'<span class="ticker-chip" style="background: rgba(255,100,100,0.15); border-color: #FF6464;">✗ {ticker} - {error}</span>'
+                )
         
-        ticker_html += "</div>"
+        ticker_html = '<div style="margin: 8px 0;">' + ' '.join(chips_html) + '</div>'
         st.markdown(ticker_html, unsafe_allow_html=True)
         
         # Clear and remove buttons
