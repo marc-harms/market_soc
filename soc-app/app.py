@@ -59,11 +59,11 @@ FOOTER_TICKERS = {"Bitcoin": "BTC-USD", "S&P 500": "^GSPC", "Gold": "GC=F"}
 # and distort market risk scoring. Available separately in "Hedge Assets" category.
 PRECIOUS_METALS = {'GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV'}
 
-MARKET_SETS = {
-    "US Big Tech": ['NVDA', 'AAPL', 'MSFT', 'AMZN', 'GOOGL', 'TSLA', 'META', 'AMD', 'NFLX'],
-    "DAX Top 10": ['^GDAXI', 'SAP.DE', 'SIE.DE', 'ALV.DE', 'DTE.DE', 'AIR.DE', 'BMW.DE', 'VOW3.DE', 'BAS.DE', 'MUV2.DE'],
-    "Crypto Assets": ['BTC-USD', 'ETH-USD', 'SOL-USD', 'BNB-USD', 'XRP-USD', 'DOGE-USD', 'ADA-USD'],
-    "S&P 500 Top 10": ['AAPL', 'MSFT', 'NVDA', 'AMZN', 'GOOGL', 'META', 'BRK-B', 'JPM', 'V', 'UNH']
+# Popular tickers for quick suggestions
+POPULAR_TICKERS = {
+    "US Tech": ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'TSLA', 'META'],
+    "Crypto": ['BTC-USD', 'ETH-USD', 'SOL-USD'],
+    "ETFs": ['SPY', 'QQQ', 'IWM', 'VTI'],
 }
 
 TICKER_NAME_FIXES = {
@@ -362,166 +362,245 @@ def render_header():
 
 
 
-def render_market_selection() -> List[str]:
+def validate_ticker(ticker: str) -> Dict[str, Any]:
     """
-    Render market universe selection UI with clickable panel cards.
+    Validate a ticker symbol using yfinance.
     
-    Features centered panels for US Tech, DAX, Crypto with icons.
-    Custom option is greyed out (coming soon).
+    Args:
+        ticker: Stock/crypto ticker symbol (e.g., 'AAPL', 'BTC-USD')
     
     Returns:
-        List of ticker symbols to analyze.
+        Dict with 'valid' (bool), 'name' (str), 'error' (str if invalid)
     """
-    # Initialize selected universe in session state
-    if 'selected_universe' not in st.session_state:
-        st.session_state.selected_universe = "US Big Tech"
-    
-    # Market panel definitions with icons and descriptions
-    market_panels = {
-        "US Big Tech": {
-            "icon": "🇺🇸",
-            "description": "NVIDIA, Apple, Microsoft, Amazon, Google, Tesla, Meta, AMD, Netflix",
-            "count": len(MARKET_SETS["US Big Tech"])
-        },
-        "DAX Top 10": {
-            "icon": "🇩🇪",
-            "description": "SAP, Siemens, Allianz, Deutsche Telekom, Airbus, BMW, VW, BASF, Munich Re",
-            "count": len(MARKET_SETS["DAX Top 10"])
-        },
-        "Crypto Assets": {
-            "icon": "₿",
-            "description": "Bitcoin, Ethereum, Solana, BNB, XRP, Dogecoin, Cardano",
-            "count": len(MARKET_SETS["Crypto Assets"])
-        },
-        "S&P 500 Top 10": {
-            "icon": "📈",
-            "description": "Apple, Microsoft, NVIDIA, Amazon, Google, Meta, Berkshire, JPMorgan, Visa, UnitedHealth",
-            "count": len(MARKET_SETS["S&P 500 Top 10"])
+    try:
+        ticker = ticker.strip().upper()
+        if not ticker:
+            return {'valid': False, 'error': 'Empty ticker'}
+        
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        # Check if we got valid data
+        if not info or info.get('regularMarketPrice') is None:
+            # Try to get history as fallback
+            hist = stock.history(period='5d')
+            if hist.empty:
+                return {'valid': False, 'error': f'Ticker "{ticker}" not found'}
+            return {
+                'valid': True,
+                'ticker': ticker,
+                'name': ticker,
+                'price': hist['Close'].iloc[-1] if not hist.empty else 0
+            }
+        
+        name = info.get('shortName') or info.get('longName') or ticker
+        price = info.get('regularMarketPrice') or info.get('previousClose', 0)
+        
+        return {
+            'valid': True,
+            'ticker': ticker,
+            'name': name,
+            'price': price
         }
-    }
+        
+    except requests.exceptions.RequestException:
+        return {'valid': False, 'error': 'API not responding. Please try again in 5 minutes.'}
+    except Exception as e:
+        error_msg = str(e).lower()
+        if 'connection' in error_msg or 'timeout' in error_msg or 'network' in error_msg:
+            return {'valid': False, 'error': 'API not responding. Please try again in 5 minutes.'}
+        return {'valid': False, 'error': f'Ticker "{ticker}" not found'}
+
+
+def render_ticker_search() -> List[str]:
+    """
+    Render universal ticker search UI.
     
-    # CSS for market panels
+    Features:
+        - Text input for entering ticker symbols
+        - Autocomplete suggestions for popular tickers
+        - Real-time validation via yfinance
+        - Error handling for API issues
+    
+    Returns:
+        List of validated ticker symbols to analyze.
+    """
+    # Initialize ticker list in session state
+    if 'ticker_list' not in st.session_state:
+        st.session_state.ticker_list = []
+    if 'validated_tickers' not in st.session_state:
+        st.session_state.validated_tickers = {}
+    
+    # CSS for search styling
     st.markdown("""
     <style>
-        .market-panel {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border: 2px solid #333;
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            height: 160px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
+        .ticker-chip {
+            display: inline-block;
+            background: rgba(102, 126, 234, 0.2);
+            border: 1px solid #667eea;
+            border-radius: 20px;
+            padding: 6px 12px;
+            margin: 4px;
+            font-size: 0.9rem;
         }
-        .market-panel:hover {
-            border-color: #667eea;
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+        .ticker-chip-valid {
+            background: rgba(0, 200, 0, 0.15);
+            border-color: #00C800;
         }
-        .market-panel.selected {
-            border-color: #667eea;
-            background: linear-gradient(135deg, #1e2a4a 0%, #1a2744 100%);
-            box-shadow: 0 0 20px rgba(102, 126, 234, 0.4);
+        .ticker-chip-invalid {
+            background: rgba(255, 100, 100, 0.15);
+            border-color: #FF6464;
         }
-        .market-panel-icon {
-            font-size: 2.5rem;
-            margin-bottom: 8px;
-        }
-        .market-panel-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 6px;
-            color: #FAFAFA;
-        }
-        .market-panel-desc {
-            font-size: 0.75rem;
-            color: #888;
-            line-height: 1.3;
-        }
-        .market-panel-count {
+        .suggestion-chip {
+            display: inline-block;
+            background: rgba(100, 100, 100, 0.2);
+            border: 1px solid #555;
+            border-radius: 16px;
+            padding: 4px 10px;
+            margin: 2px;
             font-size: 0.8rem;
-            color: #667eea;
-            margin-top: 8px;
+            cursor: pointer;
+        }
+        .suggestion-chip:hover {
+            background: rgba(102, 126, 234, 0.3);
+            border-color: #667eea;
         }
     </style>
     """, unsafe_allow_html=True)
     
-    # Create 4 columns for panels (3 active + 1 disabled)
-    col1, col2, col3, col4 = st.columns(4)
+    # Search input
+    st.markdown("#### Enter Ticker Symbols")
+    st.caption("Type ticker symbols separated by commas or spaces (e.g., AAPL, MSFT, BTC-USD)")
     
-    # Helper function to handle universe change
-    def change_universe(new_universe: str):
-        """Change universe and clear previous results."""
-        if st.session_state.selected_universe != new_universe:
-            st.session_state.selected_universe = new_universe
-            # Clear previous analysis results when universe changes
-            st.session_state.pop('scan_results', None)
-            st.session_state.selected_asset = 0
-            st.rerun()
+    # Text input for tickers
+    ticker_input = st.text_input(
+        "Search tickers:",
+        placeholder="e.g., Apple, AAPL, MSFT, BTC-USD, TSLA",
+        key="ticker_search_input",
+        label_visibility="collapsed"
+    )
     
-    with col1:
-        panel = market_panels["US Big Tech"]
-        is_selected = st.session_state.selected_universe == "US Big Tech"
-        if st.button(
-            f"{panel['icon']}\n\n**US Big Tech**\n\n{panel['count']} assets",
-            key="panel_us",
-            type="primary" if is_selected else "secondary",
-            use_container_width=True
-        ):
-            change_universe("US Big Tech")
+    # Quick suggestion buttons
+    st.markdown("<div style='margin-top: 8px;'>", unsafe_allow_html=True)
+    st.caption("Quick add:")
     
-    with col2:
-        panel = market_panels["DAX Top 10"]
-        is_selected = st.session_state.selected_universe == "DAX Top 10"
-        if st.button(
-            f"{panel['icon']}\n\n**DAX Top 10**\n\n{panel['count']} assets",
-            key="panel_dax",
-            type="primary" if is_selected else "secondary",
-            use_container_width=True
-        ):
-            change_universe("DAX Top 10")
+    col1, col2, col3, col4, col5 = st.columns(5)
+    quick_tickers = ['AAPL', 'NVDA', 'MSFT', 'BTC-USD', 'TSLA']
     
-    with col3:
-        panel = market_panels["Crypto Assets"]
-        is_selected = st.session_state.selected_universe == "Crypto Assets"
-        if st.button(
-            f"{panel['icon']}\n\n**Crypto**\n\n{panel['count']} assets",
-            key="panel_crypto",
-            type="primary" if is_selected else "secondary",
-            use_container_width=True
-        ):
-            change_universe("Crypto Assets")
+    for i, (col, ticker) in enumerate(zip([col1, col2, col3, col4, col5], quick_tickers)):
+        with col:
+            if st.button(ticker, key=f"quick_{ticker}", use_container_width=True):
+                if ticker not in st.session_state.ticker_list:
+                    st.session_state.ticker_list.append(ticker)
+                    st.rerun()
     
-    with col4:
-        panel = market_panels["S&P 500 Top 10"]
-        is_selected = st.session_state.selected_universe == "S&P 500 Top 10"
-        if st.button(
-            f"{panel['icon']}\n\n**S&P 500**\n\n{panel['count']} assets",
-            key="panel_sp500",
-            type="primary" if is_selected else "secondary",
-            use_container_width=True
-        ):
-            change_universe("S&P 500 Top 10")
+    st.markdown("</div>", unsafe_allow_html=True)
     
-    # Show selected universe description
-    selected = st.session_state.selected_universe
-    panel_info = market_panels[selected]
-    st.caption(f"📋 **{selected}**: {panel_info['description']}")
+    # Process input when user types
+    if ticker_input:
+        # Parse input - split by comma, space, or newline
+        import re
+        raw_tickers = re.split(r'[,\s\n]+', ticker_input)
+        raw_tickers = [t.strip().upper() for t in raw_tickers if t.strip()]
+        
+        # Add new tickers to list
+        for ticker in raw_tickers:
+            if ticker and ticker not in st.session_state.ticker_list:
+                st.session_state.ticker_list.append(ticker)
     
-    # Planned features note
-    st.markdown("""
-    <div style="background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; 
-                padding: 8px 12px; margin-top: 0.5rem; border-radius: 4px;">
-        <span style="color: #888; font-size: 0.8rem;">
-            <b>Planned features:</b> Additional market universes, custom portfolio selection
-        </span>
-    </div>
-    """, unsafe_allow_html=True)
+    # Display current ticker list with validation
+    if st.session_state.ticker_list:
+        st.markdown("---")
+        st.markdown("#### Selected Tickers")
+        
+        # Validate button
+        col_validate, col_clear = st.columns([1, 1])
+        
+        with col_validate:
+            if st.button("Validate All", type="primary", use_container_width=True):
+                with st.spinner("Validating tickers..."):
+                    for ticker in st.session_state.ticker_list:
+                        if ticker not in st.session_state.validated_tickers:
+                            result = validate_ticker(ticker)
+                            st.session_state.validated_tickers[ticker] = result
+                st.rerun()
+        
+        with col_clear:
+            if st.button("Clear All", use_container_width=True):
+                st.session_state.ticker_list = []
+                st.session_state.validated_tickers = {}
+                st.session_state.pop('scan_results', None)
+                st.rerun()
+        
+        # Display ticker chips
+        ticker_html = "<div style='margin-top: 12px;'>"
+        valid_tickers = []
+        
+        for ticker in st.session_state.ticker_list:
+            validation = st.session_state.validated_tickers.get(ticker)
+            
+            if validation:
+                if validation['valid']:
+                    name = validation.get('name', ticker)
+                    price = validation.get('price', 0)
+                    ticker_html += f"""
+                    <span class="ticker-chip ticker-chip-valid">
+                        ✓ {ticker} ({name[:20]}{'...' if len(name) > 20 else ''}) - ${price:,.2f}
+                    </span>
+                    """
+                    valid_tickers.append(ticker)
+                else:
+                    error = validation.get('error', 'Invalid')
+                    ticker_html += f"""
+                    <span class="ticker-chip ticker-chip-invalid">
+                        ✗ {ticker} - {error}
+                    </span>
+                    """
+            else:
+                # Not validated yet
+                ticker_html += f"""
+                <span class="ticker-chip">
+                    ? {ticker} (not validated)
+                </span>
+                """
+        
+        ticker_html += "</div>"
+        st.markdown(ticker_html, unsafe_allow_html=True)
+        
+        # Show validation summary
+        total = len(st.session_state.ticker_list)
+        validated = len(st.session_state.validated_tickers)
+        valid_count = len(valid_tickers)
+        
+        if validated > 0:
+            if valid_count == total:
+                st.success(f"All {valid_count} tickers validated successfully!")
+            elif valid_count > 0:
+                st.warning(f"{valid_count} of {total} tickers valid. Invalid tickers will be skipped.")
+            else:
+                st.error("No valid tickers found. Please check your input.")
+        
+        # Remove individual tickers
+        st.markdown("<div style='margin-top: 12px;'>", unsafe_allow_html=True)
+        st.caption("Click to remove:")
+        
+        cols = st.columns(min(len(st.session_state.ticker_list), 6))
+        for i, ticker in enumerate(st.session_state.ticker_list[:6]):
+            with cols[i % 6]:
+                if st.button(f"✗ {ticker}", key=f"remove_{ticker}"):
+                    st.session_state.ticker_list.remove(ticker)
+                    st.session_state.validated_tickers.pop(ticker, None)
+                    st.session_state.pop('scan_results', None)
+                    st.rerun()
+        
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+        # Return only valid tickers
+        return valid_tickers
     
-    return MARKET_SETS[selected]
+    else:
+        st.info("Enter ticker symbols above to begin analysis.")
+        return []
 
 
 def render_detail_panel(result: Dict[str, Any]):
@@ -1368,21 +1447,22 @@ def main():
     # Market selection - centered title and subtitle
     st.markdown("""
     <div style="text-align: center; margin-top: 1.5rem;">
-        <h3 style="margin-bottom: 0.3rem;">Market Selection</h3>
-        <p style="color: #888; font-size: 0.95rem; margin-bottom: 1.5rem;">Select your Market Universe</p>
+        <h3 style="margin-bottom: 0.3rem;">Asset Search</h3>
+        <p style="color: #888; font-size: 0.95rem; margin-bottom: 1.5rem;">Search any stock, ETF, or crypto by ticker symbol</p>
     </div>
     """, unsafe_allow_html=True)
     
-    tickers = render_market_selection()
+    tickers = render_ticker_search()
     
-    # Centered Fetch Data button
-    st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
-    
-    col_left, col_center, col_right = st.columns([1, 2, 1])
-    with col_center:
-        if st.button("🔍  Fetch Data", type="primary", use_container_width=True):
-            st.session_state.scan_results = run_analysis(tickers)
-            st.session_state.selected_asset = 0
+    # Analyze button (only show if we have valid tickers)
+    if tickers:
+        st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+        
+        col_left, col_center, col_right = st.columns([1, 2, 1])
+        with col_center:
+            if st.button("Run SOC Analysis", type="primary", use_container_width=True):
+                st.session_state.scan_results = run_analysis(tickers)
+                st.session_state.selected_asset = 0
     
     # Results - Redesigned Layout
     if 'scan_results' in st.session_state and st.session_state.scan_results:
