@@ -484,6 +484,14 @@ def render_ticker_search() -> List[str]:
         st.session_state.search_results = []
     if 'last_search' not in st.session_state:
         st.session_state.last_search = ""
+    if 'clear_search' not in st.session_state:
+        st.session_state.clear_search = False
+    
+    # Clear search input if flagged
+    if st.session_state.clear_search:
+        st.session_state.clear_search = False
+        st.session_state.search_results = []
+        st.session_state.last_search = ""
     
     # CSS for styling
     st.markdown("""
@@ -516,11 +524,12 @@ def render_ticker_search() -> List[str]:
     st.markdown("#### Search Assets")
     st.caption("Type a company name or ticker symbol (e.g., Tesla, AAPL, Bitcoin)")
     
-    # Search input
+    # Search input - use dynamic key to allow clearing
+    search_key = f"ticker_search_{len(st.session_state.ticker_list)}"
     search_query = st.text_input(
         "Search:",
         placeholder="Type to search... (e.g., Tesla, Apple, Bitcoin, NVDA)",
-        key="ticker_search_query",
+        key=search_key,
         label_visibility="collapsed"
     )
     
@@ -559,8 +568,10 @@ def render_ticker_search() -> List[str]:
                             # Auto-validate when adding
                             validation = validate_ticker(ticker)
                             st.session_state.validated_tickers[ticker] = validation
+                        # Clear search state - the dynamic key will reset the input
                         st.session_state.search_results = []
                         st.session_state.last_search = ""
+                        st.session_state.clear_search = True
                         st.rerun()
                 
                 st.markdown("<hr style='margin: 4px 0; border-color: #333;'>", unsafe_allow_html=True)
