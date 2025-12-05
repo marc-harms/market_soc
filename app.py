@@ -360,108 +360,6 @@ def render_header():
     st.markdown('<hr style="margin: 0.5rem 0 1rem 0;">', unsafe_allow_html=True)
 
 
-def render_theory():
-    """
-    Render expandable theory section explaining SOC methodology.
-    
-    Content: Origins, transfer to finance, why it works, 5-tier classification
-    system, systemic stress level explanation, and academic references.
-    """
-    with st.expander("📖 How this theory works"):
-        st.markdown("""
-## Self-Organized Criticality (SOC)
-
-### Origins
-
-Self-Organized Criticality was introduced by physicists **Per Bak, Chao Tang, and Kurt Wiesenfeld** 
-in 1987. They discovered that certain complex systems naturally evolve toward a "critical state" 
-where small perturbations can trigger chain reactions of all sizes—from minor fluctuations to 
-catastrophic avalanches.
-
-The famous **sandpile model** illustrates this: as you slowly add grains of sand to a pile, 
-it eventually reaches a critical slope. At this point, adding just one more grain can cause 
-anything from a tiny slide to a massive avalanche. The system organizes itself to this 
-critical state without any external tuning.
-
-### Transfer to Financial Markets
-
-In the 1990s, researchers recognized that financial markets exhibit strikingly similar behavior:
-
-- **Benoit Mandelbrot** demonstrated that market returns follow "fat-tailed" distributions—extreme 
-  events occur far more frequently than traditional models predict.
-
-- **Didier Sornette** applied SOC principles to predict market crashes, showing that bubbles 
-  exhibit characteristic patterns of accelerating oscillations before collapse.
-
-- Markets, like sandpiles, accumulate stress (through leverage, speculation, herding behavior) 
-  until they reach a critical state where a small trigger can cause disproportionate moves.
-
-### Why It Works
-
-Traditional finance assumes markets are **efficient** and returns are **normally distributed**. 
-Reality shows otherwise:
-
-1. **Volatility Clustering**: Large price changes tend to follow large changes, and small 
-   changes follow small changes (GARCH effects). This is the market "remembering" recent stress.
-
-2. **Power Laws**: The distribution of returns follows a power law, not a bell curve. This means 
-   "once in a century" events happen every few years.
-
-3. **Feedback Loops**: Markets are reflexive—prices affect fundamentals which affect prices. 
-   This creates self-reinforcing cycles that drive the system toward criticality.
-
-4. **Phase Transitions**: Markets shift between stable and unstable regimes. By monitoring 
-   volatility relative to trend, we can identify when the system approaches a critical state.
-
----
-
-### 5-Tier Regime Classification (Energy States)
-
-Markets exhibit characteristics similar to physical systems. Each regime represents a 
-distinct **energy state** — not investment advice, but observable market conditions:
-
-| Regime | Color | Physical State | Statistical Characteristics |
-|--------|-------|----------------|----------------------------|
-| ⚪ **DORMANT** | Grey | Low Energy, Below Equilibrium | Price < SMA200, Low volatility (reduced activity) |
-| 🟢 **STABLE** | Green | Low Energy, Above Equilibrium | Price > SMA200, Low/normal volatility (ordered state) |
-| 🟡 **ACTIVE** | Yellow | Medium Energy | Price > SMA200, Medium volatility (increased activity) |
-| 🟠 **HIGH ENERGY** | Orange | High Energy | Price > SMA200, High volatility >80th percentile (excited state) |
-| 🔴 **CRITICAL** | Red | Critical Energy | High stress with downtrend OR Extreme vol >99th percentile |
-
----
-
-### Systemic Stress Level (0-100)
-
-The **Systemic Stress Level** is a statistical measure of how far the market deviates 
-from its baseline equilibrium. This is purely a measurement, not a prediction.
-
-**Components:**
-- **Volatility Percentile** (0-100): Current 30-day volatility vs. 2-year historical range
-- **Trend Deviation**: +10 if price significantly below SMA200
-- **Extension Deviation**: +10 if price >30% above SMA200 (statistically rare)
-
-**Statistical Interpretation:**
-- **0-25 (Baseline)**: Metrics near historical averages
-- **26-50 (Moderate)**: Some elevated metrics
-- **51-75 (Heightened)**: Above-average energy state
-- **76-100 (Elevated)**: Statistical similarities to previous high-volatility periods
-
----
-
-### Understanding DORMANT Regime
-
-The **⚪ DORMANT** regime represents a low-energy market state:
-- Price is **below** the 200-day moving average 
-- Volatility is **low** (reduced market activity)
-
-This state often indicates reduced participation and can persist for extended periods. 
-It represents a statistical observation of market conditions, not a trading signal.
-
----
-
-*References: Bak, Tang & Wiesenfeld (1987) "Self-organized criticality"; Mandelbrot (1963) 
-"The variation of certain speculative prices"; Sornette (2003) "Why Stock Markets Crash"*
-        """)
 
 
 def render_market_selection() -> List[str]:
@@ -671,14 +569,13 @@ def render_detail_panel(result: Dict[str, Any]):
         figs = analyzer.get_plotly_figures(dark_mode=is_dark)
         st.plotly_chart(figs['chart3'], width="stretch")
         
-        # Historical Signal Analysis Report
-        with st.expander("📈 Historical Signal Analysis & Performance Report"):
-            with st.spinner("Analyzing historical signals..."):
-                analysis = analyzer.get_historical_signal_analysis()
-            
-            if 'error' in analysis:
-                st.warning(analysis['error'])
-            else:
+        # Historical Signal Analysis
+        with st.spinner("Analyzing historical signals..."):
+            analysis = analyzer.get_historical_signal_analysis()
+        
+        if 'error' in analysis:
+            st.warning(analysis['error'])
+        else:
                 # === SYSTEMIC STRESS LEVEL (Compliance-safe) ===
                 stress_data = analysis.get('crash_warning', {})
                 if stress_data:
@@ -1271,66 +1168,6 @@ def render_dca_simulation(tickers: List[str]):
         )
         
         st.plotly_chart(fig_dd, use_container_width=True)
-    
-    # === FRICTION COSTS (for SOC strategies) ===
-    with st.expander("Friction Costs Detail"):
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.markdown("**Defensive Strategy:**")
-            def_fees = sum_def.get('total_fees_paid', 0)
-            def_interest = sum_def.get('total_interest_earned', 0)
-            st.markdown(f"""
-            - Trades: **{def_trades}** (~{def_trades / (years_back * 12):.1f}/month)
-            - Fees Paid: **€{def_fees:,.0f}**
-            - Interest Earned: **€{def_interest:,.0f}**
-            - Net Friction: **€{def_interest - def_fees:+,.0f}**
-            """)
-        
-        with col2:
-            st.markdown("**Aggressive Strategy:**")
-            agg_fees = sum_agg.get('total_fees_paid', 0)
-            agg_interest = sum_agg.get('total_interest_earned', 0)
-            st.markdown(f"""
-            - Trades: **{agg_trades}** (~{agg_trades / (years_back * 12):.1f}/month)
-            - Fees Paid: **€{agg_fees:,.0f}**
-            - Interest Earned: **€{agg_interest:,.0f}**
-            - Net Friction: **€{agg_interest - agg_fees:+,.0f}**
-            """)
-    
-    # === STRATEGY EXPLANATION ===
-    with st.expander("Strategy Explanation"):
-        st.markdown(f"""
-        **Buy & Hold (Benchmark):**
-        - 100% invested in {st.session_state.sim_ticker} at all times
-        - Simple, passive strategy - no trading required
-        
-        **Defensive SOC:**
-        - Prioritizes capital protection
-        - **Exposure Rules:**
-          - Bear Market (Price < SMA200): **0%** invested
-          - Critical (Criticality > 80): **0%** invested
-          - High Energy (Criticality > 60): **50%** invested
-          - Stable (Uptrend, low stress): **100%** invested
-        
-        **Aggressive SOC:**
-        - Prioritizes returns, stays invested longer
-        - **Exposure Rules:**
-          - Bear Market (Price < SMA200): **0%** invested
-          - Critical (Criticality > 80): **50%** invested
-          - High Energy (Criticality > 60): **100%** invested
-          - Stable (Uptrend, low stress): **100%** invested
-        
-        **Key Insight:**
-        Defensive protects better during crashes but may miss upside.
-        Aggressive captures more upside but suffers more during corrections.
-        
-        **Friction Costs Applied:**
-        - Trading fee: **{trading_fee_pct:.1f}%** per trade
-        - Cash interest: **{interest_rate_annual:.1f}%** p.a.
-        
-        *Historical backtest for educational purposes only. Past performance does not indicate future results.*
-        """)
 
 
 # =============================================================================
@@ -1527,7 +1364,6 @@ def main():
     
     # Header
     render_header()
-    render_theory()
     
     # Market selection - centered title and subtitle
     st.markdown("""
@@ -1627,43 +1463,6 @@ def main():
                 st.session_state.analysis_mode = "simulation"
                 st.rerun()
         
-        # === ANALYSIS EXPLANATION EXPANDER ===
-        analysis_explanations = {
-            "deep_dive": {
-                "title": "Asset Deep Dive",
-                "description": """
-                **What this analysis shows:**
-                
-                - **SOC Chart**: Visualizes price movements overlaid with volatility bars colored by regime (5-tier system)
-                - **Systemic Stress Level**: A 0-100 score indicating current market stress based on volatility percentile
-                - **Historical Regime Analysis**: Statistics on how the asset behaved in each regime historically
-                - **Forward Returns**: What happened 1, 3, 5, 10, 30, 60, 90 days after similar signals in the past
-                - **Regime Persistence**: How long the asset typically stays in each phase
-                
-                Use this to understand the current market state and historical context for your selected asset.
-                """
-            },
-            "simulation": {
-                "title": "Portfolio Simulation",
-                "description": """
-                **What this simulation shows:**
-                
-                - **Buy & Hold vs SOC Dynamic**: Compare passive investing against volatility-adjusted position sizing
-                - **Strategy Modes**: Choose between Defensive (max safety) or Aggressive (max return)
-                - **Friction Costs**: Include realistic trading fees and cash interest in the simulation
-                - **Equity Curves**: Visual comparison of portfolio growth over time
-                - **Risk Metrics**: Max drawdown comparison, Sharpe ratios, and exposure statistics
-                
-                Use this to backtest how an SOC-based position sizing strategy would have performed historically.
-                """
-            }
-        }
-        
-        current_explanation = analysis_explanations[st.session_state.analysis_mode]
-        with st.expander(f"ℹ️ About: {current_explanation['title']}", expanded=False):
-            st.markdown(current_explanation['description'])
-        
-        st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
         st.divider()
         
         # === RENDER SELECTED ANALYSIS ===
