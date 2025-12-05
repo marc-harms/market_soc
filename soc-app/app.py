@@ -144,30 +144,41 @@ def get_theme_css(is_dark: bool) -> str:
         color: {c['text']} !important;
     }}
     .stDataFrame th {{ background-color: {c['bg2']} !important; }}
-    .stButton > button {{
+    .stButton > button,
+    [data-testid="baseButton-secondary"],
+    [data-testid="stBaseButton-secondary"],
+    button[kind="secondary"] {{
         background-color: {c['card']} !important;
         color: {c['text']} !important;
-        border-color: {c['border']} !important;
-        font-weight: bold;
+        border: 1px solid {c['border']} !important;
+        font-weight: 600;
         border-radius: 8px;
     }}
-    .stButton > button:hover {{ 
+    .stButton > button:hover,
+    [data-testid="baseButton-secondary"]:hover,
+    [data-testid="stBaseButton-secondary"]:hover {{ 
         background-color: {c['bg2']} !important; 
         color: {c['text']} !important;
+        border-color: #667eea !important;
     }}
-    .stButton > button[kind="primary"] {{
+    .stButton > button[kind="primary"],
+    [data-testid="baseButton-primary"],
+    [data-testid="stBaseButton-primary"],
+    button[kind="primary"] {{
         background-color: #667eea !important;
         color: white !important;
         border-color: #667eea !important;
     }}
-    .stButton > button[kind="secondary"] {{
-        background-color: {c['card']} !important;
-        color: {c['text']} !important;
-        border-color: {c['border']} !important;
+    .stButton > button[kind="primary"]:hover,
+    [data-testid="baseButton-primary"]:hover {{
+        background-color: #5568d9 !important;
     }}
-    .stButton > button[kind="secondary"]:hover {{
-        background-color: #667eea !important;
-        color: white !important;
+    /* Ensure all button text is visible */
+    .stButton button p,
+    .stButton button span,
+    [data-testid="baseButton-secondary"] p,
+    [data-testid="baseButton-secondary"] span {{
+        color: {c['text']} !important;
     }}
     .stRadio label {{ color: {c['text']} !important; }}
     .stRadio [role="radiogroup"] label {{ background-color: {c['card']} !important; border-color: {c['border']} !important; }}
@@ -1277,19 +1288,19 @@ def render_dca_simulation(tickers: List[str]):
                 x=0.5,
                 font=dict(color=legend_color, size=13)
             ),
-            xaxis=dict(
-                title="Date",
-                titlefont=dict(color=axis_color, size=12),
-                tickfont=dict(color=axis_color, size=11),
-                gridcolor=grid_color
-            ),
-            yaxis=dict(
-                title="Portfolio Value (€)",
-                titlefont=dict(color=axis_color, size=12),
-                tickfont=dict(color=axis_color, size=11),
-                gridcolor=grid_color
-            ),
             hovermode='x unified'
+        )
+        fig.update_xaxes(
+            title_text="Date",
+            title_font=dict(color=axis_color, size=12),
+            tickfont=dict(color=axis_color, size=11),
+            gridcolor=grid_color
+        )
+        fig.update_yaxes(
+            title_text="Portfolio Value (€)",
+            title_font=dict(color=axis_color, size=12),
+            tickfont=dict(color=axis_color, size=11),
+            gridcolor=grid_color
         )
         
         st.plotly_chart(fig, use_container_width=True)
@@ -1355,19 +1366,19 @@ def render_dca_simulation(tickers: List[str]):
                 x=0.5,
                 font=dict(color=legend_color_dd, size=13)
             ),
-            xaxis=dict(
-                title="Date",
-                titlefont=dict(color=axis_color_dd, size=12),
-                tickfont=dict(color=axis_color_dd, size=11),
-                gridcolor=grid_color_dd
-            ),
-            yaxis=dict(
-                title="Drawdown (%)",
-                titlefont=dict(color=axis_color_dd, size=12),
-                tickfont=dict(color=axis_color_dd, size=11),
-                gridcolor=grid_color_dd
-            ),
             hovermode='x unified'
+        )
+        fig_dd.update_xaxes(
+            title_text="Date",
+            title_font=dict(color=axis_color_dd, size=12),
+            tickfont=dict(color=axis_color_dd, size=11),
+            gridcolor=grid_color_dd
+        )
+        fig_dd.update_yaxes(
+            title_text="Drawdown (%)",
+            title_font=dict(color=axis_color_dd, size=12),
+            tickfont=dict(color=axis_color_dd, size=11),
+            gridcolor=grid_color_dd
         )
         
         st.plotly_chart(fig_dd, use_container_width=True)
