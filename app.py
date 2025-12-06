@@ -925,6 +925,19 @@ def render_detail_panel(result: Dict[str, Any]):
     </div>
     """, unsafe_allow_html=True)
     
+    # Explanation of Regime
+    st.markdown("""
+    <div style="background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; padding: 12px; margin: 12px 0; border-radius: 4px;">
+        <strong>📖 What is a "Regime"?</strong><br>
+        <span style="font-size: 0.9rem; opacity: 0.9;">
+        A <strong>regime</strong> is the asset's current statistical behavior pattern based on price volatility and trend direction. 
+        Think of it as the market's "mood" for this asset: <span style="color: #00C864;">🟢 Stable</span> (low volatility, clear trend), 
+        <span style="color: #FFB800;">🟡 Transitioning</span> (moderate volatility, changing direction), or 
+        <span style="color: #FF4040;">🔴 Volatile</span> (high volatility, unclear direction).
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # Metrics row - including new Criticality Score
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Price", f"${result['price']:,.2f}")
@@ -1018,6 +1031,19 @@ def render_detail_panel(result: Dict[str, Any]):
                         <div style="margin-top: 12px; font-size: 10px; opacity: 0.6; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
                             ⚠️ Purely statistical analysis. Past performance is not indicative of future results.
                         </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Explanation of relationship between Regime and Stress Level
+                    st.markdown("""
+                    <div style="background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; padding: 12px; margin: 12px 0; border-radius: 4px;">
+                        <strong>🎯 Regime vs. Stress Level – What's the Difference?</strong><br>
+                        <span style="font-size: 0.9rem; opacity: 0.9;">
+                        • <strong>Regime</strong> (shown at top) = This asset's individual price behavior pattern<br>
+                        • <strong>Systemic Stress Level</strong> (shown above) = Overall market-wide risk across volatility, correlations, and trends<br><br>
+                        <strong>Why can they differ?</strong> An asset can be in a 🟢 Stable regime (behaving normally) while the broader market shows 🟠 Heightened stress (system-wide instability). 
+                        The asset might be insulated now, but elevated systemic stress suggests potential future spillover risk.
+                        </span>
                     </div>
                     """, unsafe_allow_html=True)
                 
@@ -1983,7 +2009,6 @@ def render_sticky_cockpit_header():
                                     if search_results:
                                         # Found matches - store for selection
                                         st.session_state.ticker_suggestions = search_results
-                                        st.info(f"'{ticker_input}' is not a ticker. Did you mean one of these? See suggestions below.")
                                     else:
                                         st.error(f"Could not find '{ticker_input}'. Try entering the exact ticker symbol (e.g., AAPL, SIE.DE, BTC-USD).")
                             except Exception as e:
@@ -2125,7 +2150,12 @@ def main():
     
     # === TICKER SUGGESTIONS (if user searched by company name) ===
     if 'ticker_suggestions' in st.session_state and st.session_state.ticker_suggestions:
-        st.markdown("#### 🔍 Did you mean...")
+        # Centered info box
+        col_left, col_center, col_right = st.columns([1, 2, 1])
+        with col_center:
+            st.info("🔍 Not a ticker symbol. Did you mean one of these?")
+        
+        st.markdown("#### Select a ticker:")
         suggestions = st.session_state.ticker_suggestions[:6]  # Max 6 suggestions
         
         num_cols = min(3, len(suggestions))
