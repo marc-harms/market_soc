@@ -1396,158 +1396,160 @@ def render_dca_simulation(tickers: List[str]):
         st.plotly_chart(fig_dd, use_container_width=True)
     
     # === MODEL AUDIT & STRESS TEST ===
-    with st.expander("🛡️ Strategy Audit & Stress Test (Deep Dive)", expanded=False):
-        # Calculate audit metrics for both strategies
-        audit_def = calculate_audit_metrics(daily_def, strategy_mode="defensive") if not daily_def.empty else None
-        audit_agg = calculate_audit_metrics(daily_agg, strategy_mode="aggressive") if not daily_agg.empty else None
+    st.markdown("---")
+    st.markdown("#### Strategy Audit & Stress Test")
+    
+    # Calculate audit metrics for both strategies
+    audit_def = calculate_audit_metrics(daily_def, strategy_mode="defensive") if not daily_def.empty else None
+    audit_agg = calculate_audit_metrics(daily_agg, strategy_mode="aggressive") if not daily_agg.empty else None
+    
+    if audit_def and 'error' not in audit_def:
+        crash_stats_def = audit_def.get('crash_stats', {})
+        protection_def = audit_def.get('protection_stats', {})
+        big_short_def = audit_def.get('big_short', {})
+        false_alarms_def = audit_def.get('false_alarms', {})
         
-        if audit_def and 'error' not in audit_def:
-            crash_stats_def = audit_def.get('crash_stats', {})
-            protection_def = audit_def.get('protection_stats', {})
-            big_short_def = audit_def.get('big_short', {})
-            false_alarms_def = audit_def.get('false_alarms', {})
-            
-            crash_stats_agg = audit_agg.get('crash_stats', {}) if audit_agg else {}
-            protection_agg = audit_agg.get('protection_stats', {}) if audit_agg else {}
-            big_short_agg = audit_agg.get('big_short', {}) if audit_agg else {}
-            false_alarms_agg = audit_agg.get('false_alarms', {}) if audit_agg else {}
-            
-            # === AUDIT COMPARISON TABLE ===
-            st.markdown("##### Crash Detection & Protection Overview")
-            
-            # Extract metrics for both strategies
-            def_crash_count = crash_stats_def.get('crash_count', 0)
-            def_days_defensive = crash_stats_def.get('total_defensive_days', 0)
-            def_pct_defensive = crash_stats_def.get('pct_time_defensive', 0)
-            def_protection_eff = protection_def.get('protection_efficiency', 0)
-            def_protection_delta = protection_def.get('protection_delta', 0)
-            def_true_alerts = false_alarms_def.get('true_alerts', 0)
-            def_false_alarms = false_alarms_def.get('false_alarms', 0)
-            def_accuracy = false_alarms_def.get('true_alert_rate', 0)
-            def_insurance_cost = false_alarms_def.get('insurance_cost_pct', 0)
-            
-            agg_crash_count = crash_stats_agg.get('crash_count', 0)
-            agg_days_defensive = crash_stats_agg.get('total_defensive_days', 0)
-            agg_pct_defensive = crash_stats_agg.get('pct_time_defensive', 0)
-            agg_protection_eff = protection_agg.get('protection_efficiency', 0)
-            agg_protection_delta = protection_agg.get('protection_delta', 0)
-            agg_true_alerts = false_alarms_agg.get('true_alerts', 0)
-            agg_false_alarms = false_alarms_agg.get('false_alarms', 0)
-            agg_accuracy = false_alarms_agg.get('true_alert_rate', 0)
-            agg_insurance_cost = false_alarms_agg.get('insurance_cost_pct', 0)
-            
-            # Build comparison table HTML
-            audit_table = '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">'
-            audit_table += '<thead><tr style="background: rgba(102, 126, 234, 0.3); border-bottom: 2px solid #667eea;"><th style="padding: 12px 10px; text-align: left; font-weight: 700;">Metric</th><th style="padding: 12px 10px; text-align: center; font-weight: 700;">Defensive</th><th style="padding: 12px 10px; text-align: center; font-weight: 700;">Aggressive</th></tr></thead>'
-            audit_table += '<tbody>'
-            
-            # Crash Phases Detected
-            audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">Crash Phases Detected</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_crash_count}</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_crash_count}</td></tr>'
-            
-            # Days in Defense
-            audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">Days in Defense</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_days_defensive} ({def_pct_defensive:.1f}%)</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_days_defensive} ({agg_pct_defensive:.1f}%)</td></tr>'
-            
-            # Protection Efficiency (highlight row)
-            audit_table += f'<tr style="background: rgba(102, 126, 234, 0.15);"><td style="padding: 10px; border-bottom: 1px solid #444;"><b>Protection Efficiency</b></td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;"><b>{def_protection_eff:.0f}%</b></td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;"><b>{agg_protection_eff:.0f}%</b></td></tr>'
-            
-            # Protection Delta
-            audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">Protection Delta vs B&H</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_protection_delta:+.1f}%</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_protection_delta:+.1f}%</td></tr>'
-            
-            # True Alerts
-            audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">True Alerts (Justified)</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_true_alerts}</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_true_alerts}</td></tr>'
-            
-            # False Alarms
-            audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">False Alarms</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_false_alarms}</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_false_alarms}</td></tr>'
-            
-            # Signal Accuracy (highlight row)
-            audit_table += f'<tr style="background: rgba(102, 126, 234, 0.15);"><td style="padding: 10px; border-bottom: 1px solid #444;"><b>Signal Accuracy</b></td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;"><b>{def_accuracy:.0f}%</b></td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;"><b>{agg_accuracy:.0f}%</b></td></tr>'
-            
-            # Insurance Cost
-            audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">Insurance Cost (Opportunity)</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_insurance_cost:+.1f}%</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_insurance_cost:+.1f}%</td></tr>'
-            
-            audit_table += '</tbody></table>'
-            
-            st.markdown(audit_table, unsafe_allow_html=True)
-            
-            # Key insights
-            col_ins1, col_ins2 = st.columns(2)
-            with col_ins1:
-                better_protection = "Defensive" if def_protection_eff >= agg_protection_eff else "Aggressive"
-                st.success(f"**Best Protection:** {better_protection} ({max(def_protection_eff, agg_protection_eff):.0f}%)")
-            with col_ins2:
-                better_accuracy = "Defensive" if def_accuracy >= agg_accuracy else "Aggressive"
-                st.info(f"**Best Accuracy:** {better_accuracy} ({max(def_accuracy, agg_accuracy):.0f}%)")
-            
-            st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
-            
-            # === THE BIG SHORT CHECK (Side by Side) ===
-            st.markdown("##### The Big Short Check (Top 5 Historical Crashes)")
-            
-            big_short_events_def = big_short_def.get('events', [])
-            big_short_events_agg = big_short_agg.get('events', [])
-            
-            if big_short_events_def:
-                # Build comparison table showing how each strategy responded
-                crash_rows_list = []
-                
-                # Create a map of aggressive events by date for matching
-                agg_events_map = {e.get('date'): e for e in big_short_events_agg}
-                
-                for event_def in big_short_events_def:
-                    date = event_def.get('date', 'N/A')
-                    dd = event_def.get('drawdown', 0)
-                    
-                    # Defensive status
-                    def_emoji = event_def.get('emoji', '❓')
-                    def_prior = event_def.get('prior_exposure', 0)
-                    def_trough = event_def.get('trough_exposure', 0)
-                    
-                    # Aggressive status (match by date)
-                    event_agg = agg_events_map.get(date, {})
-                    agg_emoji = event_agg.get('emoji', '❓') if event_agg else '❓'
-                    agg_prior = event_agg.get('prior_exposure', 0) if event_agg else 0
-                    agg_trough = event_agg.get('trough_exposure', 0) if event_agg else 0
-                    
-                    # Color code row based on defensive status
-                    status = event_def.get('status', '')
-                    if status == 'protected':
-                        bg_color = 'rgba(0, 200, 100, 0.1)'
-                    elif status == 'late':
-                        bg_color = 'rgba(255, 165, 0, 0.1)'
-                    else:
-                        bg_color = 'rgba(255, 80, 80, 0.1)'
-                    
-                    row_html = f'<tr style="background: {bg_color};"><td style="padding: 8px;">{date}</td><td style="padding: 8px; text-align: center;"><b>{dd:.1f}%</b></td><td style="padding: 8px; text-align: center; font-size: 1.1rem;">{def_emoji}</td><td style="padding: 8px; text-align: center;">{def_prior:.0f}% → {def_trough:.0f}%</td><td style="padding: 8px; text-align: center; font-size: 1.1rem;">{agg_emoji}</td><td style="padding: 8px; text-align: center;">{agg_prior:.0f}% → {agg_trough:.0f}%</td></tr>'
-                    crash_rows_list.append(row_html)
-                
-                crash_rows = "".join(crash_rows_list)
-                
-                crash_table = '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;"><thead><tr style="background: rgba(102, 126, 234, 0.2); border-bottom: 2px solid #667eea;"><th style="padding: 10px;">Date</th><th style="padding: 10px; text-align: center;">Drawdown</th><th style="padding: 10px; text-align: center;">Def. Status</th><th style="padding: 10px; text-align: center;">Def. Exposure</th><th style="padding: 10px; text-align: center;">Agg. Status</th><th style="padding: 10px; text-align: center;">Agg. Exposure</th></tr></thead><tbody>' + crash_rows + '</tbody></table>'
-                
-                st.markdown(crash_table, unsafe_allow_html=True)
-                
-                # Summary for both
-                def_protected = big_short_def.get('protected_count', 0)
-                def_late = big_short_def.get('late_count', 0)
-                def_missed = big_short_def.get('missed_count', 0)
-                
-                agg_protected = big_short_agg.get('protected_count', 0)
-                agg_late = big_short_agg.get('late_count', 0)
-                agg_missed = big_short_agg.get('missed_count', 0)
-                
-                total_events = len(big_short_events_def)
-                
-                summary_html = f'<div style="margin-top: 0.5rem; font-size: 0.9rem;"><b>Defensive:</b> ✅ {def_protected}/{total_events} | ⚠️ {def_late}/{total_events} | ❌ {def_missed}/{total_events} &nbsp;&nbsp;&nbsp; <b>Aggressive:</b> ✅ {agg_protected}/{total_events} | ⚠️ {agg_late}/{total_events} | ❌ {agg_missed}/{total_events}</div>'
-                st.markdown(summary_html, unsafe_allow_html=True)
-                
-                # Legend
-                legend_html = '<div style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">✅ Protected = Defensive before crash | ⚠️ Late = Switched during crash | ❌ Missed = Stayed invested</div>'
-                st.markdown(legend_html, unsafe_allow_html=True)
-            else:
-                st.info("No significant crash events detected in this period.")
+        crash_stats_agg = audit_agg.get('crash_stats', {}) if audit_agg else {}
+        protection_agg = audit_agg.get('protection_stats', {}) if audit_agg else {}
+        big_short_agg = audit_agg.get('big_short', {}) if audit_agg else {}
+        false_alarms_agg = audit_agg.get('false_alarms', {}) if audit_agg else {}
         
+        # === AUDIT COMPARISON TABLE ===
+        st.markdown("##### Crash Detection & Protection Overview")
+        
+        # Extract metrics for both strategies
+        def_crash_count = crash_stats_def.get('crash_count', 0)
+        def_days_defensive = crash_stats_def.get('total_defensive_days', 0)
+        def_pct_defensive = crash_stats_def.get('pct_time_defensive', 0)
+        def_protection_eff = protection_def.get('protection_efficiency', 0)
+        def_protection_delta = protection_def.get('protection_delta', 0)
+        def_true_alerts = false_alarms_def.get('true_alerts', 0)
+        def_false_alarms = false_alarms_def.get('false_alarms', 0)
+        def_accuracy = false_alarms_def.get('true_alert_rate', 0)
+        def_insurance_cost = false_alarms_def.get('insurance_cost_pct', 0)
+        
+        agg_crash_count = crash_stats_agg.get('crash_count', 0)
+        agg_days_defensive = crash_stats_agg.get('total_defensive_days', 0)
+        agg_pct_defensive = crash_stats_agg.get('pct_time_defensive', 0)
+        agg_protection_eff = protection_agg.get('protection_efficiency', 0)
+        agg_protection_delta = protection_agg.get('protection_delta', 0)
+        agg_true_alerts = false_alarms_agg.get('true_alerts', 0)
+        agg_false_alarms = false_alarms_agg.get('false_alarms', 0)
+        agg_accuracy = false_alarms_agg.get('true_alert_rate', 0)
+        agg_insurance_cost = false_alarms_agg.get('insurance_cost_pct', 0)
+        
+        # Build comparison table HTML
+        audit_table = '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">'
+        audit_table += '<thead><tr style="background: rgba(102, 126, 234, 0.3); border-bottom: 2px solid #667eea;"><th style="padding: 12px 10px; text-align: left; font-weight: 700;">Metric</th><th style="padding: 12px 10px; text-align: center; font-weight: 700;">Defensive</th><th style="padding: 12px 10px; text-align: center; font-weight: 700;">Aggressive</th></tr></thead>'
+        audit_table += '<tbody>'
+        
+        # Crash Phases Detected
+        audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">Crash Phases Detected</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_crash_count}</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_crash_count}</td></tr>'
+        
+        # Days in Defense
+        audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">Days in Defense</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_days_defensive} ({def_pct_defensive:.1f}%)</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_days_defensive} ({agg_pct_defensive:.1f}%)</td></tr>'
+        
+        # Protection Efficiency (highlight row)
+        audit_table += f'<tr style="background: rgba(102, 126, 234, 0.15);"><td style="padding: 10px; border-bottom: 1px solid #444;"><b>Protection Efficiency</b></td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;"><b>{def_protection_eff:.0f}%</b></td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;"><b>{agg_protection_eff:.0f}%</b></td></tr>'
+        
+        # Protection Delta
+        audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">Protection Delta vs B&H</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_protection_delta:+.1f}%</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_protection_delta:+.1f}%</td></tr>'
+        
+        # True Alerts
+        audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">True Alerts (Justified)</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_true_alerts}</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_true_alerts}</td></tr>'
+        
+        # False Alarms
+        audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">False Alarms</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_false_alarms}</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_false_alarms}</td></tr>'
+        
+        # Signal Accuracy (highlight row)
+        audit_table += f'<tr style="background: rgba(102, 126, 234, 0.15);"><td style="padding: 10px; border-bottom: 1px solid #444;"><b>Signal Accuracy</b></td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;"><b>{def_accuracy:.0f}%</b></td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;"><b>{agg_accuracy:.0f}%</b></td></tr>'
+        
+        # Insurance Cost
+        audit_table += f'<tr><td style="padding: 10px; border-bottom: 1px solid #444;">Insurance Cost (Opportunity)</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{def_insurance_cost:+.1f}%</td><td style="padding: 10px; text-align: center; border-bottom: 1px solid #444;">{agg_insurance_cost:+.1f}%</td></tr>'
+        
+        audit_table += '</tbody></table>'
+        
+        st.markdown(audit_table, unsafe_allow_html=True)
+        
+        # Key insights
+        col_ins1, col_ins2 = st.columns(2)
+        with col_ins1:
+            better_protection = "Defensive" if def_protection_eff >= agg_protection_eff else "Aggressive"
+            st.success(f"**Best Protection:** {better_protection} ({max(def_protection_eff, agg_protection_eff):.0f}%)")
+        with col_ins2:
+            better_accuracy = "Defensive" if def_accuracy >= agg_accuracy else "Aggressive"
+            st.info(f"**Best Accuracy:** {better_accuracy} ({max(def_accuracy, agg_accuracy):.0f}%)")
+        
+        st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+        
+        # === THE BIG SHORT CHECK (Side by Side) ===
+        st.markdown("##### The Big Short Check (Top 5 Historical Crashes)")
+        
+        big_short_events_def = big_short_def.get('events', [])
+        big_short_events_agg = big_short_agg.get('events', [])
+        
+        if big_short_events_def:
+            # Build comparison table showing how each strategy responded
+            crash_rows_list = []
+            
+            # Create a map of aggressive events by date for matching
+            agg_events_map = {e.get('date'): e for e in big_short_events_agg}
+            
+            for event_def in big_short_events_def:
+                date = event_def.get('date', 'N/A')
+                dd = event_def.get('drawdown', 0)
+                
+                # Defensive status
+                def_emoji = event_def.get('emoji', '❓')
+                def_prior = event_def.get('prior_exposure', 0)
+                def_trough = event_def.get('trough_exposure', 0)
+                
+                # Aggressive status (match by date)
+                event_agg = agg_events_map.get(date, {})
+                agg_emoji = event_agg.get('emoji', '❓') if event_agg else '❓'
+                agg_prior = event_agg.get('prior_exposure', 0) if event_agg else 0
+                agg_trough = event_agg.get('trough_exposure', 0) if event_agg else 0
+                
+                # Color code row based on defensive status
+                status = event_def.get('status', '')
+                if status == 'protected':
+                    bg_color = 'rgba(0, 200, 100, 0.1)'
+                elif status == 'late':
+                    bg_color = 'rgba(255, 165, 0, 0.1)'
+                else:
+                    bg_color = 'rgba(255, 80, 80, 0.1)'
+                
+                row_html = f'<tr style="background: {bg_color};"><td style="padding: 8px;">{date}</td><td style="padding: 8px; text-align: center;"><b>{dd:.1f}%</b></td><td style="padding: 8px; text-align: center; font-size: 1.1rem;">{def_emoji}</td><td style="padding: 8px; text-align: center;">{def_prior:.0f}% → {def_trough:.0f}%</td><td style="padding: 8px; text-align: center; font-size: 1.1rem;">{agg_emoji}</td><td style="padding: 8px; text-align: center;">{agg_prior:.0f}% → {agg_trough:.0f}%</td></tr>'
+                crash_rows_list.append(row_html)
+            
+            crash_rows = "".join(crash_rows_list)
+            
+            crash_table = '<table style="width: 100%; border-collapse: collapse; font-size: 0.9rem;"><thead><tr style="background: rgba(102, 126, 234, 0.2); border-bottom: 2px solid #667eea;"><th style="padding: 10px;">Date</th><th style="padding: 10px; text-align: center;">Drawdown</th><th style="padding: 10px; text-align: center;">Def. Status</th><th style="padding: 10px; text-align: center;">Def. Exposure</th><th style="padding: 10px; text-align: center;">Agg. Status</th><th style="padding: 10px; text-align: center;">Agg. Exposure</th></tr></thead><tbody>' + crash_rows + '</tbody></table>'
+            
+            st.markdown(crash_table, unsafe_allow_html=True)
+            
+            # Summary for both
+            def_protected = big_short_def.get('protected_count', 0)
+            def_late = big_short_def.get('late_count', 0)
+            def_missed = big_short_def.get('missed_count', 0)
+            
+            agg_protected = big_short_agg.get('protected_count', 0)
+            agg_late = big_short_agg.get('late_count', 0)
+            agg_missed = big_short_agg.get('missed_count', 0)
+            
+            total_events = len(big_short_events_def)
+            
+            summary_html = f'<div style="margin-top: 0.5rem; font-size: 0.9rem;"><b>Defensive:</b> ✅ {def_protected}/{total_events} | ⚠️ {def_late}/{total_events} | ❌ {def_missed}/{total_events} &nbsp;&nbsp;&nbsp; <b>Aggressive:</b> ✅ {agg_protected}/{total_events} | ⚠️ {agg_late}/{total_events} | ❌ {agg_missed}/{total_events}</div>'
+            st.markdown(summary_html, unsafe_allow_html=True)
+            
+            # Legend
+            legend_html = '<div style="margin-top: 0.5rem; font-size: 0.8rem; color: #888;">✅ Protected = Defensive before crash | ⚠️ Late = Switched during crash | ❌ Missed = Stayed invested</div>'
+            st.markdown(legend_html, unsafe_allow_html=True)
         else:
-            st.warning("Could not calculate audit metrics. Insufficient data.")
+            st.info("No significant crash events detected in this period.")
+    
+    else:
+        st.warning("Could not calculate audit metrics. Insufficient data.")
 
 
 # =============================================================================
