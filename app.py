@@ -1331,6 +1331,18 @@ def render_dca_simulation(tickers: List[str]):
     st.markdown("---")
     st.markdown("#### Strategy Comparison Results")
     
+    # Strategy explanations
+    st.markdown("""
+    <div style="background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; padding: 14px; margin: 16px 0; border-radius: 4px;">
+        <strong>📚 Strategy Overview:</strong><br>
+        <ul style="margin: 8px 0 0 0; padding-left: 20px; font-size: 0.9rem; line-height: 1.6;">
+            <li><strong>Buy & Hold:</strong> Remains 100% invested at all times, regardless of market conditions (baseline strategy)</li>
+            <li><strong>Defensive SOC:</strong> Exits to cash during Volatile/Transitioning regimes to preserve capital and avoid drawdowns</li>
+            <li><strong>Aggressive SOC:</strong> Stays invested during all regimes except extreme volatility, maximizing market exposure for higher returns</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    
     # === COMPARISON TABLE ===
     st.markdown("##### Performance Overview")
     
