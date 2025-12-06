@@ -1725,27 +1725,26 @@ def render_sticky_cockpit_header():
             st.markdown('<h4 style="margin: 0;">📉 SOC Seismograph</h4>', unsafe_allow_html=True)
         
         with col_search:
-            # Single asset search (using selectbox for instant selection)
-            search_query = st.text_input(
-                "Analyze Asset...",
-                placeholder="Type ticker (e.g., AAPL, BTC-USD)",
-                label_visibility="collapsed",
-                key="cockpit_search"
-            )
+            # Search with inline button
+            search_col, btn_col = st.columns([4, 1])
             
-            # If user types something, search and analyze
-            if search_query and len(search_query) > 0:
-                # Validate and analyze ticker
-                ticker_upper = search_query.strip().upper()
-                validation = validate_ticker(ticker_upper)
-                
-                if validation.get('valid'):
-                    # Auto-analyze this ticker
-                    if st.session_state.get('current_ticker') != ticker_upper:
+            with search_col:
+                search_query = st.text_input(
+                    "Analyze Asset...",
+                    placeholder="Type ticker (e.g., AAPL, BTC-USD)",
+                    label_visibility="collapsed",
+                    key="cockpit_search"
+                )
+            
+            with btn_col:
+                if st.button("🔍", key="search_btn", help="Analyze", use_container_width=True):
+                    if search_query and len(search_query) > 0:
+                        ticker_upper = search_query.strip().upper()
                         st.session_state.current_ticker = ticker_upper
                         st.session_state.scan_results = run_analysis([ticker_upper])
                         st.session_state.selected_asset = 0
                         st.session_state.analysis_mode = "deep_dive"
+                        st.rerun()
         
         with col_status:
             # Show status badge if asset is selected
@@ -1824,7 +1823,6 @@ def render_education_landing():
                 st.session_state.scan_results = run_analysis([ticker])
                 st.session_state.selected_asset = 0
                 st.session_state.analysis_mode = "deep_dive"
-                st.session_state.cockpit_search = ticker
                 st.rerun()
 
 
