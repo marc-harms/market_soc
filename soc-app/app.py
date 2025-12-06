@@ -1739,22 +1739,34 @@ def render_sticky_cockpit_header():
             with btn_col:
                 if st.button("🔍", key="search_btn", help="Analyze", use_container_width=True):
                     if search_query and len(search_query) > 0:
-                        ticker_upper = search_query.strip().upper()
+                        ticker_input = search_query.strip().upper()
                         
-                        # Validate ticker first
-                        with st.spinner(f"Analyzing {ticker_upper}..."):
+                        # Try to find ticker if user typed company name
+                        with st.spinner(f"Searching for {ticker_input}..."):
                             try:
-                                results = run_analysis([ticker_upper])
-                                if results and len(results) > 0:
-                                    st.session_state.current_ticker = ticker_upper
-                                    st.session_state.scan_results = results
-                                    st.session_state.selected_asset = 0
-                                    st.session_state.analysis_mode = "deep_dive"
-                                    st.rerun()
+                                # First try direct ticker
+                                validation = validate_ticker(ticker_input)
+                                
+                                if validation.get('valid'):
+                                    # Valid ticker - analyze it
+                                    results = run_analysis([ticker_input])
+                                    if results and len(results) > 0:
+                                        st.session_state.current_ticker = ticker_input
+                                        st.session_state.scan_results = results
+                                        st.session_state.selected_asset = 0
+                                        st.session_state.analysis_mode = "deep_dive"
+                                        st.rerun()
                                 else:
-                                    st.error(f"Could not analyze {ticker_upper}. Please check the ticker symbol.")
+                                    # Not a valid ticker - try searching for it
+                                    search_results = search_ticker(ticker_input)
+                                    if search_results:
+                                        # Found matches - store for selection
+                                        st.session_state.ticker_suggestions = search_results
+                                        st.info(f"'{ticker_input}' is not a ticker. Did you mean one of these? See suggestions below.")
+                                    else:
+                                        st.error(f"Could not find '{ticker_input}'. Try entering the exact ticker symbol (e.g., AAPL, SIE.DE, BTC-USD).")
                             except Exception as e:
-                                st.error(f"Error analyzing {ticker_upper}: {str(e)}")
+                                st.error(f"Error: {str(e)}")
                     else:
                         st.warning("Please enter a ticker symbol")
         
@@ -1890,7 +1902,48 @@ def main():
     # === STICKY COCKPIT HEADER (Always Visible) ===
     render_sticky_cockpit_header()
     
-    st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
+    # === TICKER SUGGESTIONS (if user searched by company name) ===
+    if 'ticker_suggestions' in st.session_state and st.session_state.ticker_suggestions:
+        st.markdown("#### 🔍 Did you mean...")
+        suggestions = st.session_state.ticker_suggestions[:6]  # Max 6 suggestions
+        
+        num_cols = min(3, len(suggestions))
+        cols = st.columns(num_cols)
+        
+        for i, suggestion in enumerate(suggestions):
+            col_idx = i % num_cols
+            ticker = suggestion.get('symbol', '')
+            name = suggestion.get('name', ticker)[:25]
+            exchange = suggestion.get('exchange', '')
+            
+            with cols[col_idx]:
+                btn_label = f"{ticker}\n{name}"
+                if exchange:
+                    btn_label += f"\n({exchange})"
+                
+                if st.button(btn_label, key=f"suggest_{ticker}_{i}", use_container_width=True):
+                    # Clear suggestions and analyze this ticker
+                    st.session_state.ticker_suggestions = []
+                    with st.spinner(f"Analyzing {ticker}..."):
+                        try:
+                            results = run_analysis([ticker])
+                            if results and len(results) > 0:
+                                st.session_state.current_ticker = ticker
+                                st.session_state.scan_results = results
+                                st.session_state.selected_asset = 0
+                                st.session_state.analysis_mode = "deep_dive"
+                                st.rerun()
+                        except Exception as e:
+                            st.error(f"Error: {str(e)}")
+        
+        # Clear button
+        if st.button("✕ Clear suggestions", key="clear_suggestions"):
+            st.session_state.ticker_suggestions = []
+            st.rerun()
+        
+        st.markdown("---")
+    
+    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
     
     # === MAIN CONTENT AREA (Dynamic) ===
     if 'scan_results' not in st.session_state or not st.session_state.scan_results:
