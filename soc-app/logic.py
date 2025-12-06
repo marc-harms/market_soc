@@ -356,6 +356,7 @@ class DataFetcher:
         return self.yfinance.fetch_info(symbol)
 
     def _get_cache_path(self, symbol: str) -> Path:
+        """Generate filesystem-safe cache file path for a given symbol."""
         safe_symbol = symbol.replace("^", "").replace(".", "_")
         return self.cache_dir / CACHE_FILENAME_TEMPLATE.format(symbol=safe_symbol, interval=DEFAULT_INTERVAL)
 
@@ -697,6 +698,7 @@ class SOCAnalyzer:
             
             # 5-Tier regime assignment (Compliance-safe naming)
             def assign_signal(row):
+                """Classify regime based on volatility zone and trend direction."""
                 # Extreme volatility always = CRITICAL
                 if row['is_extreme_vol']:
                     return 'CRITICAL'
@@ -1490,6 +1492,7 @@ class DynamicExposureSimulator:
         
         # Calculate target exposure for each day
         def calc_exposure(row):
+            """Calculate position exposure based on trend and criticality score."""
             if not row['is_uptrend']:
                 return bear_market_exposure  # Bear market
             if row['criticality_score'] > high_stress_threshold:
