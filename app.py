@@ -1912,7 +1912,12 @@ def main():
         
         for i, suggestion in enumerate(suggestions):
             col_idx = i % num_cols
-            ticker = suggestion.get('symbol', '')
+            ticker = suggestion.get('ticker', '') or suggestion.get('symbol', '')  # Handle both keys
+            
+            # Skip empty tickers
+            if not ticker:
+                continue
+                
             name = suggestion.get('name', ticker)[:25]
             exchange = suggestion.get('exchange', '')
             
@@ -1924,17 +1929,21 @@ def main():
                 if st.button(btn_label, key=f"suggest_{ticker}_{i}", use_container_width=True):
                     # Clear suggestions and analyze this ticker
                     st.session_state.ticker_suggestions = []
+                    st.session_state.current_ticker = ticker
+                    
+                    # Run analysis
                     with st.spinner(f"Analyzing {ticker}..."):
                         try:
                             results = run_analysis([ticker])
                             if results and len(results) > 0:
-                                st.session_state.current_ticker = ticker
                                 st.session_state.scan_results = results
                                 st.session_state.selected_asset = 0
                                 st.session_state.analysis_mode = "deep_dive"
                                 st.rerun()
+                            else:
+                                st.error(f"No data available for {ticker}. Try a different exchange variant.")
                         except Exception as e:
-                            st.error(f"Error: {str(e)}")
+                            st.error(f"Error analyzing {ticker}: {str(e)}")
         
         # Clear button
         if st.button("✕ Clear suggestions", key="clear_suggestions"):
