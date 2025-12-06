@@ -1740,11 +1740,23 @@ def render_sticky_cockpit_header():
                 if st.button("🔍", key="search_btn", help="Analyze", use_container_width=True):
                     if search_query and len(search_query) > 0:
                         ticker_upper = search_query.strip().upper()
-                        st.session_state.current_ticker = ticker_upper
-                        st.session_state.scan_results = run_analysis([ticker_upper])
-                        st.session_state.selected_asset = 0
-                        st.session_state.analysis_mode = "deep_dive"
-                        st.rerun()
+                        
+                        # Validate ticker first
+                        with st.spinner(f"Analyzing {ticker_upper}..."):
+                            try:
+                                results = run_analysis([ticker_upper])
+                                if results and len(results) > 0:
+                                    st.session_state.current_ticker = ticker_upper
+                                    st.session_state.scan_results = results
+                                    st.session_state.selected_asset = 0
+                                    st.session_state.analysis_mode = "deep_dive"
+                                    st.rerun()
+                                else:
+                                    st.error(f"Could not analyze {ticker_upper}. Please check the ticker symbol.")
+                            except Exception as e:
+                                st.error(f"Error analyzing {ticker_upper}: {str(e)}")
+                    else:
+                        st.warning("Please enter a ticker symbol")
         
         with col_status:
             # Show status badge if asset is selected
@@ -1819,11 +1831,19 @@ def render_education_landing():
     for i, (ticker, name) in enumerate(popular_tickers):
         with [col1, col2, col3, col4][i]:
             if st.button(f"{ticker}\n{name}", key=f"quick_{ticker}", use_container_width=True):
-                st.session_state.current_ticker = ticker
-                st.session_state.scan_results = run_analysis([ticker])
-                st.session_state.selected_asset = 0
-                st.session_state.analysis_mode = "deep_dive"
-                st.rerun()
+                with st.spinner(f"Analyzing {name}..."):
+                    try:
+                        results = run_analysis([ticker])
+                        if results and len(results) > 0:
+                            st.session_state.current_ticker = ticker
+                            st.session_state.scan_results = results
+                            st.session_state.selected_asset = 0
+                            st.session_state.analysis_mode = "deep_dive"
+                            st.rerun()
+                        else:
+                            st.error(f"Could not analyze {ticker}")
+                    except Exception as e:
+                        st.error(f"Error analyzing {ticker}: {str(e)}")
 
 
 def main():
