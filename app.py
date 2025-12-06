@@ -722,13 +722,147 @@ def render_ticker_search() -> List[str]:
         return []
 
 
+def render_regime_persistence_chart(current_regime: str, current_duration: int, regime_stats: Dict[str, Any], is_dark: bool = False):
+    """
+    Render a horizontal bar chart showing current regime duration vs historical average.
+    
+    Args:
+        current_regime: Name of current regime (e.g., 'STABLE')
+        current_duration: Days in current regime
+        regime_stats: Historical statistics for this regime
+        is_dark: Dark mode flag
+    """
+    # Get historical stats
+    mean_duration = regime_stats.get('mean_duration', 0)
+    median_duration = regime_stats.get('median_duration', 0)
+    max_duration = regime_stats.get('max_duration', 0)
+    p95_duration = regime_stats.get('p95_duration', 0)
+    
+    # Regime colors
+    regime_colors = {
+        'STABLE': '#00C864',
+        'ACTIVE': '#FFCC00',
+        'HIGH_ENERGY': '#FF6600',
+        'CRITICAL': '#FF4040',
+        'DORMANT': '#888888'
+    }
+    
+    regime_color = regime_colors.get(current_regime, '#667eea')
+    
+    # Create horizontal bar chart
+    fig = go.Figure()
+    
+    # Background range (0 to max)
+    fig.add_trace(go.Bar(
+        y=['Duration'],
+        x=[max_duration],
+        orientation='h',
+        marker=dict(color='rgba(200,200,200,0.2)'),
+        name='Max Observed',
+        showlegend=False
+    ))
+    
+    # Current duration bar
+    fig.add_trace(go.Bar(
+        y=['Duration'],
+        x=[current_duration],
+        orientation='h',
+        marker=dict(color=regime_color),
+        name='Current',
+        showlegend=False
+    ))
+    
+    # Add vertical lines for mean and P95
+    fig.add_vline(x=mean_duration, line_dash="dash", line_color="#667eea", line_width=2,
+                  annotation_text=f"Avg: {mean_duration:.0f}d", annotation_position="top")
+    
+    if p95_duration > 0:
+        fig.add_vline(x=p95_duration, line_dash="dot", line_color="#FF6600", line_width=2,
+                      annotation_text=f"95th: {p95_duration:.0f}d", annotation_position="bottom")
+    
+    # Update layout
+    bg_color = 'rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)'
+    text_color = '#FFFFFF' if is_dark else '#333333'
+    
+    fig.update_layout(
+        template="plotly_dark" if is_dark else "plotly_white",
+        paper_bgcolor=bg_color,
+        plot_bgcolor=bg_color,
+        height=150,
+        margin=dict(l=80, r=20, t=40, b=40),
+        xaxis_title="Days",
+        yaxis_title="",
+        showlegend=False,
+        font=dict(color=text_color),
+        xaxis=dict(range=[0, max_duration * 1.1])
+    )
+    
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Interpretation
+    if current_duration > p95_duration:
+        interpretation = f"⚠️ **Statistical Anomaly:** This regime has lasted {current_duration} days, which is unusually long (above 95th percentile of {p95_duration:.0f} days). Mean reversion probability is elevated."
+        st.warning(interpretation)
+    elif current_duration > mean_duration:
+        interpretation = f"📊 This regime has lasted {current_duration} days, which is **above** the historical average of {mean_duration:.0f} days. Median duration: {median_duration:.0f} days."
+        st.info(interpretation)
+    else:
+        interpretation = f"📊 This regime is still relatively young at {current_duration} days, **below** the historical average of {mean_duration:.0f} days. Median duration: {median_duration:.0f} days."
+        st.info(interpretation)
+
+
+def render_current_regime_outlook(current_regime: str, regime_data: Dict[str, Any]):
+    """
+    Render a table showing the historical outlook for the CURRENT regime only.
+    
+    Args:
+        current_regime: Name of current regime
+        regime_data: Statistical data for this regime
+    """
+    st.markdown(f"##### 🎯 Historical Outlook for Current Regime: {current_regime.replace('_', ' ').title()}")
+    
+    # Build outlook table
+    outlook_data = {
+        'Timeframe': ['10 Days', '30 Days', '90 Days'],
+        'Avg Return': [
+            f"{regime_data.get('start_return_10d', 0):+.1f}%",
+            f"{regime_data.get('avg_return_30d', 0):+.1f}%",
+            f"{regime_data.get('avg_return_90d', 0):+.1f}%"
+        ],
+        'Win Rate': [
+            f"{regime_data.get('win_rate_10d', 50):.0f}%",
+            f"{regime_data.get('win_rate_30d', 50):.0f}%",
+            f"{regime_data.get('win_rate_90d', 50):.0f}%"
+        ],
+        'Max Drawdown (Risk)': [
+            f"{regime_data.get('worst_max_dd_10d', 0):.1f}%",
+            f"{regime_data.get('worst_max_dd_30d', 0):.1f}%",
+            f"{regime_data.get('worst_max_dd_90d', 0):.1f}%"
+        ]
+    }
+    
+    df = pd.DataFrame(outlook_data)
+    st.dataframe(df, use_container_width=True, hide_index=True)
+    
+    # Add interpretation
+    avg_30d = regime_data.get('avg_return_30d', 0)
+    if avg_30d > 5:
+        st.success(f"📈 Historically, this regime has shown **positive momentum** with an average 30-day return of {avg_30d:+.1f}%.")
+    elif avg_30d < -5:
+        st.error(f"📉 Historically, this regime has shown **negative momentum** with an average 30-day return of {avg_30d:+.1f}%.")
+    else:
+        st.info(f"📊 Historically, this regime has shown **neutral momentum** with an average 30-day return of {avg_30d:+.1f}%.")
+
+
 def render_detail_panel(result: Dict[str, Any]):
     """
     Render detailed analysis panel for a selected asset.
     
     Displays: Header with regime badge, key metrics (price, criticality,
-    vol percentile, trend), SOC chart, historical signal analysis report
-    with Systemic Stress Level box, and regime distribution statistics.
+    vol percentile, trend), SOC chart, and VISUAL analysis with:
+    - Regime Persistence Visualizer (bar chart)
+    - Current Regime Outlook (focused table)
+    - Historical data in expander with donut chart
     """
     is_dark = st.session_state.get('dark_mode', True)
     symbol = result['symbol']
@@ -847,84 +981,126 @@ def render_detail_panel(result: Dict[str, Any]):
                     </div>
                     """, unsafe_allow_html=True)
                 
-                # Display the prose report
-                st.markdown(analysis['prose_report'])
-                
-                # Additional statistics in columns - Regime Distribution
-                st.markdown("---")
-                st.markdown("#### 📊 Historical Regime Distribution")
-                
+                # Get current regime from analysis
                 stats = analysis['signal_stats']
-                col1, col2, col3, col4, col5 = st.columns(5)
+                current_regime_key = result.get('regime_internal', 'STABLE')  # Internal key like 'STABLE'
+                current_regime_data = stats.get(current_regime_key, {})
+                current_duration = result.get('time_in_state', 0)
                 
-                with col1:
-                    stable = stats.get('STABLE', {})
-                    st.metric("🟢 STABLE", f"{stable.get('phase_count', 0)} periods", f"{stable.get('pct_of_time', 0):.1f}%")
+                st.markdown("---")
                 
-                with col2:
-                    active = stats.get('ACTIVE', {})
-                    st.metric("🟡 ACTIVE", f"{active.get('phase_count', 0)} periods", f"{active.get('pct_of_time', 0):.1f}%")
+                # === SECTION A: REGIME PERSISTENCE VISUALIZER ===
+                st.markdown("#### ⏱️ Regime Persistence Analysis")
+                render_regime_persistence_chart(current_regime_key, current_duration, current_regime_data, is_dark)
                 
-                with col3:
-                    high_energy = stats.get('HIGH_ENERGY', {})
-                    st.metric("🟠 HIGH ENERGY", f"{high_energy.get('phase_count', 0)} periods", f"{high_energy.get('pct_of_time', 0):.1f}%")
+                st.markdown("---")
                 
-                with col4:
-                    critical = stats.get('CRITICAL', {})
-                    st.metric("🔴 CRITICAL", f"{critical.get('phase_count', 0)} periods", f"{critical.get('pct_of_time', 0):.1f}%")
+                # === SECTION B: CURRENT REGIME OUTLOOK ===
+                render_current_regime_outlook(current_regime_key, current_regime_data)
                 
-                with col5:
-                    dormant = stats.get('DORMANT', {})
-                    st.metric("⚪ DORMANT", f"{dormant.get('phase_count', 0)} periods", f"{dormant.get('pct_of_time', 0):.1f}%")
+                st.markdown("---")
                 
-                # Performance tables - Regime Statistics
-                st.markdown("#### 📊 Historical Returns by Regime")
-                st.caption("Statistical analysis of price movements following each regime classification")
-                
-                signal_order = ['STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL', 'DORMANT']
-                signal_names = {
-                    'STABLE': 'Stable', 'ACTIVE': 'Active', 
-                    'HIGH_ENERGY': 'High Energy', 'CRITICAL': 'Critical', 'DORMANT': 'Dormant'
-                }
-                signal_emojis = {'STABLE': '🟢', 'ACTIVE': '🟡', 'HIGH_ENERGY': '🟠', 'CRITICAL': '🔴', 'DORMANT': '⚪'}
-                
-                forward_rows = []
-                for sig in signal_order:
-                    data = stats.get(sig, {})
-                    phase_count = data.get('phase_count', 0)
-                    if phase_count > 0:
-                        emoji = signal_emojis[sig]
-                        forward_rows.append({
-                            'Regime': f"{emoji} {signal_names[sig]}",
-                            'Periods': str(phase_count),
-                            '10d': f"{data.get('start_return_10d', 0):+.1f}%",
-                            '30d': f"{data.get('avg_return_30d', 0):+.1f}%",
-                            '90d': f"{data.get('avg_return_90d', 0):+.1f}%",
-                            'Max Var (10d)': f"{data.get('worst_max_dd_10d', 0):.1f}%"
-                        })
-                
-                if forward_rows:
-                    st.table(pd.DataFrame(forward_rows))
-                
-                # Prior conditions
-                st.markdown("#### 📊 Pre-Regime Market Conditions")
-                st.caption("Historical price movements BEFORE each regime was classified")
-                
-                prior_rows = []
-                for sig in signal_order:
-                    data = stats.get(sig, {})
-                    phase_count = data.get('phase_count', 0)
-                    if phase_count > 0:
-                        emoji = signal_emojis[sig]
-                        prior_rows.append({
-                            'Regime': f"{emoji} {signal_names[sig]}",
-                            'Prior 5d': f"{data.get('prior_5d', 0):+.1f}%",
-                            'Prior 10d': f"{data.get('prior_10d', 0):+.1f}%",
-                            'Prior 30d': f"{data.get('prior_30d', 0):+.1f}%"
-                        })
-                
-                if prior_rows:
-                    st.table(pd.DataFrame(prior_rows))
+                # === SECTION C: FULL HISTORICAL DATA (EXPANDER) ===
+                with st.expander("📚 View All Historical Regime Data"):
+                    # Regime Distribution Donut Chart
+                    st.markdown("##### Historical Regime Distribution")
+                    
+                    signal_order = ['STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL', 'DORMANT']
+                    signal_names = {
+                        'STABLE': 'Stable', 'ACTIVE': 'Active', 
+                        'HIGH_ENERGY': 'High Energy', 'CRITICAL': 'Critical', 'DORMANT': 'Dormant'
+                    }
+                    signal_emojis = {'STABLE': '🟢', 'ACTIVE': '🟡', 'HIGH_ENERGY': '🟠', 'CRITICAL': '🔴', 'DORMANT': '⚪'}
+                    signal_colors_map = {
+                        'STABLE': '#00C864', 'ACTIVE': '#FFCC00', 
+                        'HIGH_ENERGY': '#FF6600', 'CRITICAL': '#FF4040', 'DORMANT': '#888888'
+                    }
+                    
+                    # Build donut chart data
+                    labels = []
+                    values = []
+                    colors = []
+                    
+                    for sig in signal_order:
+                        data = stats.get(sig, {})
+                        pct = data.get('pct_of_time', 0)
+                        if pct > 0:
+                            emoji = signal_emojis.get(sig, '')
+                            name = signal_names.get(sig, sig)
+                            labels.append(f"{emoji} {name}")
+                            values.append(pct)
+                            colors.append(signal_colors_map.get(sig, '#888888'))
+                    
+                    # Create donut chart
+                    fig_donut = go.Figure(data=[go.Pie(
+                        labels=labels,
+                        values=values,
+                        hole=0.4,
+                        marker=dict(colors=colors),
+                        textinfo='label+percent',
+                        textposition='outside'
+                    )])
+                    
+                    bg_color_chart = 'rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)'
+                    text_color_chart = '#FFFFFF' if is_dark else '#333333'
+                    
+                    fig_donut.update_layout(
+                        template="plotly_dark" if is_dark else "plotly_white",
+                        paper_bgcolor=bg_color_chart,
+                        height=400,
+                        margin=dict(l=20, r=20, t=40, b=20),
+                        showlegend=True,
+                        legend=dict(font=dict(color=text_color_chart)),
+                        font=dict(color=text_color_chart)
+                    )
+                    
+                    st.plotly_chart(fig_donut, use_container_width=True)
+                    
+                    st.markdown("---")
+                    
+                    # Full Returns Table (All Regimes)
+                    st.markdown("##### Complete Historical Returns by Regime")
+                    st.caption("Statistical analysis of price movements following each regime classification")
+                    
+                    forward_rows = []
+                    for sig in signal_order:
+                        data = stats.get(sig, {})
+                        phase_count = data.get('phase_count', 0)
+                        if phase_count > 0:
+                            emoji = signal_emojis[sig]
+                            forward_rows.append({
+                                'Regime': f"{emoji} {signal_names[sig]}",
+                                'Periods': str(phase_count),
+                                '10d': f"{data.get('start_return_10d', 0):+.1f}%",
+                                '30d': f"{data.get('avg_return_30d', 0):+.1f}%",
+                                '90d': f"{data.get('avg_return_90d', 0):+.1f}%",
+                                'Max DD (10d)': f"{data.get('worst_max_dd_10d', 0):.1f}%"
+                            })
+                    
+                    if forward_rows:
+                        st.dataframe(pd.DataFrame(forward_rows), use_container_width=True, hide_index=True)
+                    
+                    st.markdown("---")
+                    
+                    # Pre-Regime Conditions Table
+                    st.markdown("##### Pre-Regime Market Conditions")
+                    st.caption("Historical price movements BEFORE each regime was classified")
+                    
+                    prior_rows = []
+                    for sig in signal_order:
+                        data = stats.get(sig, {})
+                        phase_count = data.get('phase_count', 0)
+                        if phase_count > 0:
+                            emoji = signal_emojis[sig]
+                            prior_rows.append({
+                                'Regime': f"{emoji} {signal_names[sig]}",
+                                'Prior 5d': f"{data.get('prior_5d', 0):+.1f}%",
+                                'Prior 10d': f"{data.get('prior_10d', 0):+.1f}%",
+                                'Prior 30d': f"{data.get('prior_30d', 0):+.1f}%"
+                            })
+                    
+                    if prior_rows:
+                        st.dataframe(pd.DataFrame(prior_rows), use_container_width=True, hide_index=True)
 
 
 def render_footer():
