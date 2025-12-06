@@ -23,14 +23,12 @@ Version: 6.0 (Cleaned & Documented)
 # =============================================================================
 # IMPORTS
 # =============================================================================
-import time
 import requests
 from typing import List, Dict, Any
 
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import plotly.express as px
 import plotly.graph_objects as go
 
 from logic import DataFetcher, SOCAnalyzer, run_dca_simulation, calculate_audit_metrics
@@ -54,8 +52,6 @@ DEFAULT_VOL_WINDOW = 30
 DEFAULT_HYSTERESIS = 0.0
 MIN_DATA_POINTS = 200
 
-FOOTER_TICKERS = {"Bitcoin": "BTC-USD", "S&P 500": "^GSPC", "Gold": "GC=F"}
-
 # Precious metals excluded from main risk scan - they act as hedges (inverse correlation)
 # and distort market risk scoring. Available separately in "Hedge Assets" category.
 PRECIOUS_METALS = {'GC=F', 'SI=F', 'PL=F', 'PA=F', 'GLD', 'SLV'}
@@ -78,8 +74,9 @@ TICKER_NAME_FIXES = {
 SPECIAL_TICKER_NAMES = {"^GDAXI": "DAX 40 Index"}
 
 # =============================================================================
-# STYLING
+# STYLING & THEME
 # =============================================================================
+
 def get_theme_css(is_dark: bool) -> str:
     """
     Generate comprehensive CSS styles for theme (dark/light mode).
@@ -219,7 +216,7 @@ def get_theme_css(is_dark: bool) -> str:
 """
 
 # =============================================================================
-# HELPER FUNCTIONS
+# UTILITY FUNCTIONS
 # =============================================================================
 
 def clean_name(name: str) -> str:
@@ -282,26 +279,6 @@ def get_signal_bg(signal: str) -> str:
 # =============================================================================
 
 @st.cache_data(ttl=3600)
-def fetch_footer_data() -> List[Dict[str, Any]]:
-    """
-    Fetch current prices for footer market pulse indicators.
-    
-    Cached for 1 hour. Returns Bitcoin, S&P 500, and Gold prices
-    with daily percentage change.
-    """
-    results = []
-    fetcher = DataFetcher(cache_enabled=True)
-    for name, symbol in FOOTER_TICKERS.items():
-        try:
-            df = fetcher.fetch_data(symbol)
-            if len(df) > 1:
-                curr, prev = df["close"].iloc[-1], df["close"].iloc[-2]
-                results.append({"name": name, "price": curr, "change": ((curr - prev) / prev) * 100})
-        except Exception:
-            pass
-    return results
-
-
 def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
     """
     Run SOC analysis on multiple tickers with progress indicator.
@@ -378,38 +355,8 @@ def run_analysis(tickers: List[str]) -> List[Dict[str, Any]]:
 
 
 # =============================================================================
-# UI COMPONENTS
+# TICKER SEARCH & VALIDATION FUNCTIONS
 # =============================================================================
-
-def render_header():
-    """Render app header with logo, title, subtitle, and theme toggle button."""
-    is_dark = st.session_state.get('dark_mode', True)
-    
-    col_logo, col_title, col_theme = st.columns([1, 6, 1])
-    
-    with col_logo:
-        try:
-            st.image("assets/logo-soc.png", width=160)
-        except Exception:
-            st.markdown('<div class="logo">⚡</div>', unsafe_allow_html=True)
-    
-    with col_title:
-        st.markdown("""
-        <div style="padding-top: 10px;">
-            <h1 class="app-title">Market Seismograph</h1>
-            <p class="app-subtitle">Self-Organized Criticality Analysis</p>
-                    </div>
-                    """, unsafe_allow_html=True)
-    
-    with col_theme:
-        if st.button("🌙" if is_dark else "☀️", key="theme"):
-            st.session_state.dark_mode = not is_dark
-            st.rerun()
-    
-    st.markdown('<hr style="margin: 0.5rem 0 1rem 0;">', unsafe_allow_html=True)
-
-
-
 
 def search_ticker(query: str) -> List[Dict[str, Any]]:
     """
@@ -522,205 +469,9 @@ def validate_ticker(ticker: str) -> Dict[str, Any]:
         return {'valid': False, 'error': f'Ticker "{ticker}" not found'}
 
 
-def render_ticker_search() -> List[str]:
-    """
-    Render universal ticker search UI with autocomplete.
-    
-    Features:
-        - Search by company name OR ticker symbol
-        - Autocomplete dropdown with matching results
-        - Real-time validation via yfinance
-        - Error handling for API issues
-    
-    Returns:
-        List of validated ticker symbols to analyze.
-    """
-    # Initialize session state
-    if 'ticker_list' not in st.session_state:
-        st.session_state.ticker_list = []
-    if 'validated_tickers' not in st.session_state:
-        st.session_state.validated_tickers = {}
-    if 'search_results' not in st.session_state:
-        st.session_state.search_results = []
-    if 'last_search' not in st.session_state:
-        st.session_state.last_search = ""
-    if 'clear_search' not in st.session_state:
-        st.session_state.clear_search = False
-    
-    # Clear search input if flagged
-    if st.session_state.clear_search:
-        st.session_state.clear_search = False
-        st.session_state.search_results = []
-        st.session_state.last_search = ""
-    
-    # CSS for styling
-    st.markdown("""
-    <style>
-        .ticker-chip {
-            display: inline-block;
-            background: rgba(102, 126, 234, 0.2);
-            border: 1px solid #667eea;
-            border-radius: 20px;
-            padding: 6px 14px;
-            margin: 4px;
-            font-size: 0.9rem;
-        }
-        .ticker-chip-valid {
-            background: rgba(0, 200, 0, 0.15);
-            border-color: #00C800;
-        }
-        .search-result {
-            padding: 8px 12px;
-            border-bottom: 1px solid #333;
-            cursor: pointer;
-        }
-        .search-result:hover {
-            background: rgba(102, 126, 234, 0.2);
-        }
-    </style>
-    """, unsafe_allow_html=True)
-    
-    # Search input with autocomplete
-    st.markdown("#### Search Assets")
-    st.caption("Type a company name or ticker symbol (e.g., Tesla, AAPL, Bitcoin)")
-    
-    # Search input - use dynamic key to allow clearing
-    search_key = f"ticker_search_{len(st.session_state.ticker_list)}"
-    search_query = st.text_input(
-        "Search:",
-        placeholder="Type to search... (e.g., Tesla, Apple, Bitcoin, NVDA)",
-        key=search_key,
-        label_visibility="collapsed"
-    )
-    
-    # Search and show results as dropdown
-    if search_query and len(search_query) >= 2:
-        # Only search if query changed
-        if search_query != st.session_state.last_search:
-            st.session_state.last_search = search_query
-            with st.spinner("Searching..."):
-                st.session_state.search_results = search_ticker(search_query)
-        
-        # Display search results as selectable options
-        if st.session_state.search_results:
-            st.markdown("""
-            <div style="background: rgba(30,30,40,0.9); border: 1px solid #444; 
-                        border-radius: 8px; margin-top: -10px; max-height: 250px; overflow-y: auto;">
-            """, unsafe_allow_html=True)
-            
-            for i, result in enumerate(st.session_state.search_results[:8]):
-                ticker = result['ticker']
-                name = result['name']
-                asset_type = result['type']
-                exchange = result['exchange']
-                
-                # Type emoji
-                type_emoji = "📈" if asset_type == "EQUITY" else "📊" if asset_type == "ETF" else "₿" if asset_type == "CRYPTOCURRENCY" else "📉"
-                
-                col1, col2 = st.columns([4, 1])
-                with col1:
-                    st.markdown(f"**{ticker}** — {name[:35]}{'...' if len(name) > 35 else ''}")
-                    st.caption(f"{type_emoji} {asset_type} · {exchange}")
-                with col2:
-                    if st.button("Add", key=f"add_{ticker}_{i}", use_container_width=True):
-                        if ticker not in st.session_state.ticker_list:
-                            st.session_state.ticker_list.append(ticker)
-                            # Auto-validate when adding
-                            validation = validate_ticker(ticker)
-                            st.session_state.validated_tickers[ticker] = validation
-                        # Clear search state - the dynamic key will reset the input
-                        st.session_state.search_results = []
-                        st.session_state.last_search = ""
-                        st.session_state.clear_search = True
-                        st.rerun()
-                
-                st.markdown("<hr style='margin: 4px 0; border-color: #333;'>", unsafe_allow_html=True)
-            
-            st.markdown("</div>", unsafe_allow_html=True)
-        
-        elif st.session_state.last_search == search_query:
-            st.warning(f"No results found for '{search_query}'. Try a different search term.")
-    
-    # Quick add buttons
-    st.markdown("<div style='margin-top: 1rem;'>", unsafe_allow_html=True)
-    st.caption("Quick add popular:")
-    
-    col1, col2, col3, col4, col5, col6 = st.columns(6)
-    quick_tickers = [('AAPL', 'Apple'), ('NVDA', 'NVIDIA'), ('MSFT', 'Microsoft'), 
-                     ('BTC-USD', 'Bitcoin'), ('TSLA', 'Tesla'), ('SPY', 'S&P 500')]
-    
-    for col, (ticker, name) in zip([col1, col2, col3, col4, col5, col6], quick_tickers):
-        with col:
-            if st.button(ticker, key=f"quick_{ticker}", help=name, use_container_width=True):
-                if ticker not in st.session_state.ticker_list:
-                    st.session_state.ticker_list.append(ticker)
-                    validation = validate_ticker(ticker)
-                    st.session_state.validated_tickers[ticker] = validation
-                    st.rerun()
-    
-    st.markdown("</div>", unsafe_allow_html=True)
-    
-    # Display selected tickers
-    if st.session_state.ticker_list:
-        st.markdown("---")
-        st.markdown("#### Selected Assets")
-        
-        # Display as chips
-        valid_tickers = []
-        chips_html = []
-        
-        for ticker in st.session_state.ticker_list:
-            validation = st.session_state.validated_tickers.get(ticker, {})
-            
-            if validation.get('valid'):
-                name = validation.get('name', ticker)
-                price = validation.get('price', 0)
-                display_name = name[:18] + '...' if len(name) > 18 else name
-                chips_html.append(
-                    f'<span class="ticker-chip ticker-chip-valid">✓ <b>{ticker}</b> ({display_name}) ${price:,.2f}</span>'
-                )
-                valid_tickers.append(ticker)
-            else:
-                error = validation.get('error', 'Validating...')
-                chips_html.append(
-                    f'<span class="ticker-chip" style="background: rgba(255,100,100,0.15); border-color: #FF6464;">✗ {ticker} - {error}</span>'
-                )
-        
-        ticker_html = '<div style="margin: 8px 0;">' + ' '.join(chips_html) + '</div>'
-        st.markdown(ticker_html, unsafe_allow_html=True)
-        
-        # Clear and remove buttons
-        col_clear, col_space = st.columns([1, 3])
-        with col_clear:
-            if st.button("Clear All", use_container_width=True):
-                st.session_state.ticker_list = []
-                st.session_state.validated_tickers = {}
-                st.session_state.pop('scan_results', None)
-                st.rerun()
-        
-        # Remove individual tickers
-        if len(st.session_state.ticker_list) > 0:
-            st.caption("Click to remove:")
-            num_cols = min(len(st.session_state.ticker_list), 6)
-            cols = st.columns(num_cols)
-            for i, ticker in enumerate(st.session_state.ticker_list[:6]):
-                with cols[i]:
-                    if st.button(f"✗ {ticker}", key=f"remove_{ticker}"):
-                        st.session_state.ticker_list.remove(ticker)
-                        st.session_state.validated_tickers.pop(ticker, None)
-                        st.session_state.pop('scan_results', None)
-                        st.rerun()
-        
-        # Summary
-        if valid_tickers:
-            st.success(f"Ready to analyze {len(valid_tickers)} asset{'s' if len(valid_tickers) > 1 else ''}")
-        
-        return valid_tickers
-    
-    else:
-        st.info("Search for assets above or use quick add buttons to begin.")
-        return []
-
+# =============================================================================
+# DETAIL PANEL UI COMPONENTS
+# =============================================================================
 
 def render_regime_persistence_chart(current_regime: str, current_duration: int, regime_stats: Dict[str, Any], is_dark: bool = False):
     """
@@ -1172,22 +923,6 @@ def render_detail_panel(result: Dict[str, Any]):
                         st.table(pd.DataFrame(prior_rows))
                     else:
                         st.info("No historical regime data available.")
-
-
-def render_footer():
-    """Render footer with market pulse indicators (BTC, S&P 500, Gold)."""
-    data = fetch_footer_data()
-    if data:
-        st.markdown('<div class="footer">', unsafe_allow_html=True)
-        cols = st.columns(len(data))
-        for i, d in enumerate(data):
-            color = "#00FF00" if d['change'] >= 0 else "#FF0000"
-            cols[i].markdown(
-                f"<span class='footer-item'>{d['name']}: ${d['price']:,.0f} "
-                f"<span style='color:{color}'>{d['change']:+.1f}%</span></span>",
-                unsafe_allow_html=True
-            )
-        st.markdown('</div>', unsafe_allow_html=True)
 
 
 # =============================================================================
@@ -1812,7 +1547,7 @@ def render_dca_simulation(tickers: List[str]):
 
 
 # =============================================================================
-# LEGAL DISCLAIMER
+# LEGAL DISCLAIMER & AUTHENTICATION
 # =============================================================================
 
 LEGAL_DISCLAIMER = """
@@ -1941,10 +1676,6 @@ def render_disclaimer():
     
     st.stop()
 
-
-# =============================================================================
-# AUTHENTICATION
-# =============================================================================
 
 def check_auth():
     """Validate access code from session state against ACCESS_CODE constant."""
