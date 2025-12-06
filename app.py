@@ -732,9 +732,6 @@ def render_regime_persistence_chart(current_regime: str, current_duration: int, 
         regime_stats: Historical statistics for this regime
         is_dark: Dark mode flag
     """
-    # Explanatory text
-    st.caption("How long the asset has been in the current regime compared to historical patterns.")
-    
     # Get historical stats (using correct keys from logic.py)
     mean_duration = regime_stats.get('avg_duration', 0)  # avg_duration, not mean_duration
     median_duration = regime_stats.get('median_duration', 0)
@@ -850,9 +847,7 @@ def render_current_regime_outlook(current_regime: str, regime_data: Dict[str, An
     emoji = regime_emojis.get(current_regime, '📊')
     
     st.markdown(f"##### 🎯 Historical Outlook: {emoji} {regime_display} Regime")
-    
-    # Explanatory text
-    st.caption("What historically happened to the price after entering this regime.")
+    st.caption("📊 **How to read this:** Shows average price movements following the start of this regime in the past. Use this to understand typical behavior patterns for the current market state.")
     
     # Check if we have data
     phase_count = regime_data.get('phase_count', 0)
@@ -1036,6 +1031,7 @@ def render_detail_panel(result: Dict[str, Any]):
                 
                 # === SECTION A: REGIME PERSISTENCE VISUALIZER ===
                 st.markdown("#### ⏱️ Regime Persistence Analysis")
+                st.caption("📊 **How to read this:** The colored bar shows how long the asset has been in the current regime. The dashed line shows the historical average duration. If the bar extends beyond the 95th percentile line, the regime may be nearing exhaustion.")
                 render_regime_persistence_chart(current_regime_key, current_duration, current_regime_data, is_dark)
                 
                 st.markdown("---")
@@ -1123,7 +1119,9 @@ def render_detail_panel(result: Dict[str, Any]):
                             })
                     
                     if forward_rows:
-                        st.dataframe(pd.DataFrame(forward_rows), use_container_width=True, hide_index=True)
+                        st.table(pd.DataFrame(forward_rows))
+                    else:
+                        st.info("No historical regime data available.")
                     
                     st.markdown("---")
                     
@@ -1145,7 +1143,9 @@ def render_detail_panel(result: Dict[str, Any]):
                             })
                     
                     if prior_rows:
-                        st.dataframe(pd.DataFrame(prior_rows), use_container_width=True, hide_index=True)
+                        st.table(pd.DataFrame(prior_rows))
+                    else:
+                        st.info("No historical regime data available.")
 
 
 def render_footer():
