@@ -732,6 +732,9 @@ def render_regime_persistence_chart(current_regime: str, current_duration: int, 
         regime_stats: Historical statistics for this regime
         is_dark: Dark mode flag
     """
+    # Explanatory text
+    st.caption("How long the asset has been in the current regime compared to historical patterns.")
+    
     # Get historical stats (using correct keys from logic.py)
     mean_duration = regime_stats.get('avg_duration', 0)  # avg_duration, not mean_duration
     median_duration = regime_stats.get('median_duration', 0)
@@ -755,6 +758,13 @@ def render_regime_persistence_chart(current_regime: str, current_duration: int, 
     if mean_duration == 0:
         mean_duration = current_duration  # Use current as reference
     
+    # Theme-aware colors
+    text_color = '#FFFFFF' if is_dark else '#1a1a1a'
+    axis_color = '#CCCCCC' if is_dark else '#333333'
+    grid_color = '#444444' if is_dark else '#E0E0E0'
+    bg_color = 'rgba(0,0,0,0)' if is_dark else 'rgba(248,248,248,1)'
+    annotation_color = '#FFFFFF' if is_dark else '#333333'
+    
     # Create horizontal bar chart
     fig = go.Figure()
     
@@ -763,7 +773,7 @@ def render_regime_persistence_chart(current_regime: str, current_duration: int, 
         y=['Duration'],
         x=[max_duration],
         orientation='h',
-        marker=dict(color='rgba(200,200,200,0.2)'),
+        marker=dict(color='rgba(200,200,200,0.3)' if is_dark else 'rgba(200,200,200,0.5)'),
         name='Max Observed',
         showlegend=False
     ))
@@ -779,28 +789,35 @@ def render_regime_persistence_chart(current_regime: str, current_duration: int, 
     ))
     
     # Add vertical lines for mean and P95
-    fig.add_vline(x=mean_duration, line_dash="dash", line_color="#667eea", line_width=2,
-                  annotation_text=f"Avg: {mean_duration:.0f}d", annotation_position="top")
+    fig.add_vline(x=mean_duration, line_dash="dash", line_color="#667eea", line_width=3,
+                  annotation_text=f"Avg: {mean_duration:.0f}d", annotation_position="top",
+                  annotation=dict(font=dict(color=annotation_color, size=13)))
     
     if p95_duration > 0:
-        fig.add_vline(x=p95_duration, line_dash="dot", line_color="#FF6600", line_width=2,
-                      annotation_text=f"95th: {p95_duration:.0f}d", annotation_position="bottom")
+        fig.add_vline(x=p95_duration, line_dash="dot", line_color="#FF6600", line_width=3,
+                      annotation_text=f"95th: {p95_duration:.0f}d", annotation_position="bottom",
+                      annotation=dict(font=dict(color=annotation_color, size=13)))
     
-    # Update layout
-    bg_color = 'rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)'
-    text_color = '#FFFFFF' if is_dark else '#333333'
-    
+    # Update layout with explicit colors
     fig.update_layout(
         template="plotly_dark" if is_dark else "plotly_white",
-        paper_bgcolor=bg_color,
+        paper_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)',
         plot_bgcolor=bg_color,
-        height=150,
-        margin=dict(l=80, r=20, t=40, b=40),
-        xaxis_title="Days",
-        yaxis_title="",
+        height=180,
+        margin=dict(l=80, r=30, t=50, b=50),
         showlegend=False,
-        font=dict(color=text_color),
-        xaxis=dict(range=[0, max_duration * 1.1])
+        font=dict(color=text_color, size=13),
+        xaxis=dict(
+            range=[0, max_duration * 1.1],
+            title="Days",
+            titlefont=dict(color=axis_color, size=14),
+            tickfont=dict(color=axis_color, size=12),
+            gridcolor=grid_color
+        ),
+        yaxis=dict(
+            title="",
+            tickfont=dict(color=axis_color, size=12)
+        )
     )
     
     st.plotly_chart(fig, use_container_width=True)
@@ -831,42 +848,42 @@ def render_current_regime_outlook(current_regime: str, regime_data: Dict[str, An
     
     st.markdown(f"##### 🎯 Historical Outlook: {emoji} {regime_display} Regime")
     
+    # Explanatory text
+    st.caption("What historically happened to the price after entering this regime.")
+    
     # Check if we have data
     phase_count = regime_data.get('phase_count', 0)
     if phase_count == 0:
         st.info("No historical data available for this regime.")
         return
     
-    st.caption(f"Based on {phase_count} historical occurrences of this regime")
+    st.markdown(f"*Based on **{phase_count}** historical occurrences of this regime*")
     
     # Build outlook table using available data
     ret_10d = regime_data.get('start_return_10d', 0)
     ret_30d = regime_data.get('avg_return_30d', 0)
     ret_90d = regime_data.get('avg_return_90d', 0)
     dd_10d = regime_data.get('worst_max_dd_10d', 0)
-    avg_dd_10d = regime_data.get('avg_max_dd_10d', 0)
+    avg_price_change = regime_data.get('avg_price_change_during', 0)
     
-    outlook_data = {
-        'Timeframe': ['10 Days', '30 Days', '90 Days'],
-        'Avg Return': [
-            f"{ret_10d:+.1f}%",
-            f"{ret_30d:+.1f}%",
-            f"{ret_90d:+.1f}%"
-        ],
-        'Avg Price Change': [
-            f"{regime_data.get('avg_price_change_during', 0):+.1f}%",
-            '-',
-            '-'
-        ],
-        'Worst Drawdown': [
-            f"{dd_10d:.1f}%" if dd_10d != 0 else "N/A",
-            '-',
-            '-'
-        ]
-    }
+    # Create metrics in columns for better display
+    col1, col2, col3 = st.columns(3)
     
-    df = pd.DataFrame(outlook_data)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    with col1:
+        st.metric("10-Day Avg Return", f"{ret_10d:+.1f}%")
+    with col2:
+        st.metric("30-Day Avg Return", f"{ret_30d:+.1f}%")
+    with col3:
+        st.metric("90-Day Avg Return", f"{ret_90d:+.1f}%")
+    
+    col4, col5, col6 = st.columns(3)
+    
+    with col4:
+        st.metric("Avg During Phase", f"{avg_price_change:+.1f}%")
+    with col5:
+        st.metric("Worst 10d Drawdown", f"{dd_10d:.1f}%" if dd_10d != 0 else "N/A")
+    with col6:
+        st.metric("Phase Count", f"{phase_count}")
     
     # Add interpretation
     if ret_30d > 5:
