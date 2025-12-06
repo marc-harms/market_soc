@@ -930,7 +930,8 @@ def render_detail_panel(result: Dict[str, Any]):
 # INVESTMENT SIMULATION UI
 # =============================================================================
 
-def render_dca_simulation(tickers: List[str]):
+# NOTE: Simulation UI moved to ui_simulation.py
+# Import: from ui_simulation import render_dca_simulation
 
 # =============================================================================
 # LEGAL DISCLAIMER & AUTHENTICATION
