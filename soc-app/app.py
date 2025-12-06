@@ -476,29 +476,41 @@ def validate_ticker(ticker: str) -> Dict[str, Any]:
             return {'valid': False, 'error': 'Empty ticker'}
         
         stock = yf.Ticker(ticker)
-        info = stock.info
         
-        # Check if we got valid data
-        if not info or info.get('regularMarketPrice') is None:
-            # Try to get history as fallback
-            hist = stock.history(period='5d')
-            if hist.empty:
-                return {'valid': False, 'error': f'Ticker "{ticker}" not found'}
-            return {
-                'valid': True,
-                'ticker': ticker,
-                'name': ticker,
-                'price': hist['Close'].iloc[-1] if not hist.empty else 0
-            }
+        # Try to get recent price history first (most reliable check)
+        hist = stock.history(period='5d')
         
-        name = info.get('shortName') or info.get('longName') or ticker
-        price = info.get('regularMarketPrice') or info.get('previousClose', 0)
+        if hist.empty:
+            return {'valid': False, 'error': f'Ticker "{ticker}" not found'}
+        
+        # Get latest price from history
+        latest_price = hist['Close'].iloc[-1] if not hist.empty else 0
+        
+        # Try to get info for name (but don't fail if unavailable)
+        name = ticker
+        try:
+            info = stock.info
+            if info:
+                # Try multiple name fields
+                name = (info.get('shortName') or 
+                       info.get('longName') or 
+                       info.get('name') or 
+                       ticker)
+                # Try multiple price fields if history price is 0
+                if latest_price == 0:
+                    latest_price = (info.get('regularMarketPrice') or 
+                                  info.get('previousClose') or 
+                                  info.get('currentPrice') or 
+                                  0)
+        except:
+            # If info fails, just use ticker as name
+            pass
         
         return {
             'valid': True,
             'ticker': ticker,
             'name': name,
-            'price': price
+            'price': latest_price
         }
         
     except requests.exceptions.RequestException:
