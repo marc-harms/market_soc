@@ -15,11 +15,12 @@ Author: Market Analysis Team
 Version: 8.0 (Modularized)
 """
 
-from typing import Callable
+from typing import Callable, Optional
 
 import streamlit as st
 
-from config import LEGAL_DISCLAIMER, ACCESS_CODE
+from config import LEGAL_DISCLAIMER
+from auth_manager import login, signup, logout, is_authenticated
 
 
 def render_disclaimer() -> None:
@@ -75,19 +76,128 @@ def render_disclaimer() -> None:
     st.stop()
 
 
-def check_auth() -> None:
-    """Validate access code from session state against ACCESS_CODE constant."""
-    if st.session_state.get("pwd") == ACCESS_CODE:
-        st.session_state.authenticated = True
-        del st.session_state.pwd
-    else:
-        st.error("Incorrect password")
-
-
-def login_page() -> None:
-    """Render login page and block access until authenticated."""
-    st.title("🔒 Login Required")
-    st.text_input("Access Code", type="password", key="pwd", on_change=check_auth)
+def render_auth_page() -> None:
+    """
+    Render modern login/signup page with tabs.
+    
+    This replaces the old simple access code system with full user authentication.
+    Supports both login for existing users and signup for new users.
+    """
+    # Apply minimal styling for auth page
+    st.markdown("""
+    <style>
+        .stApp { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .auth-container {
+            background: white;
+            border-radius: 16px;
+            padding: 2.5rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            max-width: 450px;
+            margin: 0 auto;
+        }
+        .auth-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .auth-header h1 {
+            color: #667eea;
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        .auth-header p {
+            color: #666;
+            font-size: 0.95rem;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Center the auth form
+    col1, col2, col3 = st.columns([1, 2, 1])
+    
+    with col2:
+        st.markdown("""
+        <div class="auth-header">
+            <h1>🔬 SOC Seismograph</h1>
+            <p>Self-Organized Criticality Market Analysis</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Tabs for Login / Sign Up
+        tab1, tab2 = st.tabs(["🔑 Login", "✨ Sign Up"])
+        
+        # === LOGIN TAB ===
+        with tab1:
+            st.markdown("### Welcome Back")
+            
+            with st.form("login_form", clear_on_submit=False):
+                email = st.text_input("Email", placeholder="your@email.com", key="login_email")
+                password = st.text_input("Password", type="password", placeholder="••••••••", key="login_password")
+                
+                submit = st.form_submit_button("🚀 Login", use_container_width=True, type="primary")
+                
+                if submit:
+                    if not email or not password:
+                        st.error("Please enter both email and password")
+                    else:
+                        with st.spinner("Authenticating..."):
+                            success, error, user_data = login(email, password)
+                            
+                            if success:
+                                st.session_state.user = user_data
+                                st.session_state.tier = user_data['tier']
+                                st.session_state.authenticated = True
+                                st.success(f"✅ Welcome back, {user_data['email']}!")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {error}")
+        
+        # === SIGNUP TAB ===
+        with tab2:
+            st.markdown("### Create Your Account")
+            st.caption("Start with our **Free tier** - no credit card required!")
+            
+            with st.form("signup_form", clear_on_submit=False):
+                email = st.text_input("Email", placeholder="your@email.com", key="signup_email")
+                password = st.text_input("Password", type="password", placeholder="Min. 6 characters", key="signup_password")
+                password_confirm = st.text_input("Confirm Password", type="password", placeholder="Re-enter password", key="signup_password_confirm")
+                
+                agree_terms = st.checkbox("I agree to the Terms of Service and Privacy Policy")
+                
+                submit = st.form_submit_button("✨ Create Account", use_container_width=True, type="primary")
+                
+                if submit:
+                    # Validation
+                    if not email or not password or not password_confirm:
+                        st.error("Please fill in all fields")
+                    elif password != password_confirm:
+                        st.error("Passwords do not match")
+                    elif len(password) < 6:
+                        st.error("Password must be at least 6 characters")
+                    elif not agree_terms:
+                        st.error("Please agree to the Terms of Service")
+                    else:
+                        with st.spinner("Creating your account..."):
+                            success, error, user_data = signup(email, password)
+                            
+                            if success:
+                                st.session_state.user = user_data
+                                st.session_state.tier = user_data['tier']
+                                st.session_state.authenticated = True
+                                st.success(f"🎉 Account created! Welcome, {user_data['email']}!")
+                                st.balloons()
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {error}")
+        
+        # Footer
+        st.markdown("---")
+        st.markdown("""
+        <div style="text-align: center; color: #666; font-size: 0.85rem;">
+            <p>🔒 Secure authentication powered by Supabase</p>
+            <p>Questions? Contact <a href="mailto:support@socseismograph.com">support@socseismograph.com</a></p>
+        </div>
+        """, unsafe_allow_html=True)
+    
     st.stop()
 
 

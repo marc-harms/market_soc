@@ -14,3 +14,6 @@ requests>=2.31.0
 
 # Visualization
 plotly>=5.14.0
+
+# Authentication & Database
+supabase>=2.3.0

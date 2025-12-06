@@ -34,7 +34,11 @@ import plotly.graph_objects as go
 from logic import DataFetcher, SOCAnalyzer, run_dca_simulation, calculate_audit_metrics
 from ui_simulation import render_dca_simulation
 from ui_detail import render_detail_panel, render_regime_persistence_chart, render_current_regime_outlook
-from ui_auth import render_disclaimer, check_auth, login_page, render_sticky_cockpit_header, render_education_landing
+from ui_auth import render_disclaimer, render_auth_page, render_sticky_cockpit_header, render_education_landing
+from auth_manager import (
+    is_authenticated, logout, get_current_user_id, get_current_user_email,
+    get_user_portfolio, can_access_simulation, show_upgrade_prompt
+)
 
 # =============================================================================
 # PAGE CONFIGURATION
@@ -497,23 +501,22 @@ def validate_ticker(ticker: str) -> Dict[str, Any]:
 
 def main():
     """
-    Main application entry point with Sticky Cockpit Header.
+    Main application entry point - Multi-User SaaS Edition.
     
     Flow:
         1. Show legal disclaimer (must accept to continue)
-        2. Initialize session state
-        3. Check authentication
+        2. Check user authentication (Supabase)
+        3. Initialize session state
         4. Apply theme CSS
-        5. Render sticky cockpit header (always visible)
-        6. Main content area:
+        5. Render sidebar with logout + user info
+        6. Render sticky cockpit header (always visible)
+        7. Main content area:
            - No asset: Education landing + quick picks
-           - Asset selected: Deep Dive or Simulation tabs
+           - Asset selected: Deep Dive or Simulation tabs (tier-gated)
     """
     # Session state initialization
     if 'disclaimer_accepted' not in st.session_state:
         st.session_state.disclaimer_accepted = False
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
     if 'dark_mode' not in st.session_state:
         st.session_state.dark_mode = False  # Light mode default
     if 'selected_asset' not in st.session_state:
@@ -528,13 +531,88 @@ def main():
         render_disclaimer()
         return
     
-    # Auth gate
-    if not st.session_state.authenticated:
-        login_page()
+    # === AUTHENTICATION GATE (THE GATEKEEPER) ===
+    # Check if user is authenticated via Supabase
+    if not is_authenticated():
+        render_auth_page()
         return
     
     # Apply theme
     st.markdown(get_theme_css(st.session_state.dark_mode), unsafe_allow_html=True)
+    
+    # === SIDEBAR: User Info + Logout ===
+    with st.sidebar:
+        st.markdown("### 👤 Account")
+        
+        user_email = get_current_user_email()
+        user_tier = st.session_state.get('tier', 'free')
+        
+        # User info card
+        tier_emoji = "⭐" if user_tier == "premium" else "🆓"
+        tier_color = "#FFD700" if user_tier == "premium" else "#888888"
+        
+        st.markdown(f"""
+        <div style="background: rgba(102, 126, 234, 0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+            <div style="font-size: 0.85rem; color: #888;">Logged in as</div>
+            <div style="font-weight: 600; margin: 4px 0;">{user_email}</div>
+            <div style="color: {tier_color}; font-weight: 600;">{tier_emoji} {user_tier.upper()} TIER</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Portfolio section
+        st.markdown("### 📁 My Portfolio")
+        user_id = get_current_user_id()
+        if user_id:
+            portfolio = get_user_portfolio(user_id)
+            if portfolio:
+                st.caption(f"**{len(portfolio)}** assets tracked")
+                for ticker in portfolio:
+                    col1, col2 = st.columns([3, 1])
+                    with col1:
+                        if st.button(ticker, key=f"sidebar_{ticker}", use_container_width=True):
+                            # Analyze this ticker
+                            results = run_analysis([ticker])
+                            if results and len(results) > 0:
+                                st.session_state.current_ticker = ticker
+                                st.session_state.scan_results = results
+                                st.session_state.selected_asset = 0
+                                st.session_state.analysis_mode = "deep_dive"
+                                st.rerun()
+                    with col2:
+                        if st.button("🗑️", key=f"remove_{ticker}", help="Remove"):
+                            from auth_manager import remove_asset_from_portfolio
+                            success, error = remove_asset_from_portfolio(user_id, ticker)
+                            if success:
+                                st.rerun()
+            else:
+                st.info("No assets yet. Search for a ticker and click '⭐ Add to Portfolio'")
+        
+        st.markdown("---")
+        
+        # Upgrade prompt for free users
+        if user_tier == "free":
+            st.markdown("### ⭐ Upgrade to Premium")
+            st.markdown("""
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1rem; border-radius: 8px; color: white;">
+                <div style="font-weight: 600; margin-bottom: 8px;">Unlock Full Power</div>
+                <ul style="font-size: 0.85rem; margin: 0; padding-left: 20px;">
+                    <li>Unlimited portfolio assets</li>
+                    <li>DCA Simulation access</li>
+                    <li>Instant alerts (coming soon)</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button("⭐ Upgrade Now", type="primary", use_container_width=True):
+                st.info("💡 Contact support@socseismograph.com for upgrade options")
+        
+        st.markdown("---")
+        
+        # Logout button
+        if st.button("🚪 Logout", use_container_width=True):
+            logout()
+            st.success("Logged out successfully!")
+            st.rerun()
     
     # === STICKY COCKPIT HEADER (Always Visible) ===
     render_sticky_cockpit_header(validate_ticker, search_ticker, run_analysis)
@@ -618,8 +696,12 @@ def main():
                 st.rerun()
         
         with col_tab2:
+            # Show lock icon for free users
+            user_tier = st.session_state.get('tier', 'free')
+            sim_label = "🎯 Portfolio Simulation" if user_tier == "premium" else "🔒 Simulation (Premium)"
+            
             if st.button(
-                "🎯 Portfolio Simulation",
+                sim_label,
                 key="btn_simulation",
                 use_container_width=True,
                 type="primary" if st.session_state.analysis_mode == "simulation" else "secondary"
@@ -636,9 +718,16 @@ def main():
                 selected = results[st.session_state.selected_asset]
                 render_detail_panel(selected, get_signal_color, get_signal_bg)
         else:
-            # Portfolio Simulation
-            result_tickers = [r['symbol'] for r in results]
-            render_dca_simulation(result_tickers)
+            # Portfolio Simulation (tier-gated)
+            if can_access_simulation():
+                # Premium: Show simulation
+                result_tickers = [r['symbol'] for r in results]
+                render_dca_simulation(result_tickers)
+            else:
+                # Free: Show upgrade prompt
+                st.markdown("### 💰 DCA Simulation")
+                st.markdown("---")
+                show_upgrade_prompt("DCA Simulation with strategy backtesting")
 
 
 if __name__ == "__main__":

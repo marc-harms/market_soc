@@ -20,6 +20,7 @@ import pandas as pd
 import plotly.graph_objects as go
 
 from logic import DataFetcher, SOCAnalyzer
+from auth_manager import add_asset_to_portfolio, remove_asset_from_portfolio, get_current_user_id, get_user_portfolio
 
 
 def render_regime_persistence_chart(current_regime: str, current_duration: int, regime_stats: Dict[str, Any], is_dark: bool = False) -> None:
@@ -229,6 +230,31 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
         </div>
     </div>
     """, unsafe_allow_html=True)
+    
+    # Add to Portfolio Button
+    user_id = get_current_user_id()
+    if user_id:
+        portfolio = get_user_portfolio(user_id)
+        in_portfolio = symbol in portfolio
+        
+        col1, col2, col3 = st.columns([2, 1, 2])
+        with col2:
+            if in_portfolio:
+                if st.button(f"✅ In Portfolio", key=f"portfolio_{symbol}", use_container_width=True, help="Click to remove"):
+                    success, error = remove_asset_from_portfolio(user_id, symbol)
+                    if success:
+                        st.success(f"Removed {symbol} from portfolio")
+                        st.rerun()
+                    else:
+                        st.error(error)
+            else:
+                if st.button(f"⭐ Add to Portfolio", key=f"portfolio_{symbol}", use_container_width=True, type="primary"):
+                    success, error = add_asset_to_portfolio(user_id, symbol)
+                    if success:
+                        st.success(f"Added {symbol} to portfolio!")
+                        st.rerun()
+                    else:
+                        st.error(error)
     
     # Explanation of Regime
     st.markdown("""
