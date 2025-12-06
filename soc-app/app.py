@@ -732,8 +732,8 @@ def render_regime_persistence_chart(current_regime: str, current_duration: int, 
         regime_stats: Historical statistics for this regime
         is_dark: Dark mode flag
     """
-    # Get historical stats
-    mean_duration = regime_stats.get('mean_duration', 0)
+    # Get historical stats (using correct keys from logic.py)
+    mean_duration = regime_stats.get('avg_duration', 0)  # avg_duration, not mean_duration
     median_duration = regime_stats.get('median_duration', 0)
     max_duration = regime_stats.get('max_duration', 0)
     p95_duration = regime_stats.get('p95_duration', 0)
@@ -748,6 +748,12 @@ def render_regime_persistence_chart(current_regime: str, current_duration: int, 
     }
     
     regime_color = regime_colors.get(current_regime, '#667eea')
+    
+    # Handle edge cases
+    if max_duration == 0:
+        max_duration = max(current_duration * 2, 30)  # Fallback
+    if mean_duration == 0:
+        mean_duration = current_duration  # Use current as reference
     
     # Create horizontal bar chart
     fig = go.Figure()
@@ -819,25 +825,43 @@ def render_current_regime_outlook(current_regime: str, regime_data: Dict[str, An
         current_regime: Name of current regime
         regime_data: Statistical data for this regime
     """
-    st.markdown(f"##### 🎯 Historical Outlook for Current Regime: {current_regime.replace('_', ' ').title()}")
+    regime_display = current_regime.replace('_', ' ').title()
+    regime_emojis = {'STABLE': '🟢', 'ACTIVE': '🟡', 'HIGH_ENERGY': '🟠', 'CRITICAL': '🔴', 'DORMANT': '⚪'}
+    emoji = regime_emojis.get(current_regime, '📊')
     
-    # Build outlook table
+    st.markdown(f"##### 🎯 Historical Outlook: {emoji} {regime_display} Regime")
+    
+    # Check if we have data
+    phase_count = regime_data.get('phase_count', 0)
+    if phase_count == 0:
+        st.info("No historical data available for this regime.")
+        return
+    
+    st.caption(f"Based on {phase_count} historical occurrences of this regime")
+    
+    # Build outlook table using available data
+    ret_10d = regime_data.get('start_return_10d', 0)
+    ret_30d = regime_data.get('avg_return_30d', 0)
+    ret_90d = regime_data.get('avg_return_90d', 0)
+    dd_10d = regime_data.get('worst_max_dd_10d', 0)
+    avg_dd_10d = regime_data.get('avg_max_dd_10d', 0)
+    
     outlook_data = {
         'Timeframe': ['10 Days', '30 Days', '90 Days'],
         'Avg Return': [
-            f"{regime_data.get('start_return_10d', 0):+.1f}%",
-            f"{regime_data.get('avg_return_30d', 0):+.1f}%",
-            f"{regime_data.get('avg_return_90d', 0):+.1f}%"
+            f"{ret_10d:+.1f}%",
+            f"{ret_30d:+.1f}%",
+            f"{ret_90d:+.1f}%"
         ],
-        'Win Rate': [
-            f"{regime_data.get('win_rate_10d', 50):.0f}%",
-            f"{regime_data.get('win_rate_30d', 50):.0f}%",
-            f"{regime_data.get('win_rate_90d', 50):.0f}%"
+        'Avg Price Change': [
+            f"{regime_data.get('avg_price_change_during', 0):+.1f}%",
+            '-',
+            '-'
         ],
-        'Max Drawdown (Risk)': [
-            f"{regime_data.get('worst_max_dd_10d', 0):.1f}%",
-            f"{regime_data.get('worst_max_dd_30d', 0):.1f}%",
-            f"{regime_data.get('worst_max_dd_90d', 0):.1f}%"
+        'Worst Drawdown': [
+            f"{dd_10d:.1f}%" if dd_10d != 0 else "N/A",
+            '-',
+            '-'
         ]
     }
     
@@ -845,13 +869,14 @@ def render_current_regime_outlook(current_regime: str, regime_data: Dict[str, An
     st.dataframe(df, use_container_width=True, hide_index=True)
     
     # Add interpretation
-    avg_30d = regime_data.get('avg_return_30d', 0)
-    if avg_30d > 5:
-        st.success(f"📈 Historically, this regime has shown **positive momentum** with an average 30-day return of {avg_30d:+.1f}%.")
-    elif avg_30d < -5:
-        st.error(f"📉 Historically, this regime has shown **negative momentum** with an average 30-day return of {avg_30d:+.1f}%.")
+    if ret_30d > 5:
+        st.success(f"📈 Historically, this regime has shown **positive momentum** with an average 30-day return of {ret_30d:+.1f}%.")
+    elif ret_30d < -5:
+        st.error(f"📉 Historically, this regime has shown **negative momentum** with an average 30-day return of {ret_30d:+.1f}%.")
+    elif ret_30d != 0:
+        st.info(f"📊 Historically, this regime has shown **neutral momentum** with an average 30-day return of {ret_30d:+.1f}%.")
     else:
-        st.info(f"📊 Historically, this regime has shown **neutral momentum** with an average 30-day return of {avg_30d:+.1f}%.")
+        st.info("📊 Insufficient historical data for return analysis.")
 
 
 def render_detail_panel(result: Dict[str, Any]):
@@ -983,9 +1008,9 @@ def render_detail_panel(result: Dict[str, Any]):
                 
                 # Get current regime from analysis
                 stats = analysis['signal_stats']
-                current_regime_key = result.get('regime_internal', 'STABLE')  # Internal key like 'STABLE'
+                current_regime_key = analysis.get('current_signal', 'STABLE')  # From historical analysis
                 current_regime_data = stats.get(current_regime_key, {})
-                current_duration = result.get('time_in_state', 0)
+                current_duration = analysis.get('current_streak_days', 0)  # Days in current regime
                 
                 st.markdown("---")
                 
