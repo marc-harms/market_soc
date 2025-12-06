@@ -806,18 +806,21 @@ def render_regime_persistence_chart(current_regime: str, current_duration: int, 
         height=180,
         margin=dict(l=80, r=30, t=50, b=50),
         showlegend=False,
-        font=dict(color=text_color, size=13),
-        xaxis=dict(
-            range=[0, max_duration * 1.1],
-            title="Days",
-            titlefont=dict(color=axis_color, size=14),
-            tickfont=dict(color=axis_color, size=12),
-            gridcolor=grid_color
-        ),
-        yaxis=dict(
-            title="",
-            tickfont=dict(color=axis_color, size=12)
-        )
+        font=dict(color=text_color, size=13)
+    )
+    
+    # Update axes separately (correct Plotly API)
+    fig.update_xaxes(
+        range=[0, max_duration * 1.1],
+        title_text="Days",
+        title_font=dict(color=axis_color, size=14),
+        tickfont=dict(color=axis_color, size=12),
+        gridcolor=grid_color
+    )
+    
+    fig.update_yaxes(
+        title_text="",
+        tickfont=dict(color=axis_color, size=12)
     )
     
     st.plotly_chart(fig, use_container_width=True)
