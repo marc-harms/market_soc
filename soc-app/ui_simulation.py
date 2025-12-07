@@ -391,7 +391,7 @@ def render_dca_simulation(tickers: List[str]) -> None:
             hovermode='x unified',
             hoverlabel=dict(
                 bgcolor="white",
-                font_size=11,
+                font_size=13,
                 font_family="Merriweather, serif",
                 font_color="#333333"
             ),
@@ -494,7 +494,7 @@ def render_dca_simulation(tickers: List[str]) -> None:
             hovermode='x unified',
             hoverlabel=dict(
                 bgcolor="white",
-                font_size=11,
+                font_size=13,
                 font_family="Merriweather, serif",
                 font_color="#333333"
             ),

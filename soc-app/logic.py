@@ -618,7 +618,7 @@ class SOCAnalyzer:
             margin=dict(b=80),
             hoverlabel=dict(
                 bgcolor="white",
-                font_size=12,
+                font_size=13,
                 font_family="Merriweather, serif",
                 font_color="#333333"
             ),
