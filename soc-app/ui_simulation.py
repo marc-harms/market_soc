@@ -385,9 +385,9 @@ def render_dca_simulation(tickers: List[str]) -> None:
                 y=1.02,
                 xanchor="center",
                 x=0.5,
-                font=dict(family="Merriweather, serif", color=legend_color, size=11)
+                font=dict(family="Merriweather, serif", color=legend_color, size=13)
             ),
-            font=dict(family="Merriweather, serif", size=12, color=axis_color),
+            font=dict(family="Merriweather, serif", size=13, color=axis_color),
             hovermode='x unified',
             hoverlabel=dict(
                 bgcolor="white",
@@ -410,16 +410,16 @@ def render_dca_simulation(tickers: List[str]) -> None:
         )
         fig.update_xaxes(
             title_text="Date",
-            title_font=dict(family="Merriweather, serif", color=axis_color, size=12),
-            tickfont=dict(family="Merriweather, serif", color=axis_color, size=10),
+            title_font=dict(family="Merriweather, serif", color=axis_color, size=14),
+            tickfont=dict(family="Merriweather, serif", color=axis_color, size=12),
             gridcolor=grid_color,
             gridwidth=0.5,
             griddash='dot'
         )
         fig.update_yaxes(
             title_text="Portfolio Value (€)",
-            title_font=dict(family="Merriweather, serif", color=axis_color, size=12),
-            tickfont=dict(family="Merriweather, serif", color=axis_color, size=10),
+            title_font=dict(family="Merriweather, serif", color=axis_color, size=14),
+            tickfont=dict(family="Merriweather, serif", color=axis_color, size=12),
             gridcolor=grid_color,
             gridwidth=0.5,
             griddash='dot',
@@ -488,9 +488,9 @@ def render_dca_simulation(tickers: List[str]) -> None:
                 y=1.02,
                 xanchor="center",
                 x=0.5,
-                font=dict(family="Merriweather, serif", color=legend_color_dd, size=11)
+                font=dict(family="Merriweather, serif", color=legend_color_dd, size=13)
             ),
-            font=dict(family="Merriweather, serif", size=12, color=axis_color_dd),
+            font=dict(family="Merriweather, serif", size=13, color=axis_color_dd),
             hovermode='x unified',
             hoverlabel=dict(
                 bgcolor="white",
@@ -513,16 +513,16 @@ def render_dca_simulation(tickers: List[str]) -> None:
         )
         fig_dd.update_xaxes(
             title_text="Date",
-            title_font=dict(family="Merriweather, serif", color=axis_color_dd, size=12),
-            tickfont=dict(family="Merriweather, serif", color=axis_color_dd, size=10),
+            title_font=dict(family="Merriweather, serif", color=axis_color_dd, size=14),
+            tickfont=dict(family="Merriweather, serif", color=axis_color_dd, size=12),
             gridcolor=grid_color_dd,
             gridwidth=0.5,
             griddash='dot'
         )
         fig_dd.update_yaxes(
             title_text="Drawdown (%)",
-            title_font=dict(family="Merriweather, serif", color=axis_color_dd, size=12),
-            tickfont=dict(family="Merriweather, serif", color=axis_color_dd, size=10),
+            title_font=dict(family="Merriweather, serif", color=axis_color_dd, size=14),
+            tickfont=dict(family="Merriweather, serif", color=axis_color_dd, size=12),
             gridcolor=grid_color_dd,
             gridwidth=0.5,
             griddash='dot',

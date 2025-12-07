@@ -612,9 +612,9 @@ class SOCAnalyzer:
                 y=1.02,
                 xanchor="right",
                 x=1,
-                font=dict(family="Merriweather, serif", size=11, color=text_color)
+                font=dict(family="Merriweather, serif", size=13, color=text_color)
             ),
-            font=dict(family="Merriweather, serif", size=12, color=text_color),
+            font=dict(family="Merriweather, serif", size=13, color=text_color),
             margin=dict(b=80),
             hoverlabel=dict(
                 bgcolor="white",
@@ -640,8 +640,8 @@ class SOCAnalyzer:
         fig3.update_yaxes(
             title_text="Price (Log)",
             type="log",
-            title_font=dict(family="Merriweather, serif", size=12, color=text_color),
-            tickfont=dict(family="Merriweather, serif", size=10, color=text_color),
+            title_font=dict(family="Merriweather, serif", size=14, color=text_color),
+            tickfont=dict(family="Merriweather, serif", size=12, color=text_color),
             gridcolor='#E6E1D3',
             gridwidth=0.5,
             griddash='dot',
@@ -651,8 +651,8 @@ class SOCAnalyzer:
         )
         fig3.update_yaxes(
             title_text="Volatility",
-            title_font=dict(family="Merriweather, serif", size=12, color=text_color),
-            tickfont=dict(family="Merriweather, serif", size=10, color=text_color),
+            title_font=dict(family="Merriweather, serif", size=14, color=text_color),
+            tickfont=dict(family="Merriweather, serif", size=12, color=text_color),
             gridcolor='#E6E1D3',
             gridwidth=0.5,
             griddash='dot',
@@ -662,10 +662,10 @@ class SOCAnalyzer:
         )
         fig3.update_xaxes(
             title_text=f"<b>{asset_name} - SOC Analysis</b>",
-            title_font=dict(family="Merriweather, serif", size=14, color=text_color),
+            title_font=dict(family="Merriweather, serif", size=15, color=text_color),
             title_standoff=25,
             tickformat="%Y",
-            tickfont=dict(family="Merriweather, serif", size=10, color=text_color),
+            tickfont=dict(family="Merriweather, serif", size=12, color=text_color),
             gridcolor='#E6E1D3',
             gridwidth=0.5,
             griddash='dot'

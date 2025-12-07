@@ -288,9 +288,8 @@ def add_asset_to_portfolio(user_id: str, ticker: str) -> Tuple[bool, Optional[st
         Tuple of (success: bool, error_message: Optional[str])
     
     Constraints:
-        - Free tier: Max 3 assets
-        - Premium tier: Unlimited
-        - No duplicates
+        - No limitations on number of assets
+        - No duplicates allowed
     
     Example:
         >>> success, error = add_asset_to_portfolio("abc-123", "AAPL")
@@ -303,14 +302,11 @@ def add_asset_to_portfolio(user_id: str, ticker: str) -> Tuple[bool, Optional[st
         # Get current portfolio
         current_portfolio = get_user_portfolio(user_id)
         
-        # Check for duplicates
+        # Check for duplicates only
         if ticker in current_portfolio:
             return False, f"{ticker} is already in your portfolio"
         
-        # Check tier limits
-        user_tier = st.session_state.get('tier', 'free')
-        if user_tier == 'free' and len(current_portfolio) >= 3:
-            return False, "🔒 Free tier limited to 3 assets. Upgrade to Premium for unlimited assets!"
+        # No tier limits - all users have unlimited portfolio
         
         # Add to portfolio
         portfolio_data = {
@@ -430,24 +426,10 @@ def can_run_simulation() -> tuple[bool, str]:
     
     Returns:
         Tuple of (can_run: bool, message: str)
-        - Free tier: 5 per day limit
-        - Premium tier: unlimited
+        - All users now have unlimited simulations
     """
-    tier = st.session_state.get('tier', 'free')
-    
-    # Premium has unlimited
-    if tier == 'premium':
-        return True, ""
-    
-    # Free tier: check daily limit
-    count = get_simulation_count_today()
-    limit = 5
-    
-    if count >= limit:
-        return False, f"🔒 Free tier limit: {limit} simulations per day. You've used all {limit} today. Upgrade to Premium for unlimited simulations!"
-    
-    remaining = limit - count
-    return True, f"ℹ️ {remaining}/{limit} simulations remaining today (Free tier)"
+    # No limits - all users have unlimited simulations
+    return True, ""
 
 
 def can_access_instant_alerts() -> bool:
@@ -466,10 +448,9 @@ def get_portfolio_limit() -> int:
     Get maximum number of assets user can save to portfolio.
     
     Returns:
-        3 for free tier, 999 for premium (effectively unlimited)
+        999 (unlimited for all users)
     """
-    tier = st.session_state.get('tier', 'free')
-    return 999 if tier == 'premium' else 3
+    return 999  # No limits - all users have unlimited portfolio
 
 
 def show_upgrade_prompt(feature_name: str = "this feature") -> None:

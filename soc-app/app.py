@@ -795,27 +795,12 @@ def main():
                 selected = results[st.session_state.selected_asset]
                 render_detail_panel(selected, get_signal_color, get_signal_bg)
         else:
-            # Portfolio Simulation (now free with daily limits)
+            # Portfolio Simulation (unlimited for all users)
             st.markdown("### 💰 DCA Simulation")
             st.markdown("---")
             
-            # Check if user can run simulation
-            can_run, message = can_run_simulation()
-            
-            if message:
-                if can_run:
-                    st.info(message)  # Show remaining count
-                else:
-                    st.warning(message)  # Show limit reached
-            
-            if can_run:
-                result_tickers = [r['symbol'] for r in results]
-                # Track simulation run
-                increment_simulation_count()
-                render_dca_simulation(result_tickers)
-            else:
-                # Show upgrade prompt
-                show_upgrade_prompt("Unlimited simulations and instant email alerts")
+            result_tickers = [r['symbol'] for r in results]
+            render_dca_simulation(result_tickers)
 
 
 if __name__ == "__main__":

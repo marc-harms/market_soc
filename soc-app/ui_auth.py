@@ -329,11 +329,11 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
         with col_title:
             st.markdown("""
             <div style="text-align: center; padding-top: 8px;">
-                <h2 style="margin: 0; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif; color: #2C3E50; font-weight: 700; letter-spacing: -0.5px;">
+                <h1 style="margin: 0; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif; color: #2C3E50; font-weight: 700; letter-spacing: -1px; font-size: 2.8rem;">
                     TECTONIQ
-                </h2>
-                <p style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #555; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif;">Move Beyond Buy & Hope</p>
-                <p style="margin: 0; font-size: 0.75rem; color: #666; line-height: 1.4; max-width: 500px; margin: 4px auto 0; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif;">
+                </h1>
+                <p style="margin: 4px 0 0 0; font-size: 1rem; font-weight: 600; color: #555; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif;">Move Beyond Buy & Hope</p>
+                <p style="margin: 4px auto 0; font-size: 0.8rem; color: #666; line-height: 1.4; max-width: 500px; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif;">
                     Market crashes aren't random—they are physics. TECTONIQ visualizes systemic stress levels so you can navigate volatility with open eyes.
                 </p>
             </div>
