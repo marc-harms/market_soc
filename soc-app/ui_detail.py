@@ -386,7 +386,7 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
                 st.markdown("---")
                 
                 # === SECTION C: FULL HISTORICAL DATA (EXPANDER) ===
-                with st.expander("📚 View All Historical Regime Data"):
+                with st.expander("View All Historical Regime Data", expanded=False):
                     # Regime Distribution Donut Chart
                     st.markdown("##### Historical Regime Distribution")
                     

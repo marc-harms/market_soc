@@ -903,7 +903,7 @@ def main():
                 render_detail_panel(selected, get_signal_color, get_signal_bg)
         else:
             # Portfolio Simulation (unlimited for all users)
-            st.markdown("### 💰 DCA Simulation")
+            st.markdown("### DCA Simulation")
             st.markdown("---")
             
             result_tickers = [r['symbol'] for r in results]

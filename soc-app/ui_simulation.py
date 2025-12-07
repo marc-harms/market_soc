@@ -74,7 +74,7 @@ def render_dca_simulation(tickers: List[str]) -> None:
         )
     
     # Reality Settings (Fees & Interest)
-    with st.expander("⚙️ Reality Settings (Fees & Interest)"):
+    with st.expander("Reality Settings - Fees and Interest", expanded=False):
         col_fee, col_interest = st.columns(2)
         
         with col_fee:
