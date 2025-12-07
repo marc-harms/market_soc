@@ -245,6 +245,14 @@ def render_auth_page() -> None:
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
+        # Logo
+        try:
+            col_logo_left, col_logo_center, col_logo_right = st.columns([1, 2, 1])
+            with col_logo_center:
+                st.image("assets/tectoniq_logo.png", width=200)
+        except:
+            pass  # Skip logo if not found
+        
         st.markdown("""
         <div class="auth-header">
             <h1 style="color: #2C3E50; font-size: 2.2rem; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif; font-weight: 700; letter-spacing: -0.5px;">TECTONIQ</h1>
@@ -356,14 +364,18 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
         col_logo, col_title, col_user = st.columns([1, 3, 2])
         
         with col_logo:
-            # Logo placeholder - empty box
-            st.markdown("""
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 48px; height: 48px; background: transparent; 
-                            border: 2px solid #2C3E50; border-radius: 4px;">
+            # TECTONIQ Logo
+            try:
+                st.image("assets/tectoniq_logo.png", width=80)
+            except:
+                # Fallback if logo not found
+                st.markdown("""
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 48px; height: 48px; background: transparent; 
+                                border: 2px solid #2C3E50; border-radius: 4px;">
+                    </div>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
         
         with col_title:
             st.markdown("""
