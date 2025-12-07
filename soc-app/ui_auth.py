@@ -295,9 +295,10 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
     """
     Render the persistent "Cockpit" header with search and status.
     
-    Layout:
-        Row 1: Logo | Search Field | Status Badge
-        Row 2: Daily Summary Metrics (planned feature - placeholder for now)
+    New Layout (Polished):
+        Row 1: [Logo Placeholder] | SOC Seismograph | User: name | Status: Free/Premium
+        Row 2: Centered search field (Enter to search)
+        Row 3: Active asset display (if selected)
     
     Args:
         validate_ticker_func: Function to validate ticker symbols
@@ -305,109 +306,163 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
         run_analysis_func: Function to run analysis on ticker(s)
     """
     is_dark = st.session_state.get('dark_mode', False)
+    from auth_manager import get_current_user_email, logout
     
     with st.container(border=True):
-        # === ROW 1: Logo | Search | Status | User Menu ===
-        col_logo, col_search, col_status, col_user = st.columns([2, 3, 2, 2])
+        # === ROW 1: TITLE BAR ===
+        col_logo, col_title, col_user = st.columns([1, 3, 2])
         
         with col_logo:
-            st.markdown('<h4 style="margin: 0;">📉 SOC Seismograph</h4>', unsafe_allow_html=True)
+            # Logo placeholder
+            st.markdown("""
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+                            border-radius: 8px; display: flex; align-items: center; justify-content: center; 
+                            font-size: 1.5rem; font-weight: bold; color: white;">
+                    S
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         
-        with col_search:
-            # Search with inline button
-            search_col, btn_col = st.columns([4, 1])
-            
-            with search_col:
-                search_query = st.text_input(
-                    "Analyze Asset...",
-                    placeholder="Type ticker (e.g., AAPL, BTC-USD)",
-                    label_visibility="collapsed",
-                    key="cockpit_search"
-                )
-            
-            with btn_col:
-                if st.button("🔍", key="search_btn", help="Analyze", use_container_width=True):
-                    if search_query and len(search_query) > 0:
-                        ticker_input = search_query.strip().upper()
-                        
-                        # Try to find ticker if user typed company name
-                        with st.spinner(f"Searching for {ticker_input}..."):
-                            try:
-                                # First try direct ticker
-                                validation = validate_ticker_func(ticker_input)
-                                
-                                if validation.get('valid'):
-                                    # Valid ticker - analyze it
-                                    results = run_analysis_func([ticker_input])
-                                    if results and len(results) > 0:
-                                        st.session_state.current_ticker = ticker_input
-                                        st.session_state.scan_results = results
-                                        st.session_state.selected_asset = 0
-                                        st.session_state.analysis_mode = "deep_dive"
-                                        st.rerun()
-                                else:
-                                    # Not a valid ticker - try searching for it
-                                    search_results = search_ticker_func(ticker_input)
-                                    if search_results:
-                                        # Found matches - store for selection
-                                        st.session_state.ticker_suggestions = search_results
-                                    else:
-                                        st.error(f"Could not find '{ticker_input}'. Try entering the exact ticker symbol (e.g., AAPL, SIE.DE, BTC-USD).")
-                            except Exception as e:
-                                st.error(f"Error: {str(e)}")
-                    else:
-                        st.warning("Please enter a ticker symbol")
-        
-        with col_status:
-            # Show status badge if asset is selected
-            if 'scan_results' in st.session_state and st.session_state.scan_results:
-                results = st.session_state.scan_results
-                if results:
-                    selected = results[st.session_state.selected_asset]
-                    regime_emoji = selected['signal'].split()[0] if selected.get('signal') else "⚪"
-                    score = int(selected.get('criticality_score', 0))
-                    
-                    # Color code based on score
-                    if score > 80:
-                        badge_color = "#FF4040"
-                    elif score > 60:
-                        badge_color = "#FF6600"
-                    else:
-                        badge_color = "#00C864"
-                    
-                    badge_html = f'<div style="text-align: center; padding: 8px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border: 1px solid #667eea;"><span style="font-size: 0.85rem; color: #888;">Active</span><br><span style="font-size: 1.1rem; font-weight: 600;">{selected["symbol"]}</span> <span style="font-size: 1.3rem;">{regime_emoji}</span><br><span style="color: {badge_color}; font-weight: 700;">{score}</span></div>'
-                    st.markdown(badge_html, unsafe_allow_html=True)
+        with col_title:
+            st.markdown("""
+            <div style="text-align: center; padding-top: 8px;">
+                <h2 style="margin: 0; background: linear-gradient(90deg, #667eea, #764ba2); 
+                           -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                    SOC Seismograph
+                </h2>
+                <p style="margin: 0; font-size: 0.85rem; color: #888;">Self-Organized Criticality Market Analysis</p>
+            </div>
+            """, unsafe_allow_html=True)
         
         with col_user:
-            # User menu with dropdown
-            from auth_manager import get_current_user_email, get_current_user_id, logout
-            
             user_email = get_current_user_email()
             user_tier = st.session_state.get('tier', 'free')
-            tier_emoji = "⭐" if user_tier == "premium" else "🆓"
             tier_color = "#FFD700" if user_tier == "premium" else "#888888"
+            tier_label = "Premium" if user_tier == "premium" else "Free"
             
-            # Compact user display
+            # User info display
             st.markdown(f"""
-            <div style="text-align: right; padding: 4px;">
-                <div style="font-size: 0.75rem; color: #888;">Logged in</div>
-                <div style="font-size: 0.9rem; font-weight: 600;">{user_email.split('@')[0]}</div>
-                <div style="font-size: 0.8rem; color: {tier_color};">{tier_emoji} {user_tier.upper()}</div>
+            <div style="text-align: right; padding-top: 8px;">
+                <div style="font-size: 0.9rem;">
+                    <span style="color: #888;">Logged in as:</span> 
+                    <strong>{user_email.split('@')[0]}</strong>
+                </div>
+                <div style="font-size: 0.9rem; margin-top: 4px;">
+                    <span style="color: #888;">Account status:</span> 
+                    <strong style="color: {tier_color};">{tier_label}</strong>
+                </div>
             </div>
             """, unsafe_allow_html=True)
             
-            # Portfolio & Logout buttons in expander
-            with st.expander("Menu", expanded=False):
-                # Portfolio button
-                if st.button("📁 My Portfolio", key="header_portfolio_btn", use_container_width=True):
+            # Portfolio & Logout buttons (no expander - always visible)
+            col_portfolio, col_logout = st.columns(2)
+            with col_portfolio:
+                if st.button("📁 Portfolio", key="header_portfolio_btn", use_container_width=True):
                     st.session_state.show_portfolio = not st.session_state.get('show_portfolio', False)
                     st.rerun()
-                
-                # Logout button
+            with col_logout:
                 if st.button("Logout", key="header_logout_btn", use_container_width=True):
                     logout()
                     st.success("Logged out!")
                     st.rerun()
+        
+        st.markdown("---")
+        
+        # === ROW 2: CENTERED SEARCH FIELD ===
+        col_spacer1, col_search_center, col_spacer2 = st.columns([1, 2, 1])
+        
+        with col_search_center:
+            # Search field with on_change callback (triggered by Enter key)
+            search_query = st.text_input(
+                "Search Asset",
+                placeholder="Enter ticker symbol (e.g., AAPL, BTC-USD, TSLA) and press Enter",
+                label_visibility="collapsed",
+                key="cockpit_search_main",
+                on_change=lambda: handle_search(
+                    st.session_state.get('cockpit_search_main', ''),
+                    validate_ticker_func,
+                    search_ticker_func,
+                    run_analysis_func
+                )
+            )
+        
+        # === ROW 3: ACTIVE ASSET DISPLAY (if selected) ===
+        if 'scan_results' in st.session_state and st.session_state.scan_results:
+            st.markdown("---")
+            results = st.session_state.scan_results
+            if results:
+                selected = results[st.session_state.selected_asset]
+                regime_emoji = selected['signal'].split()[0] if selected.get('signal') else "⚪"
+                score = int(selected.get('criticality_score', 0))
+                signal_text = selected.get('signal', 'Unknown')
+                
+                # Color code based on score
+                if score > 80:
+                    badge_color = "#FF4040"
+                elif score > 60:
+                    badge_color = "#FF6600"
+                else:
+                    badge_color = "#00C864"
+                
+                # Centered active asset badge
+                col_left, col_center, col_right = st.columns([1, 2, 1])
+                with col_center:
+                    badge_html = f"""
+                    <div style="text-align: center; padding: 1rem; background: rgba(102, 126, 234, 0.08); 
+                                border-radius: 12px; border: 2px solid #667eea;">
+                        <div style="font-size: 0.9rem; color: #888; margin-bottom: 8px;">ACTIVE ASSET</div>
+                        <div style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">
+                            {selected["symbol"]} <span style="font-size: 2.5rem;">{regime_emoji}</span>
+                        </div>
+                        <div style="font-size: 1rem; color: #888; margin-bottom: 4px;">{signal_text}</div>
+                        <div style="font-size: 1.8rem; font-weight: 700; color: {badge_color};">
+                            Criticality: {score}
+                        </div>
+                    </div>
+                    """
+                    st.markdown(badge_html, unsafe_allow_html=True)
+
+
+def handle_search(query: str, validate_func: Callable, search_func: Callable, analyze_func: Callable) -> None:
+    """
+    Handle search when user presses Enter.
+    
+    Args:
+        query: Search query (ticker symbol or company name)
+        validate_func: Function to validate ticker
+        search_func: Function to search for ticker
+        analyze_func: Function to run analysis
+    """
+    if not query or len(query.strip()) == 0:
+        return
+    
+    ticker_input = query.strip().upper()
+    
+    try:
+        # First try direct ticker
+        validation = validate_func(ticker_input)
+        
+        if validation.get('valid'):
+            # Valid ticker - analyze it
+            results = analyze_func([ticker_input])
+            if results and len(results) > 0:
+                st.session_state.current_ticker = ticker_input
+                st.session_state.scan_results = results
+                st.session_state.selected_asset = 0
+                st.session_state.analysis_mode = "deep_dive"
+                # Clear search field
+                st.session_state.cockpit_search_main = ""
+        else:
+            # Not a valid ticker - try searching for it
+            search_results = search_func(ticker_input)
+            if search_results:
+                # Found matches - store for selection
+                st.session_state.ticker_suggestions = search_results
+            else:
+                st.error(f"Could not find '{ticker_input}'. Try entering the exact ticker symbol.")
+    except Exception as e:
+        st.error(f"Search error: {str(e)}")
 
 
 def render_education_landing(run_analysis_func: Callable) -> None:
