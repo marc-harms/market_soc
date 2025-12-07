@@ -495,7 +495,7 @@ def render_education_landing(run_analysis_func: Callable) -> None:
             <b>5 regime states</b> (Dormant → Stable → Active → High Energy → Critical).
         </p>
         <p style="font-size: 0.95rem; line-height: 1.6;">
-            The <b>Criticality Score (0-100)</b> indicates systemic stress levels. Higher scores 
+            The <b>Criticality Score (0-100)</b> indicates instability levels. Higher scores 
             suggest increased volatility and potential instability.
         </p>
     </div>

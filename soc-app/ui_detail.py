@@ -279,7 +279,7 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
         if 'error' in analysis:
             st.warning(analysis['error'])
         else:
-                # === SYSTEMIC STRESS LEVEL (Compliance-safe) ===
+                # === INSTABILITY SCORE (Compliance-safe) ===
                 stress_data = analysis.get('crash_warning', {})
                 if stress_data:
                     score = stress_data.get('score', 0)
@@ -323,7 +323,7 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
                         <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                             <div>
                                 <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 4px;">
-                                    📊 Systemic Stress Level
+                                    📊 Instability Score
                                 </div>
                                 <div style="font-size: 42px; font-weight: bold; color: {level_color};">
                                     {score}<span style="font-size: 20px; opacity: 0.7;">/100</span>
@@ -355,12 +355,12 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
                     # Explanation of relationship between Regime and Stress Level
                     st.markdown("""
                     <div style="background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; padding: 12px; margin: 12px 0; border-radius: 4px;">
-                        <strong>🎯 Regime vs. Stress Level – What's the Difference?</strong><br>
+                        <strong>🎯 Regime vs. Instability Score – What's the Difference?</strong><br>
                         <span style="font-size: 0.9rem; opacity: 0.9;">
                         • <strong>Regime</strong> (shown at top) = This asset's individual price behavior pattern<br>
-                        • <strong>Systemic Stress Level</strong> (shown above) = Overall market-wide risk across volatility, correlations, and trends<br><br>
-                        <strong>Why can they differ?</strong> An asset can be in a 🟢 Stable regime (behaving normally) while the broader market shows 🟠 Heightened stress (system-wide instability). 
-                        The asset might be insulated now, but elevated systemic stress suggests potential future spillover risk.
+                        • <strong>Instability Score</strong> (shown above) = Overall market-wide risk across volatility, correlations, and trends<br><br>
+                        <strong>Why can they differ?</strong> An asset can be in a 🟢 Stable regime (behaving normally) while the broader market shows 🟠 Heightened instability (system-wide risk). 
+                        The asset might be insulated now, but elevated instability suggests potential future spillover risk.
                         </span>
                     </div>
                     """, unsafe_allow_html=True)

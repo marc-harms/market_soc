@@ -7,7 +7,7 @@ Interactive web dashboard for Self-Organized Criticality (SOC) market analysis.
 Features:
     - Multi-asset scanning with 5-Tier regime classification
     - Deep dive analysis with historical signal performance
-    - Systemic Stress Level indicator (0-100)
+    - Instability Score indicator (0-100)
     - Lump Sum investment simulation with Dynamic Position Sizing
     - Dark/Light theme support
 
@@ -583,15 +583,22 @@ def main():
                                     analyzer = SOCAnalyzer(df, ticker, info, DEFAULT_SMA_WINDOW, DEFAULT_VOL_WINDOW, DEFAULT_HYSTERESIS)
                                     phase = analyzer.get_market_phase()
                                     
-                                    # Calculate simplified stress level for portfolio (faster than full analysis)
-                                    # This matches the Deep Dive's Systemic Stress Level
+                                    # Get full analysis including crash_warning for accurate stress level
                                     try:
                                         full_analysis = analyzer.get_full_analysis()
-                                        phase['crash_warning'] = full_analysis.get('crash_warning', {})
+                                        crash_warning = full_analysis.get('crash_warning', {})
+                                        
+                                        # Ensure crash_warning has a score
+                                        if crash_warning and 'score' in crash_warning:
+                                            phase['crash_warning'] = crash_warning
+                                        else:
+                                            print(f"Warning: {ticker} crash_warning missing score, recalculating...")
+                                            # Force recalculation if missing
+                                            phase['crash_warning'] = full_analysis.get('crash_warning', {'score': 0})
                                     except Exception as analysis_error:
-                                        # Fallback: use simple stress calculation if full analysis fails
-                                        print(f"Full analysis failed for {ticker}, using simple stress: {str(analysis_error)}")
-                                        phase['crash_warning'] = {'score': int(phase.get('stress_score', 0) * 100)}
+                                        # Fallback: calculate basic stress if full analysis completely fails
+                                        print(f"Full analysis failed for {ticker}: {str(analysis_error)}")
+                                        phase['crash_warning'] = {'score': 0}
                                     
                                     phase['name'] = clean_name(info.get('name', ticker))
                                     portfolio_analysis.append(phase)
@@ -624,7 +631,7 @@ def main():
                         # Create table data
                         table_data = []
                         for result in portfolio_analysis:
-                            # Get systemic stress level from crash_warning (same as Deep Dive)
+                            # Get instability score from crash_warning (same as Deep Dive)
                             crash_warning = result.get('crash_warning', {})
                             stress_level = crash_warning.get('score', 0)
                             

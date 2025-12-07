@@ -918,7 +918,7 @@ class SOCAnalyzer:
     def _calculate_crash_warning_score(self, df: pd.DataFrame, signal_stats: Dict, 
                                         current_signal: str, current_streak: int) -> Dict[str, Any]:
         """
-        Calculate Systemic Stress Level (0-100) based on current market conditions.
+        Calculate Instability Score (0-100) based on current market conditions.
         Compliance-safe: Provides statistical analysis, NOT investment advice.
         
         Statistical Factors:
