@@ -566,20 +566,34 @@ def main():
                     
                     # Fetch full analysis for all portfolio assets (includes crash_warning)
                     with st.spinner("Loading portfolio data..."):
+                        import time
                         portfolio_analysis = []
                         fetcher = DataFetcher(cache_enabled=True)
                         failed_tickers = []
                         
-                        for ticker in portfolio:
+                        for i, ticker in enumerate(portfolio):
                             try:
+                                # Add small delay between requests to avoid rate limiting
+                                if i > 0:
+                                    time.sleep(0.5)  # 500ms delay between tickers
+                                
                                 df = fetcher.fetch_data(ticker)
                                 info = fetcher.fetch_info(ticker)
                                 if not df.empty and len(df) > MIN_DATA_POINTS:
                                     analyzer = SOCAnalyzer(df, ticker, info, DEFAULT_SMA_WINDOW, DEFAULT_VOL_WINDOW, DEFAULT_HYSTERESIS)
                                     phase = analyzer.get_market_phase()
-                                    full_analysis = analyzer.get_full_analysis()
+                                    
+                                    # Calculate simplified stress level for portfolio (faster than full analysis)
+                                    # This matches the Deep Dive's Systemic Stress Level
+                                    try:
+                                        full_analysis = analyzer.get_full_analysis()
+                                        phase['crash_warning'] = full_analysis.get('crash_warning', {})
+                                    except Exception as analysis_error:
+                                        # Fallback: use simple stress calculation if full analysis fails
+                                        print(f"Full analysis failed for {ticker}, using simple stress: {str(analysis_error)}")
+                                        phase['crash_warning'] = {'score': int(phase.get('stress_score', 0) * 100)}
+                                    
                                     phase['name'] = clean_name(info.get('name', ticker))
-                                    phase['crash_warning'] = full_analysis.get('crash_warning', {})
                                     portfolio_analysis.append(phase)
                                 else:
                                     failed_tickers.append(ticker)
