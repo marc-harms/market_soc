@@ -37,7 +37,8 @@ from ui_detail import render_detail_panel, render_regime_persistence_chart, rend
 from ui_auth import render_disclaimer, render_auth_page, render_sticky_cockpit_header, render_education_landing
 from auth_manager import (
     is_authenticated, logout, get_current_user_id, get_current_user_email,
-    get_user_portfolio, can_access_simulation, show_upgrade_prompt
+    get_user_portfolio, can_access_simulation, show_upgrade_prompt,
+    can_run_simulation, increment_simulation_count
 )
 
 # =============================================================================
@@ -597,8 +598,9 @@ def main():
                 <div style="font-weight: 600; margin-bottom: 8px;">Unlock Full Power</div>
                 <ul style="font-size: 0.85rem; margin: 0; padding-left: 20px;">
                     <li>Unlimited portfolio assets</li>
-                    <li>DCA Simulation access</li>
-                    <li>Instant alerts (coming soon)</li>
+                    <li>Unlimited DCA simulations</li>
+                    <li>Regular market email reports</li>
+                    <li>Instant alert emails</li>
                 </ul>
             </div>
             """, unsafe_allow_html=True)
@@ -696,12 +698,9 @@ def main():
                 st.rerun()
         
         with col_tab2:
-            # Show lock icon for free users
-            user_tier = st.session_state.get('tier', 'free')
-            sim_label = "🎯 Portfolio Simulation" if user_tier == "premium" else "🔒 Simulation (Premium)"
-            
+            # Simulation is now free for all (with daily limits)
             if st.button(
-                sim_label,
+                "🎯 Portfolio Simulation",
                 key="btn_simulation",
                 use_container_width=True,
                 type="primary" if st.session_state.analysis_mode == "simulation" else "secondary"
@@ -718,16 +717,27 @@ def main():
                 selected = results[st.session_state.selected_asset]
                 render_detail_panel(selected, get_signal_color, get_signal_bg)
         else:
-            # Portfolio Simulation (tier-gated)
-            if can_access_simulation():
-                # Premium: Show simulation
+            # Portfolio Simulation (now free with daily limits)
+            st.markdown("### 💰 DCA Simulation")
+            st.markdown("---")
+            
+            # Check if user can run simulation
+            can_run, message = can_run_simulation()
+            
+            if message:
+                if can_run:
+                    st.info(message)  # Show remaining count
+                else:
+                    st.warning(message)  # Show limit reached
+            
+            if can_run:
                 result_tickers = [r['symbol'] for r in results]
+                # Track simulation run
+                increment_simulation_count()
                 render_dca_simulation(result_tickers)
             else:
-                # Free: Show upgrade prompt
-                st.markdown("### 💰 DCA Simulation")
-                st.markdown("---")
-                show_upgrade_prompt("DCA Simulation with strategy backtesting")
+                # Show upgrade prompt
+                show_upgrade_prompt("Unlimited simulations and instant email alerts")
 
 
 if __name__ == "__main__":

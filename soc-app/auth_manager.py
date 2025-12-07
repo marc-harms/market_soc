@@ -370,11 +370,84 @@ def can_access_simulation() -> bool:
     """
     Check if current user can access Simulation feature.
     
+    Simulation is now FREE for all users with daily limits:
+    - Free tier: 5 simulations per day
+    - Premium tier: Unlimited simulations
+    
     Returns:
-        True if user is Premium, False otherwise
+        True (simulation available to all users with limits)
+    """
+    # Simulation is now free for everyone (with daily limits)
+    return True
+
+
+def get_simulation_count_today() -> int:
+    """
+    Get number of simulations run by current user today.
+    
+    Returns:
+        Count of simulations run today (0 if not tracked)
+    """
+    user_id = get_current_user_id()
+    if not user_id:
+        return 0
+    
+    from datetime import date
+    today = str(date.today())
+    
+    # Initialize tracking dict if not exists
+    if 'simulation_usage' not in st.session_state:
+        st.session_state.simulation_usage = {}
+    
+    # Get today's count
+    key = f"{user_id}_{today}"
+    return st.session_state.simulation_usage.get(key, 0)
+
+
+def increment_simulation_count() -> None:
+    """
+    Increment simulation count for current user today.
+    """
+    user_id = get_current_user_id()
+    if not user_id:
+        return
+    
+    from datetime import date
+    today = str(date.today())
+    
+    # Initialize tracking dict if not exists
+    if 'simulation_usage' not in st.session_state:
+        st.session_state.simulation_usage = {}
+    
+    # Increment count
+    key = f"{user_id}_{today}"
+    st.session_state.simulation_usage[key] = st.session_state.simulation_usage.get(key, 0) + 1
+
+
+def can_run_simulation() -> tuple[bool, str]:
+    """
+    Check if user can run another simulation today.
+    
+    Returns:
+        Tuple of (can_run: bool, message: str)
+        - Free tier: 5 per day limit
+        - Premium tier: unlimited
     """
     tier = st.session_state.get('tier', 'free')
-    return tier == 'premium'
+    
+    # Premium has unlimited
+    if tier == 'premium':
+        return True, ""
+    
+    # Free tier: check daily limit
+    count = get_simulation_count_today()
+    limit = 5
+    
+    if count >= limit:
+        return False, f"🔒 Free tier limit: {limit} simulations per day. You've used all {limit} today. Upgrade to Premium for unlimited simulations!"
+    
+    remaining = limit - count
+    return True, f"ℹ️ {remaining}/{limit} simulations remaining today (Free tier)"
 
 
 def can_access_instant_alerts() -> bool:
