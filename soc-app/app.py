@@ -587,9 +587,24 @@ def main():
                                 failed_tickers.append(ticker)
                                 print(f"Error loading {ticker}: {str(e)}")  # Debug log
                         
-                        # Show warning if some tickers failed
-                        if failed_tickers:
+                        # Show warning/error based on results
+                        if failed_tickers and portfolio_analysis:
+                            # Some tickers failed, but others loaded successfully
                             st.warning(f"⚠️ Could not load data for: {', '.join(failed_tickers)}")
+                        elif failed_tickers and not portfolio_analysis:
+                            # All tickers failed
+                            st.error(f"""
+                            ❌ **Could not load portfolio data**
+                            
+                            Failed to fetch: {', '.join(failed_tickers)}
+                            
+                            **Possible reasons:**
+                            - Yahoo Finance API rate limiting (try again in 1-2 minutes)
+                            - Network connectivity issues
+                            - Invalid ticker symbols
+                            
+                            💡 **Tip:** Try removing and re-adding the assets, or search for them individually first.
+                            """)
                     
                     if portfolio_analysis:
                         # Create table data
@@ -673,8 +688,7 @@ def main():
                                             st.error(error)
                                 
                                 st.markdown("<hr style='margin: 8px 0; opacity: 0.2;'>", unsafe_allow_html=True)
-                    else:
-                        st.warning("Could not load portfolio data. Please try again.")
+                    # If portfolio_analysis is empty, error message was already shown above
                 else:
                     st.info("📌 No assets yet. Search for a ticker and click '⭐ Add to Portfolio'")
         
