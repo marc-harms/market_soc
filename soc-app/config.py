@@ -230,24 +230,25 @@ def get_scientific_heritage_css() -> str:
     """
     return """
     <style>
-        /* Import elegant serif & sans-serif fonts */
-        @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Lato:wght@300;400&display=swap');
+        /* Import Roboto Slab as fallback for Rockwell */
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300;400;700&family=Roboto+Condensed:wght@300;400;700&display=swap');
         
         /* Global background */
         .stApp {
             background-color: #F9F7F1 !important;
         }
         
-        /* Headings in "Newspaper" style */
+        /* Headings and all text in Rockwell Condensed */
         h1, h2, h3, h4, h5, h6 {
-            font-family: 'Merriweather', serif !important;
+            font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', 'Courier New', serif !important;
             color: #2C3E50 !important;
             font-weight: 700 !important;
+            letter-spacing: -0.5px !important;
         }
         
-        /* Body text clean and modern */
+        /* Body text also in Rockwell Condensed for consistency */
         p, div, label, span, input, textarea {
-            font-family: 'Lato', sans-serif !important;
+            font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', 'Arial Narrow', sans-serif !important;
             color: #333333 !important;
         }
         
@@ -265,12 +266,13 @@ def get_scientific_heritage_css() -> str:
         /* Buttons like seals - Heritage style */
         .stButton>button {
             border-radius: 4px !important;
-            font-family: 'Merriweather', serif !important;
+            font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
             border: 2px solid #2C3E50 !important;
             background-color: #2C3E50 !important;
             color: #F9F7F1 !important;
             transition: all 0.2s ease !important;
+            letter-spacing: 0.5px !important;
         }
         
         .stButton>button:hover {
@@ -303,7 +305,7 @@ def get_scientific_heritage_css() -> str:
         
         /* Form submit buttons */
         button[type="submit"] {
-            font-family: 'Merriweather', serif !important;
+            font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
             background-color: #2C3E50 !important;
             border: 2px solid #2C3E50 !important;
@@ -315,11 +317,12 @@ def get_scientific_heritage_css() -> str:
             background-color: #FFFFFF !important;
             border: 1px solid #D1C4E9 !important;
             color: #333333 !important;
+            font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif !important;
         }
         
         /* Tables */
         table {
-            font-family: 'Lato', sans-serif !important;
+            font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif !important;
         }
         
         /* Links */

@@ -30,10 +30,10 @@ def render_disclaimer() -> None:
     """
     st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Lato:wght@300;400&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300;400;700&family=Roboto+Condensed:wght@300;400;700&display=swap');
         .stApp { background-color: #F9F7F1; }
-        h1, h2, h3 { color: #2C3E50 !important; font-family: 'Merriweather', serif !important; }
-        p, li { color: #333333 !important; font-size: 1rem !important; font-family: 'Lato', sans-serif !important; }
+        h1, h2, h3 { color: #2C3E50 !important; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important; }
+        p, li { color: #333333 !important; font-size: 1rem !important; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif !important; }
     </style>
     """, unsafe_allow_html=True)
                 
@@ -208,9 +208,9 @@ def render_auth_page() -> None:
     with col2:
         st.markdown("""
         <div class="auth-header">
-            <h1 style="color: #2C3E50; font-size: 2.2rem; font-family: 'Merriweather', serif; font-weight: 700;">TECTONIQ</h1>
-            <p style="color: #555; font-size: 1.1rem; font-weight: 600; font-family: 'Lato', sans-serif;">Move Beyond Buy & Hope</p>
-            <p style="color: #666; font-size: 0.9rem; line-height: 1.5; max-width: 450px; margin: 8px auto 0; font-family: 'Lato', sans-serif;">
+            <h1 style="color: #2C3E50; font-size: 2.2rem; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif; font-weight: 700; letter-spacing: -0.5px;">TECTONIQ</h1>
+            <p style="color: #555; font-size: 1.1rem; font-weight: 600; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif;">Move Beyond Buy & Hope</p>
+            <p style="color: #666; font-size: 0.9rem; line-height: 1.5; max-width: 450px; margin: 8px auto 0; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif;">
                 Market crashes aren't random—they are physics. TECTONIQ visualizes systemic stress levels so you can navigate volatility with open eyes.
             </p>
         </div>
@@ -329,11 +329,11 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
         with col_title:
             st.markdown("""
             <div style="text-align: center; padding-top: 8px;">
-                <h2 style="margin: 0; font-family: 'Merriweather', serif; color: #2C3E50; font-weight: 700;">
+                <h2 style="margin: 0; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif; color: #2C3E50; font-weight: 700; letter-spacing: -0.5px;">
                     TECTONIQ
                 </h2>
-                <p style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #555; font-family: 'Lato', sans-serif;">Move Beyond Buy & Hope</p>
-                <p style="margin: 0; font-size: 0.75rem; color: #666; line-height: 1.4; max-width: 500px; margin: 4px auto 0; font-family: 'Lato', sans-serif;">
+                <p style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #555; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif;">Move Beyond Buy & Hope</p>
+                <p style="margin: 0; font-size: 0.75rem; color: #666; line-height: 1.4; max-width: 500px; margin: 4px auto 0; font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Condensed', sans-serif;">
                     Market crashes aren't random—they are physics. TECTONIQ visualizes systemic stress levels so you can navigate volatility with open eyes.
                 </p>
             </div>

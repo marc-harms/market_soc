@@ -608,9 +608,9 @@ class SOCAnalyzer:
                 y=1.02,
                 xanchor="right",
                 x=1,
-                font=dict(family="Lato, sans-serif", size=11, color=text_color)
+                font=dict(family="Rockwell Std Condensed, Rockwell, Roboto Condensed, sans-serif", size=11, color=text_color)
             ),
-            font=dict(family="Lato, sans-serif", size=12, color=text_color),
+            font=dict(family="Rockwell Std Condensed, Rockwell, Roboto Condensed, sans-serif", size=12, color=text_color),
             margin=dict(b=80)
         )
         
@@ -632,7 +632,7 @@ class SOCAnalyzer:
         )
         fig3.update_xaxes(
             title_text=f"<b>{asset_name} - SOC Analysis</b>",
-            title_font=dict(family="Merriweather, serif", size=14, color=text_color),
+            title_font=dict(family="Rockwell Std Condensed, Rockwell, Roboto Slab, serif", size=14, color=text_color),
             title_standoff=25,
             tickformat="%Y",
             tickfont=dict(color=text_color),
