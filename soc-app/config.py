@@ -233,6 +233,20 @@ def get_scientific_heritage_css() -> str:
         /* Import Roboto Slab as fallback for Rockwell */
         @import url('https://fonts.googleapis.com/css2?family=Roboto+Slab:wght@300;400;700&family=Roboto+Condensed:wght@300;400;700&display=swap');
         
+        /* GLOBAL: Hide ALL keyboard shortcut tooltips/badges */
+        [data-testid="stTooltipHoverTarget"],
+        .stTooltipIcon,
+        [data-testid="stTooltipIcon"],
+        [title*="keyboard"],
+        [title*="Keyboard"],
+        [aria-label*="keyboard shortcut"] {
+            display: none !important;
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            opacity: 0 !important;
+        }
+        
         /* Global background */
         .stApp {
             background-color: #F9F7F1 !important;
@@ -309,6 +323,27 @@ def get_scientific_heritage_css() -> str:
         /* Hide any tooltips near expanders */
         div[data-testid="stExpander"] [data-testid="stTooltipHoverTarget"] {
             display: none !important;
+        }
+        
+        /* Hide keyboard shortcut badges globally on expanders */
+        div[data-testid="stExpander"] .stTooltipIcon,
+        div[data-testid="stExpander"] [data-testid="stTooltipIcon"],
+        div[data-testid="stExpander"] .st-emotion-cache-* [title*="keyboard"],
+        div[data-testid="stExpander"] span[title*="keyboard"],
+        div[data-testid="stExpander"] div[title*="keyboard"] {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+        
+        /* Force expander summary to not wrap and clip overflow */
+        div[data-testid="stExpander"] summary {
+            overflow: visible !important;
+            white-space: nowrap !important;
+        }
+        
+        div[data-testid="stExpander"] summary > div {
+            overflow: visible !important;
         }
         
         /* ALL BUTTONS - Cream background, charcoal border & text */
