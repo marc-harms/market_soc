@@ -540,15 +540,15 @@ class SOCAnalyzer:
         # --- Chart 3: Criticality (Main SOC Chart) ---
         fig3 = make_subplots(specs=[[{"secondary_y": True}]])
         
-        # Scientific Heritage color map - earthier tones for "printed" look
+        # Scientific Heritage color map - precise earth tones
         color_map = {
-            "low": "#27AE60",      # Moss Green - safe
-            "normal": "#52BE80",   # Light moss - normal
-            "medium": "#D35400",   # Ochre - caution
-            "high": "#E67E22",     # Bright ochre - elevated
-            "extreme": "#C0392B"   # Terracotta - critical
+            "low": "#27AE60",      # Forest Green (Stable)
+            "normal": "#52BE80",   # Light green (Normal)
+            "medium": "#F1C40F",   # Muted Gold (Active)
+            "high": "#D35400",     # Pumpkin/Ochre (High Energy)
+            "extreme": "#C0392B"   # Terracotta (Critical)
         }
-        colors = [color_map.get(z, "#D35400") for z in self.metrics_df["vol_zone"]]
+        colors = [color_map.get(z, "#F1C40F") for z in self.metrics_df["vol_zone"]]
         
         # Volatility bars
         fig3.add_trace(go.Bar(
@@ -559,7 +559,7 @@ class SOCAnalyzer:
             marker_line_width=0
         ), secondary_y=False)
         
-        # Price line
+        # Price line - Ink style (thin, precise)
         fig3.add_trace(go.Scatter(
             x=self.metrics_df.index,
             y=self.metrics_df["close"],
@@ -567,35 +567,39 @@ class SOCAnalyzer:
             line=dict(color=price_line_color, width=1.5)
         ), secondary_y=True)
         
-        # SMA 200 line
+        # SMA 200 line - Ochre ink
         fig3.add_trace(go.Scatter(
             x=self.metrics_df.index,
             y=self.metrics_df["sma_200"],
             name="SMA 200",
-            line=dict(color=sma_color, width=1)
+            line=dict(color=sma_color, width=1.2, dash='dot')
         ), secondary_y=True)
         
-        # Threshold lines
+        # Threshold lines - heritage colors
         if self.calculator.vol_low_threshold:
             fig3.add_hline(
                 y=self.calculator.vol_low_threshold, 
                 line_dash="dot", 
-                line_color="green", 
+                line_color="#27AE60",  # Forest Green
+                line_width=1,
                 secondary_y=False,
                 annotation_text="Low Vol",
-                annotation_position="right"
+                annotation_position="right",
+                annotation_font=dict(size=10, color="#333333")
             )
         if self.calculator.vol_high_threshold:
             fig3.add_hline(
                 y=self.calculator.vol_high_threshold, 
                 line_dash="dot", 
-                line_color="red", 
+                line_color="#C0392B",  # Terracotta
+                line_width=1,
                 secondary_y=False,
                 annotation_text="High Vol",
-                annotation_position="right"
+                annotation_position="right",
+                annotation_font=dict(size=10, color="#333333")
             )
         
-        # Layout with explicit background colors and centered caption
+        # Layout - Scientific Journal style
         fig3.update_layout(
             template=template,
             paper_bgcolor=paper_bg,
@@ -608,35 +612,63 @@ class SOCAnalyzer:
                 y=1.02,
                 xanchor="right",
                 x=1,
-                font=dict(family="Rockwell Std Condensed, Rockwell, Roboto Condensed, sans-serif", size=11, color=text_color)
+                font=dict(family="Merriweather, serif", size=11, color=text_color)
             ),
-            font=dict(family="Rockwell Std Condensed, Rockwell, Roboto Condensed, sans-serif", size=12, color=text_color),
-            margin=dict(b=80)
+            font=dict(family="Merriweather, serif", size=12, color=text_color),
+            margin=dict(b=80),
+            hoverlabel=dict(
+                bgcolor="white",
+                font_size=12,
+                font_family="Merriweather, serif",
+                font_color="#333333"
+            ),
+            # Add watermark
+            annotations=[
+                dict(
+                    text="TECTONIQ.APP (Beta)",
+                    xref="paper", yref="paper",
+                    x=0.98, y=0.02,
+                    xanchor="right", yanchor="bottom",
+                    font=dict(size=10, color="#95A5A6", family="Merriweather, serif"),
+                    showarrow=False,
+                    opacity=0.5
+                )
+            ]
         )
         
-        # Update axes separately for better compatibility
+        # Update axes - Journal style with faint grids
         fig3.update_yaxes(
             title_text="Price (Log)",
             type="log",
-            title_font=dict(color=text_color),
-            tickfont=dict(color=text_color),
-            gridcolor=grid_color,
+            title_font=dict(family="Merriweather, serif", size=12, color=text_color),
+            tickfont=dict(family="Merriweather, serif", size=10, color=text_color),
+            gridcolor='#E6E1D3',
+            gridwidth=0.5,
+            griddash='dot',
+            zerolinecolor='#BDC3C7',
+            zerolinewidth=0.8,
             secondary_y=True
         )
         fig3.update_yaxes(
             title_text="Volatility",
-            title_font=dict(color=text_color),
-            tickfont=dict(color=text_color),
-            gridcolor=grid_color,
+            title_font=dict(family="Merriweather, serif", size=12, color=text_color),
+            tickfont=dict(family="Merriweather, serif", size=10, color=text_color),
+            gridcolor='#E6E1D3',
+            gridwidth=0.5,
+            griddash='dot',
+            zerolinecolor='#BDC3C7',
+            zerolinewidth=0.8,
             secondary_y=False
         )
         fig3.update_xaxes(
             title_text=f"<b>{asset_name} - SOC Analysis</b>",
-            title_font=dict(family="Rockwell Std Condensed, Rockwell, Roboto Slab, serif", size=14, color=text_color),
+            title_font=dict(family="Merriweather, serif", size=14, color=text_color),
             title_standoff=25,
             tickformat="%Y",
-            tickfont=dict(color=text_color),
-            gridcolor=grid_color
+            tickfont=dict(family="Merriweather, serif", size=10, color=text_color),
+            gridcolor='#E6E1D3',
+            gridwidth=0.5,
+            griddash='dot'
         )
         
         figures["chart3"] = fig3

@@ -329,54 +329,54 @@ def render_dca_simulation(tickers: List[str]) -> None:
     if not equity_def.empty:
         fig = go.Figure()
         
-        # Determine legend text color based on theme
-        legend_color = '#333333' if not is_dark else '#FFFFFF'
+        # Scientific Heritage colors - ink tones
+        legend_color = '#333333'
         
-        # Buy & Hold (grey)
+        # Buy & Hold - Asbestos Grey (dashed, thinner)
         fig.add_trace(go.Scatter(
             x=equity_def['date'],
             y=equity_def['buyhold_value'],
             name='Buy & Hold',
-            line=dict(color='#888888', width=2),
+            line=dict(color='#7F8C8D', width=1.5, dash='dash'),
             mode='lines'
         ))
         
-        # Defensive SOC (blue)
+        # Defensive SOC - Midnight Blue Ink (solid, thicker)
         fig.add_trace(go.Scatter(
             x=equity_def['date'],
             y=equity_def['soc_value'],
             name='Defensive',
-            line=dict(color='#667eea', width=2),
+            line=dict(color='#2C3E50', width=2),
             mode='lines'
         ))
         
-        # Aggressive SOC (orange)
+        # Aggressive SOC - Ochre/Pumpkin
         if not equity_agg.empty:
             fig.add_trace(go.Scatter(
                 x=equity_agg['date'],
                 y=equity_agg['soc_value'],
                 name='Aggressive',
-                line=dict(color='#FF6600', width=2),
+                line=dict(color='#D35400', width=2),
                 mode='lines'
             ))
         
-        # Initial capital line (dashed)
+        # Initial capital line (very subtle)
         fig.add_trace(go.Scatter(
             x=equity_def['date'],
             y=[initial_capital] * len(equity_def),
             name='Initial Capital',
-            line=dict(color='#888888', width=1, dash='dash'),
+            line=dict(color='#BDC3C7', width=0.8, dash='dot'),
             mode='lines'
         ))
         
-        # Theme-aware colors
-        axis_color = '#333333' if not is_dark else '#CCCCCC'
-        grid_color = '#E0E0E0' if not is_dark else '#333333'
+        # Scientific Journal style
+        axis_color = '#333333'
+        grid_color = '#E6E1D3'
         
         fig.update_layout(
-            template="plotly_white" if not is_dark else "plotly_dark",
-            paper_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)',
-            plot_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(248,248,248,1)',
+            template="plotly_white",
+            paper_bgcolor='rgba(0,0,0,0)',  # Transparent
+            plot_bgcolor='rgba(0,0,0,0)',    # Transparent
             height=400,
             margin=dict(t=20, b=50, l=60, r=20),
             legend=dict(
@@ -385,21 +385,46 @@ def render_dca_simulation(tickers: List[str]) -> None:
                 y=1.02,
                 xanchor="center",
                 x=0.5,
-                font=dict(color=legend_color, size=13)
+                font=dict(family="Merriweather, serif", color=legend_color, size=11)
             ),
-            hovermode='x unified'
+            font=dict(family="Merriweather, serif", size=12, color=axis_color),
+            hovermode='x unified',
+            hoverlabel=dict(
+                bgcolor="white",
+                font_size=11,
+                font_family="Merriweather, serif",
+                font_color="#333333"
+            ),
+            # Add watermark
+            annotations=[
+                dict(
+                    text="TECTONIQ.APP (Beta)",
+                    xref="paper", yref="paper",
+                    x=0.98, y=0.02,
+                    xanchor="right", yanchor="bottom",
+                    font=dict(size=9, color="#95A5A6", family="Merriweather, serif"),
+                    showarrow=False,
+                    opacity=0.5
+                )
+            ]
         )
         fig.update_xaxes(
             title_text="Date",
-            title_font=dict(color=axis_color, size=12),
-            tickfont=dict(color=axis_color, size=11),
-            gridcolor=grid_color
+            title_font=dict(family="Merriweather, serif", color=axis_color, size=12),
+            tickfont=dict(family="Merriweather, serif", color=axis_color, size=10),
+            gridcolor=grid_color,
+            gridwidth=0.5,
+            griddash='dot'
         )
         fig.update_yaxes(
             title_text="Portfolio Value (€)",
-            title_font=dict(color=axis_color, size=12),
-            tickfont=dict(color=axis_color, size=11),
-            gridcolor=grid_color
+            title_font=dict(family="Merriweather, serif", color=axis_color, size=12),
+            tickfont=dict(family="Merriweather, serif", color=axis_color, size=10),
+            gridcolor=grid_color,
+            gridwidth=0.5,
+            griddash='dot',
+            zerolinecolor='#BDC3C7',
+            zerolinewidth=0.8
         )
         
         st.plotly_chart(fig, use_container_width=True)
@@ -411,50 +436,50 @@ def render_dca_simulation(tickers: List[str]) -> None:
     if not daily_def.empty and 'buyhold_drawdown' in daily_def.columns:
         st.markdown("#### Drawdown Comparison")
         
-        # Legend color based on theme
-        legend_color_dd = '#333333' if not is_dark else '#FFFFFF'
+        # Heritage colors for drawdown chart
+        legend_color_dd = '#333333'
         
         fig_dd = go.Figure()
         
-        # Buy & Hold (red)
+        # Buy & Hold - Terracotta tones (earth red)
         fig_dd.add_trace(go.Scatter(
             x=daily_def.index,
             y=daily_def['buyhold_drawdown'],
             name='Buy & Hold',
             fill='tozeroy',
-            line=dict(color='rgba(255,100,100,0.8)', width=1),
-            fillcolor='rgba(255,100,100,0.3)'
+            line=dict(color='rgba(192,57,43,0.8)', width=1.2),  # #C0392B with opacity
+            fillcolor='rgba(192,57,43,0.2)'
         ))
         
-        # Defensive (blue)
+        # Defensive - Midnight Blue
         fig_dd.add_trace(go.Scatter(
             x=daily_def.index,
             y=daily_def['soc_drawdown'],
             name='Defensive',
             fill='tozeroy',
-            line=dict(color='rgba(102,126,234,0.8)', width=1),
-            fillcolor='rgba(102,126,234,0.3)'
+            line=dict(color='rgba(44,62,80,0.8)', width=1.2),  # #2C3E50 with opacity
+            fillcolor='rgba(44,62,80,0.2)'
         ))
         
-        # Aggressive (orange)
+        # Aggressive - Ochre/Pumpkin
         if not daily_agg.empty and 'soc_drawdown' in daily_agg.columns:
             fig_dd.add_trace(go.Scatter(
                 x=daily_agg.index,
                 y=daily_agg['soc_drawdown'],
                 name='Aggressive',
                 fill='tozeroy',
-                line=dict(color='rgba(255,140,0,0.8)', width=1),
-                fillcolor='rgba(255,140,0,0.3)'
+                line=dict(color='rgba(211,84,0,0.8)', width=1.2),  # #D35400 with opacity
+                fillcolor='rgba(211,84,0,0.2)'
             ))
         
-        # Theme-aware colors for drawdown
-        axis_color_dd = '#333333' if not is_dark else '#CCCCCC'
-        grid_color_dd = '#E0E0E0' if not is_dark else '#333333'
+        # Scientific Journal style for drawdown
+        axis_color_dd = '#333333'
+        grid_color_dd = '#E6E1D3'
         
         fig_dd.update_layout(
-            template="plotly_white" if not is_dark else "plotly_dark",
-            paper_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)',
-            plot_bgcolor='rgba(0,0,0,0)' if is_dark else 'rgba(248,248,248,1)',
+            template="plotly_white",
+            paper_bgcolor='rgba(0,0,0,0)',  # Transparent
+            plot_bgcolor='rgba(0,0,0,0)',    # Transparent
             height=280,
             margin=dict(t=20, b=50, l=60, r=20),
             legend=dict(
@@ -463,21 +488,46 @@ def render_dca_simulation(tickers: List[str]) -> None:
                 y=1.02,
                 xanchor="center",
                 x=0.5,
-                font=dict(color=legend_color_dd, size=13)
+                font=dict(family="Merriweather, serif", color=legend_color_dd, size=11)
             ),
-            hovermode='x unified'
+            font=dict(family="Merriweather, serif", size=12, color=axis_color_dd),
+            hovermode='x unified',
+            hoverlabel=dict(
+                bgcolor="white",
+                font_size=11,
+                font_family="Merriweather, serif",
+                font_color="#333333"
+            ),
+            # Add watermark
+            annotations=[
+                dict(
+                    text="TECTONIQ.APP (Beta)",
+                    xref="paper", yref="paper",
+                    x=0.98, y=0.02,
+                    xanchor="right", yanchor="bottom",
+                    font=dict(size=9, color="#95A5A6", family="Merriweather, serif"),
+                    showarrow=False,
+                    opacity=0.5
+                )
+            ]
         )
         fig_dd.update_xaxes(
             title_text="Date",
-            title_font=dict(color=axis_color_dd, size=12),
-            tickfont=dict(color=axis_color_dd, size=11),
-            gridcolor=grid_color_dd
+            title_font=dict(family="Merriweather, serif", color=axis_color_dd, size=12),
+            tickfont=dict(family="Merriweather, serif", color=axis_color_dd, size=10),
+            gridcolor=grid_color_dd,
+            gridwidth=0.5,
+            griddash='dot'
         )
         fig_dd.update_yaxes(
             title_text="Drawdown (%)",
-            title_font=dict(color=axis_color_dd, size=12),
-            tickfont=dict(color=axis_color_dd, size=11),
-            gridcolor=grid_color_dd
+            title_font=dict(family="Merriweather, serif", color=axis_color_dd, size=12),
+            tickfont=dict(family="Merriweather, serif", color=axis_color_dd, size=10),
+            gridcolor=grid_color_dd,
+            gridwidth=0.5,
+            griddash='dot',
+            zerolinecolor='#BDC3C7',
+            zerolinewidth=0.8
         )
         
         st.plotly_chart(fig_dd, use_container_width=True)
