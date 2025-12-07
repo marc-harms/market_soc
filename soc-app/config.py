@@ -281,7 +281,7 @@ def get_scientific_heritage_css() -> str:
             line-height: 1.5 !important;
         }
         
-        /* Buttons like seals - Heritage style (ULTRA-AGGRESSIVE OVERRIDE) */
+        /* Buttons - Base styling (ALL buttons get these) */
         .stButton>button,
         .stButton button,
         button,
@@ -295,37 +295,44 @@ def get_scientific_heritage_css() -> str:
             border-radius: 4px !important;
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
-            border: 2px solid #2C3E50 !important;
-            background-color: #2C3E50 !important;
-            color: #F9F7F1 !important;
             transition: all 0.2s ease !important;
             letter-spacing: 0.5px !important;
         }
         
-        .stButton>button:hover,
-        .stButton button:hover,
-        button:hover,
+        /* PRIMARY buttons - Solid Midnight Blue */
+        .stButton>button[kind="primary"],
+        button[kind="primary"],
+        button[data-testid="baseButton-primary"],
+        .stButton>button:not([kind="secondary"]) {
+            border: 2px solid #2C3E50 !important;
+            background-color: #2C3E50 !important;
+            color: #F9F7F1 !important;
+        }
+        
+        .stButton>button[kind="primary"]:hover,
         button[kind="primary"]:hover,
         button[data-testid="baseButton-primary"]:hover,
-        div[data-testid="stButton"] button:hover,
-        div.stButton > button:hover {
+        .stButton>button:not([kind="secondary"]):hover {
             background-color: #1a252f !important;
             border-color: #1a252f !important;
             box-shadow: 2px 2px 8px rgba(0,0,0,0.15) !important;
             color: #F9F7F1 !important;
         }
         
-        /* Secondary buttons - outlined style */
+        /* SECONDARY buttons - Outlined style (transparent) */
         .stButton>button[kind="secondary"],
-        button[kind="secondary"] {
+        button[kind="secondary"],
+        button[data-testid="baseButton-secondary"] {
             background-color: transparent !important;
             border: 2px solid #2C3E50 !important;
             color: #2C3E50 !important;
         }
         
         .stButton>button[kind="secondary"]:hover,
-        button[kind="secondary"]:hover {
+        button[kind="secondary"]:hover,
+        button[data-testid="baseButton-secondary"]:hover {
             background-color: rgba(44, 62, 80, 0.1) !important;
+            border-color: #2C3E50 !important;
             color: #2C3E50 !important;
         }
         

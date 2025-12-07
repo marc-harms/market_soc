@@ -184,29 +184,52 @@ def render_auth_page() -> None:
             color: #333 !important;
             font-size: 1rem !important;
         }
-        /* Heritage button styling - ALL BUTTONS */
+        /* Heritage button styling - Base */
         .stButton > button,
         .stButton button,
         button[kind="primary"],
+        button[kind="secondary"],
         button[data-testid="baseButton-primary"],
+        button[data-testid="baseButton-secondary"],
         div[data-testid="stButton"] button {
-            background-color: #2C3E50 !important;
-            color: #F9F7F1 !important;
             font-size: 1.1rem !important;
             padding: 0.6rem 1.2rem !important;
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
-            border: 2px solid #2C3E50 !important;
             border-radius: 4px !important;
         }
-        .stButton > button:hover,
-        .stButton button:hover,
+        
+        /* PRIMARY buttons - Solid */
+        .stButton > button[kind="primary"],
+        button[kind="primary"],
+        button[data-testid="baseButton-primary"],
+        .stButton > button:not([kind="secondary"]) {
+            background-color: #2C3E50 !important;
+            color: #F9F7F1 !important;
+            border: 2px solid #2C3E50 !important;
+        }
+        .stButton > button[kind="primary"]:hover,
         button[kind="primary"]:hover,
         button[data-testid="baseButton-primary"]:hover,
-        div[data-testid="stButton"] button:hover {
+        .stButton > button:not([kind="secondary"]):hover {
             background-color: #1a252f !important;
             border-color: #1a252f !important;
             color: #F9F7F1 !important;
+        }
+        
+        /* SECONDARY buttons - Outlined */
+        .stButton > button[kind="secondary"],
+        button[kind="secondary"],
+        button[data-testid="baseButton-secondary"] {
+            background-color: transparent !important;
+            border: 2px solid #2C3E50 !important;
+            color: #2C3E50 !important;
+        }
+        .stButton > button[kind="secondary"]:hover,
+        button[kind="secondary"]:hover,
+        button[data-testid="baseButton-secondary"]:hover {
+            background-color: rgba(44, 62, 80, 0.1) !important;
+            color: #2C3E50 !important;
         }
         /* Tab styling */
         .stTabs [data-baseweb="tab-list"] button {
