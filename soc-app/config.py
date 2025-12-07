@@ -291,7 +291,10 @@ def get_scientific_heritage_css() -> str:
         button[data-testid="baseButton-primary"],
         button[data-testid="baseButton-secondary"],
         div[data-testid="stButton"] button,
-        div.stButton > button {
+        div.stButton > button,
+        .stButton>button *,
+        .stButton button *,
+        button * {
             border-radius: 4px !important;
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
@@ -299,6 +302,17 @@ def get_scientific_heritage_css() -> str:
             letter-spacing: 0.5px !important;
             border: 2px solid #2C3E50 !important;
             background-color: #2C3E50 !important;
+            background: #2C3E50 !important;
+            color: #F9F7F1 !important;
+        }
+        
+        /* Text inside buttons - FORCE cream color */
+        .stButton>button p,
+        .stButton>button span,
+        .stButton>button div,
+        button p,
+        button span,
+        button div {
             color: #F9F7F1 !important;
         }
         
@@ -310,8 +324,11 @@ def get_scientific_heritage_css() -> str:
         button[data-testid="baseButton-primary"]:hover,
         button[data-testid="baseButton-secondary"]:hover,
         div[data-testid="stButton"] button:hover,
-        div.stButton > button:hover {
+        div.stButton > button:hover,
+        .stButton>button:hover *,
+        button:hover * {
             background-color: #1a252f !important;
+            background: #1a252f !important;
             border-color: #1a252f !important;
             box-shadow: 2px 2px 8px rgba(0,0,0,0.15) !important;
             color: #F9F7F1 !important;

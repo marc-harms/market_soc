@@ -191,7 +191,9 @@ def render_auth_page() -> None:
         button[kind="secondary"],
         button[data-testid="baseButton-primary"],
         button[data-testid="baseButton-secondary"],
-        div[data-testid="stButton"] button {
+        div[data-testid="stButton"] button,
+        .stButton > button *,
+        button * {
             font-size: 1.1rem !important;
             padding: 0.6rem 1.2rem !important;
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
@@ -199,6 +201,17 @@ def render_auth_page() -> None:
             border-radius: 4px !important;
             border: 2px solid #2C3E50 !important;
             background-color: #2C3E50 !important;
+            background: #2C3E50 !important;
+            color: #F9F7F1 !important;
+        }
+        
+        /* Force text color inside buttons */
+        .stButton > button p,
+        .stButton > button span,
+        .stButton > button div,
+        button p,
+        button span,
+        button div {
             color: #F9F7F1 !important;
         }
         
@@ -209,8 +222,11 @@ def render_auth_page() -> None:
         button[kind="secondary"]:hover,
         button[data-testid="baseButton-primary"]:hover,
         button[data-testid="baseButton-secondary"]:hover,
-        div[data-testid="stButton"] button:hover {
+        div[data-testid="stButton"] button:hover,
+        .stButton > button:hover *,
+        button:hover * {
             background-color: #1a252f !important;
+            background: #1a252f !important;
             border-color: #1a252f !important;
             color: #F9F7F1 !important;
         }
