@@ -307,8 +307,8 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
     is_dark = st.session_state.get('dark_mode', False)
     
     with st.container(border=True):
-        # === ROW 1: Logo | Search | Status ===
-        col_logo, col_search, col_status = st.columns([2, 4, 2])
+        # === ROW 1: Logo | Search | Status | User Menu ===
+        col_logo, col_search, col_status, col_user = st.columns([2, 3, 2, 2])
         
         with col_logo:
             st.markdown('<h4 style="margin: 0;">📉 SOC Seismograph</h4>', unsafe_allow_html=True)
@@ -377,6 +377,37 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
                     
                     badge_html = f'<div style="text-align: center; padding: 8px; background: rgba(102, 126, 234, 0.1); border-radius: 8px; border: 1px solid #667eea;"><span style="font-size: 0.85rem; color: #888;">Active</span><br><span style="font-size: 1.1rem; font-weight: 600;">{selected["symbol"]}</span> <span style="font-size: 1.3rem;">{regime_emoji}</span><br><span style="color: {badge_color}; font-weight: 700;">{score}</span></div>'
                     st.markdown(badge_html, unsafe_allow_html=True)
+        
+        with col_user:
+            # User menu with dropdown
+            from auth_manager import get_current_user_email, get_current_user_id, logout
+            
+            user_email = get_current_user_email()
+            user_tier = st.session_state.get('tier', 'free')
+            tier_emoji = "⭐" if user_tier == "premium" else "🆓"
+            tier_color = "#FFD700" if user_tier == "premium" else "#888888"
+            
+            # Compact user display
+            st.markdown(f"""
+            <div style="text-align: right; padding: 4px;">
+                <div style="font-size: 0.75rem; color: #888;">Logged in</div>
+                <div style="font-size: 0.9rem; font-weight: 600;">{user_email.split('@')[0]}</div>
+                <div style="font-size: 0.8rem; color: {tier_color};">{tier_emoji} {user_tier.upper()}</div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Portfolio & Logout buttons in expander
+            with st.expander("Menu", expanded=False):
+                # Portfolio button
+                if st.button("📁 My Portfolio", key="header_portfolio_btn", use_container_width=True):
+                    st.session_state.show_portfolio = not st.session_state.get('show_portfolio', False)
+                    st.rerun()
+                
+                # Logout button
+                if st.button("Logout", key="header_logout_btn", use_container_width=True):
+                    logout()
+                    st.success("Logged out!")
+                    st.rerun()
 
 
 def render_education_landing(run_analysis_func: Callable) -> None:

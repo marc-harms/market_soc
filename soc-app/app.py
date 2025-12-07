@@ -48,7 +48,7 @@ st.set_page_config(
     page_title="SOC Market Seismograph",
     page_icon="assets/logo-soc.png",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed"  # No sidebar used - user menu in header
 )
 
 # =============================================================================
@@ -541,83 +541,83 @@ def main():
     # Apply theme
     st.markdown(get_theme_css(st.session_state.dark_mode), unsafe_allow_html=True)
     
-    # === SIDEBAR: User Info + Logout ===
-    with st.sidebar:
-        st.markdown("### 👤 Account")
-        
-        user_email = get_current_user_email()
-        user_tier = st.session_state.get('tier', 'free')
-        
-        # User info card
-        tier_emoji = "⭐" if user_tier == "premium" else "🆓"
-        tier_color = "#FFD700" if user_tier == "premium" else "#888888"
-        
-        st.markdown(f"""
-        <div style="background: rgba(102, 126, 234, 0.1); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
-            <div style="font-size: 0.85rem; color: #888;">Logged in as</div>
-            <div style="font-weight: 600; margin: 4px 0;">{user_email}</div>
-            <div style="color: {tier_color}; font-weight: 600;">{tier_emoji} {user_tier.upper()} TIER</div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Portfolio section
-        st.markdown("### 📁 My Portfolio")
-        user_id = get_current_user_id()
-        if user_id:
-            portfolio = get_user_portfolio(user_id)
-            if portfolio:
-                st.caption(f"**{len(portfolio)}** assets tracked")
-                for ticker in portfolio:
-                    col1, col2 = st.columns([3, 1])
-                    with col1:
-                        if st.button(ticker, key=f"sidebar_{ticker}", use_container_width=True):
-                            # Analyze this ticker
-                            results = run_analysis([ticker])
-                            if results and len(results) > 0:
-                                st.session_state.current_ticker = ticker
-                                st.session_state.scan_results = results
-                                st.session_state.selected_asset = 0
-                                st.session_state.analysis_mode = "deep_dive"
-                                st.rerun()
-                    with col2:
-                        if st.button("🗑️", key=f"remove_{ticker}", help="Remove"):
-                            from auth_manager import remove_asset_from_portfolio
-                            success, error = remove_asset_from_portfolio(user_id, ticker)
-                            if success:
-                                st.rerun()
-            else:
-                st.info("No assets yet. Search for a ticker and click '⭐ Add to Portfolio'")
-        
-        st.markdown("---")
-        
-        # Upgrade prompt for free users
-        if user_tier == "free":
-            st.markdown("### ⭐ Upgrade to Premium")
-            st.markdown("""
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1rem; border-radius: 8px; color: white;">
-                <div style="font-weight: 600; margin-bottom: 8px;">Unlock Full Power</div>
-                <ul style="font-size: 0.85rem; margin: 0; padding-left: 20px;">
-                    <li>Unlimited portfolio assets</li>
-                    <li>Unlimited DCA simulations</li>
-                    <li>Regular market email reports</li>
-                    <li>Instant alert emails</li>
-                </ul>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            if st.button("⭐ Upgrade Now", type="primary", use_container_width=True):
-                st.info("💡 Contact support@socseismograph.com for upgrade options")
-        
-        st.markdown("---")
-        
-        # Logout button
-        if st.button("🚪 Logout", use_container_width=True):
-            logout()
-            st.success("Logged out successfully!")
-            st.rerun()
-    
-    # === STICKY COCKPIT HEADER (Always Visible) ===
+    # === STICKY COCKPIT HEADER (with User Menu) ===
     render_sticky_cockpit_header(validate_ticker, search_ticker, run_analysis)
+    
+    # === PORTFOLIO VIEW (if toggled on) ===
+    if st.session_state.get('show_portfolio', False):
+        with st.container(border=True):
+            col_header, col_close = st.columns([5, 1])
+            with col_header:
+                st.markdown("### 📁 My Portfolio")
+            with col_close:
+                if st.button("✖", key="close_portfolio", help="Close"):
+                    st.session_state.show_portfolio = False
+                    st.rerun()
+            
+            user_id = get_current_user_id()
+            user_tier = st.session_state.get('tier', 'free')
+            
+            if user_id:
+                portfolio = get_user_portfolio(user_id)
+                if portfolio:
+                    st.caption(f"**{len(portfolio)}** assets tracked • {user_tier.upper()} tier")
+                    
+                    # Display portfolio in a nice grid
+                    num_cols = min(4, max(2, len(portfolio)))
+                    cols = st.columns(num_cols)
+                    
+                    for i, ticker in enumerate(portfolio):
+                        col_idx = i % num_cols
+                        with cols[col_idx]:
+                            with st.container(border=True):
+                                st.markdown(f"**{ticker}**")
+                                
+                                col_analyze, col_remove = st.columns(2)
+                                with col_analyze:
+                                    if st.button("Analyze", key=f"analyze_{ticker}", use_container_width=True):
+                                        # Analyze this ticker
+                                        results = run_analysis([ticker])
+                                        if results and len(results) > 0:
+                                            st.session_state.current_ticker = ticker
+                                            st.session_state.scan_results = results
+                                            st.session_state.selected_asset = 0
+                                            st.session_state.analysis_mode = "deep_dive"
+                                            st.session_state.show_portfolio = False  # Close portfolio
+                                            st.rerun()
+                                with col_remove:
+                                    if st.button("🗑️", key=f"remove_{ticker}", help="Remove", use_container_width=True):
+                                        from auth_manager import remove_asset_from_portfolio
+                                        success, error = remove_asset_from_portfolio(user_id, ticker)
+                                        if success:
+                                            st.rerun()
+                                        else:
+                                            st.error(error)
+                else:
+                    st.info("📌 No assets yet. Search for a ticker and click '⭐ Add to Portfolio'")
+                
+                # Upgrade prompt for free users
+                if user_tier == "free":
+                    st.markdown("---")
+                    col_upgrade1, col_upgrade2, col_upgrade3 = st.columns([1, 2, 1])
+                    with col_upgrade2:
+                        st.markdown("""
+                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 12px; color: white; text-align: center;">
+                            <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: 12px;">⭐ Upgrade to Premium</div>
+                            <div style="font-size: 0.95rem; margin-bottom: 16px;">Unlock unlimited power</div>
+                            <ul style="text-align: left; font-size: 0.9rem; margin: 0 0 16px 0; padding-left: 24px;">
+                                <li>Unlimited portfolio assets (currently: 3 max)</li>
+                                <li>Unlimited DCA simulations (currently: 5/day)</li>
+                                <li>Regular market email reports</li>
+                                <li>Instant alert emails</li>
+                            </ul>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        if st.button("⭐ Upgrade Now", type="primary", use_container_width=True, key="upgrade_from_portfolio"):
+                            st.info("💡 Contact support@socseismograph.com for upgrade options")
+        
+        st.markdown("---")
     
     # === TICKER SUGGESTIONS (if user searched by company name) ===
     if 'ticker_suggestions' in st.session_state and st.session_state.ticker_suggestions:
