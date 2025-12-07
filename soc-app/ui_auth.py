@@ -30,25 +30,88 @@ def render_disclaimer() -> None:
     """
     st.markdown("""
     <style>
-        .stApp { background-color: #0E1117; }
-        .disclaimer-box {
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            border: 1px solid #333;
-            border-radius: 12px;
-            padding: 24px;
-            margin: 20px 0;
-        }
+        .stApp { background-color: #f5f7fa; }
+        h2, h3 { color: #1a1a1a !important; }
+        p, li { color: #333 !important; font-size: 1rem !important; }
     </style>
-                    """, unsafe_allow_html=True)
+    """, unsafe_allow_html=True)
                 
-    st.title("🔬 SOC Market Seismograph")
+    st.title("SOC Market Seismograph")
     st.caption("Self-Organized Criticality Analysis Tool")
     
     st.markdown("---")
     
-    # Display disclaimer in scrollable container
-    with st.container():
-        st.markdown(LEGAL_DISCLAIMER, unsafe_allow_html=True)
+    # Display disclaimer without HTML tags - use pure markdown
+    st.markdown("""
+    ## ⚖️ Legal Disclaimer & Terms of Use
+    
+    **IMPORTANT: Please read this disclaimer carefully before using this application.**
+    
+    ### 1. Educational & Informational Purpose Only
+    
+    This application ("SOC Market Seismograph") is provided **exclusively for educational
+    and informational purposes**. The analysis, data, charts, signals, and any other
+    information displayed are intended solely to help users understand market dynamics
+    through the lens of Self-Organized Criticality (SOC) theory.
+    
+    ### 2. No Financial Advice
+    
+    **THIS APPLICATION DOES NOT PROVIDE FINANCIAL, INVESTMENT, TAX, LEGAL, OR
+    PROFESSIONAL ADVICE OF ANY KIND.**
+    
+    - The content is not a recommendation to buy, sell, or hold any security,
+      cryptocurrency, or financial instrument.
+    - No fiduciary relationship is established between you and the creators of this application.
+    - The "signals," "regimes," and "scores" are purely statistical observations based on
+      historical data and mathematical models. They are NOT predictions of future performance.
+    
+    ### 3. No Guarantees or Warranties
+    
+    - Past performance is **NOT indicative of future results**.
+    - All investment involves risk, including the potential loss of principal.
+    - The accuracy, completeness, or reliability of the data and analysis is NOT guaranteed.
+    - The application is provided "AS IS" without warranty of any kind, express or implied.
+    
+    ### 4. Limitation of Liability
+    
+    To the fullest extent permitted by applicable law:
+    
+    - The creators, developers, and operators of this application shall NOT be liable for
+      any direct, indirect, incidental, special, consequential, or punitive damages arising
+      from your use of or reliance on this application.
+    - This includes, but is not limited to, any losses, damages, or claims arising from
+      investment decisions made based on information displayed in this application.
+    
+    ### 5. Independent Verification Required
+    
+    Before making any financial decision, you should:
+    
+    - Consult with a qualified financial advisor, broker, or other professional.
+    - Conduct your own independent research and due diligence.
+    - Consider your personal financial situation, risk tolerance, and investment objectives.
+    
+    ### 6. Data Sources
+    
+    Market data is sourced from third-party providers (Yahoo Finance). We do not control
+    or guarantee the accuracy, timeliness, or availability of this data.
+    
+    ### 7. Jurisdiction
+    
+    This disclaimer is governed by applicable laws. If any provision is found unenforceable,
+    the remaining provisions shall continue in full force and effect.
+    
+    ---
+    
+    **By clicking "I Understand & Accept" below, you acknowledge that:**
+    
+    ✓ You have read and understood this disclaimer in its entirety.
+    
+    ✓ You agree that this application provides NO financial advice.
+    
+    ✓ You accept full responsibility for any decisions you make.
+    
+    ✓ You waive any claims against the creators arising from your use of this application.
+    """)
     
     st.markdown("---")
     
@@ -110,13 +173,30 @@ def render_auth_page() -> None:
             color: #666;
             font-size: 0.95rem;
         }
+        /* Increase font sizes and darken text */
+        label, .stTextInput label, .stCheckbox label {
+            color: #1a1a1a !important;
+            font-size: 1.1rem !important;
+            font-weight: 500 !important;
+        }
+        p, div, span {
+            color: #333 !important;
+            font-size: 1rem !important;
+        }
         /* Fix button colors */
         .stButton > button[kind="primary"] {
             background-color: #0066cc !important;
             color: white !important;
+            font-size: 1.1rem !important;
+            padding: 0.6rem 1.2rem !important;
         }
         .stButton > button[kind="primary"]:hover {
             background-color: #0052a3 !important;
+        }
+        /* Tab styling */
+        .stTabs [data-baseweb="tab-list"] button {
+            color: #1a1a1a !important;
+            font-size: 1.1rem !important;
         }
     </style>
     """, unsafe_allow_html=True)
@@ -127,23 +207,23 @@ def render_auth_page() -> None:
     with col2:
         st.markdown("""
         <div class="auth-header">
-            <h1>🔬 SOC Seismograph</h1>
-            <p>Self-Organized Criticality Market Analysis</p>
+            <h1 style="color: #1a1a1a; font-size: 2.2rem;">SOC Seismograph</h1>
+            <p style="color: #333; font-size: 1.1rem;">Self-Organized Criticality Market Analysis</p>
         </div>
         """, unsafe_allow_html=True)
         
-        # Tabs for Login / Sign Up
-        tab1, tab2 = st.tabs(["🔑 Login", "✨ Sign Up"])
+        # Tabs for Login / Sign Up (no emojis)
+        tab1, tab2 = st.tabs(["Login", "Sign Up"])
         
         # === LOGIN TAB ===
         with tab1:
-            st.markdown("### Welcome Back")
+            st.markdown("<h3 style='color: #1a1a1a; font-size: 1.5rem;'>Welcome Back</h3>", unsafe_allow_html=True)
             
             with st.form("login_form", clear_on_submit=False):
                 email = st.text_input("Email", placeholder="your@email.com", key="login_email")
                 password = st.text_input("Password", type="password", placeholder="••••••••", key="login_password")
                 
-                submit = st.form_submit_button("🚀 Login", use_container_width=True, type="primary")
+                submit = st.form_submit_button("Login", use_container_width=True, type="primary")
                 
                 if submit:
                     if not email or not password:
@@ -163,8 +243,8 @@ def render_auth_page() -> None:
         
         # === SIGNUP TAB ===
         with tab2:
-            st.markdown("### Create Your Account")
-            st.caption("Start with our **Free tier** - no credit card required!")
+            st.markdown("<h3 style='color: #1a1a1a; font-size: 1.5rem;'>Create Your Account</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='color: #555; font-size: 1rem;'>Start with our <strong>Free tier</strong> - no credit card required!</p>", unsafe_allow_html=True)
             
             with st.form("signup_form", clear_on_submit=False):
                 email = st.text_input("Email", placeholder="your@email.com", key="signup_email")
@@ -173,7 +253,7 @@ def render_auth_page() -> None:
                 
                 agree_terms = st.checkbox("I agree to the Terms of Service and Privacy Policy")
                 
-                submit = st.form_submit_button("✨ Create Account", use_container_width=True, type="primary")
+                submit = st.form_submit_button("Create Account", use_container_width=True, type="primary")
                 
                 if submit:
                     # Validation
@@ -202,9 +282,9 @@ def render_auth_page() -> None:
         # Footer
         st.markdown("---")
         st.markdown("""
-        <div style="text-align: center; color: #666; font-size: 0.85rem;">
-            <p>🔒 Secure authentication powered by Supabase</p>
-            <p>Questions? Contact <a href="mailto:support@socseismograph.com">support@socseismograph.com</a></p>
+        <div style="text-align: center; color: #666; font-size: 1rem;">
+            <p style="color: #555;">Secure authentication powered by Supabase</p>
+            <p style="color: #555;">Questions? Contact <a href="mailto:support@socseismograph.com" style="color: #0066cc;">support@socseismograph.com</a></p>
         </div>
         """, unsafe_allow_html=True)
     
