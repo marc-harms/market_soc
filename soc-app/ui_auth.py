@@ -30,9 +30,10 @@ def render_disclaimer() -> None:
     """
     st.markdown("""
     <style>
-        .stApp { background-color: #f5f7fa; }
-        h2, h3 { color: #1a1a1a !important; }
-        p, li { color: #333 !important; font-size: 1rem !important; }
+        @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Lato:wght@300;400&display=swap');
+        .stApp { background-color: #F9F7F1; }
+        h1, h2, h3 { color: #2C3E50 !important; font-family: 'Merriweather', serif !important; }
+        p, li { color: #333333 !important; font-size: 1rem !important; font-family: 'Lato', sans-serif !important; }
     </style>
     """, unsafe_allow_html=True)
                 
@@ -207,9 +208,9 @@ def render_auth_page() -> None:
     with col2:
         st.markdown("""
         <div class="auth-header">
-            <h1 style="color: #1a1a1a; font-size: 2.2rem;">TECTONIQ</h1>
-            <p style="color: #555; font-size: 1.1rem; font-weight: 600;">Move Beyond Buy & Hope</p>
-            <p style="color: #666; font-size: 0.9rem; line-height: 1.5; max-width: 450px; margin: 8px auto 0;">
+            <h1 style="color: #2C3E50; font-size: 2.2rem; font-family: 'Merriweather', serif; font-weight: 700;">TECTONIQ</h1>
+            <p style="color: #555; font-size: 1.1rem; font-weight: 600; font-family: 'Lato', sans-serif;">Move Beyond Buy & Hope</p>
+            <p style="color: #666; font-size: 0.9rem; line-height: 1.5; max-width: 450px; margin: 8px auto 0; font-family: 'Lato', sans-serif;">
                 Market crashes aren't random—they are physics. TECTONIQ visualizes systemic stress levels so you can navigate volatility with open eyes.
             </p>
         </div>
@@ -316,13 +317,11 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
         col_logo, col_title, col_user = st.columns([1, 3, 2])
         
         with col_logo:
-            # Logo placeholder
+            # Logo placeholder - empty box
             st.markdown("""
             <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 48px; height: 48px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                            border-radius: 8px; display: flex; align-items: center; justify-content: center; 
-                            font-size: 1.5rem; font-weight: bold; color: white;">
-                    S
+                <div style="width: 48px; height: 48px; background: transparent; 
+                            border: 2px solid #2C3E50; border-radius: 4px;">
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -330,12 +329,11 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
         with col_title:
             st.markdown("""
             <div style="text-align: center; padding-top: 8px;">
-                <h2 style="margin: 0; background: linear-gradient(90deg, #667eea, #764ba2); 
-                           -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                <h2 style="margin: 0; font-family: 'Merriweather', serif; color: #2C3E50; font-weight: 700;">
                     TECTONIQ
                 </h2>
-                <p style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #555;">Move Beyond Buy & Hope</p>
-                <p style="margin: 0; font-size: 0.75rem; color: #888; line-height: 1.4; max-width: 500px; margin: 4px auto 0;">
+                <p style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #555; font-family: 'Lato', sans-serif;">Move Beyond Buy & Hope</p>
+                <p style="margin: 0; font-size: 0.75rem; color: #666; line-height: 1.4; max-width: 500px; margin: 4px auto 0; font-family: 'Lato', sans-serif;">
                     Market crashes aren't random—they are physics. TECTONIQ visualizes systemic stress levels so you can navigate volatility with open eyes.
                 </p>
             </div>

@@ -262,7 +262,7 @@ def get_scientific_heritage_css() -> str:
             border-radius: 2px !important;
         }
         
-        /* Buttons like seals */
+        /* Buttons like seals - Heritage style */
         .stButton>button {
             border-radius: 4px !important;
             font-family: 'Merriweather', serif !important;
@@ -270,11 +270,44 @@ def get_scientific_heritage_css() -> str:
             border: 2px solid #2C3E50 !important;
             background-color: #2C3E50 !important;
             color: #F9F7F1 !important;
+            transition: all 0.2s ease !important;
         }
         
         .stButton>button:hover {
             background-color: #1a252f !important;
             border-color: #1a252f !important;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.15) !important;
+        }
+        
+        /* Primary buttons */
+        .stButton>button[kind="primary"] {
+            background-color: #2C3E50 !important;
+            border-color: #2C3E50 !important;
+            color: #F9F7F1 !important;
+        }
+        
+        .stButton>button[kind="primary"]:hover {
+            background-color: #1a252f !important;
+        }
+        
+        /* Secondary buttons */
+        .stButton>button[kind="secondary"] {
+            background-color: transparent !important;
+            border-color: #2C3E50 !important;
+            color: #2C3E50 !important;
+        }
+        
+        .stButton>button[kind="secondary"]:hover {
+            background-color: rgba(44, 62, 80, 0.1) !important;
+        }
+        
+        /* Form submit buttons */
+        button[type="submit"] {
+            font-family: 'Merriweather', serif !important;
+            font-weight: bold !important;
+            background-color: #2C3E50 !important;
+            border: 2px solid #2C3E50 !important;
+            color: #F9F7F1 !important;
         }
         
         /* Input fields */
