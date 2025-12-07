@@ -81,12 +81,24 @@ def signup(email: str, password: str) -> Tuple[bool, Optional[str], Optional[Dic
             return False, "Failed to create user account", None
             
     except Exception as e:
+        # Import traceback for better error logging
+        import traceback
         error_msg = str(e)
-        if "already registered" in error_msg.lower():
+        full_error = traceback.format_exc()
+        
+        # Print full error to console for debugging
+        print(f"❌ SIGNUP ERROR: {error_msg}")
+        print(f"Full traceback:\n{full_error}")
+        
+        # User-friendly error messages
+        if "already registered" in error_msg.lower() or "already exists" in error_msg.lower():
             return False, "This email is already registered. Please login instead.", None
         elif "password" in error_msg.lower():
             return False, "Password must be at least 6 characters", None
+        elif "email" in error_msg.lower() and "invalid" in error_msg.lower():
+            return False, "Please enter a valid email address", None
         else:
+            # Return the actual error for debugging
             return False, f"Signup error: {error_msg}", None
 
 
