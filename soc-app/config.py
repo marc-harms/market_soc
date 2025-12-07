@@ -268,27 +268,47 @@ def get_scientific_heritage_css() -> str:
             border: 1px solid #D1C4E9 !important;
             border-radius: 2px !important;
             margin-bottom: 1rem !important;
+            position: relative !important;
+            z-index: 1 !important;
         }
         
         div[data-testid="stExpander"] summary {
             font-family: 'Merriweather', serif !important;
             color: #2C3E50 !important;
             font-weight: 600 !important;
-            padding: 12px !important;
+            padding: 16px 12px !important;
             line-height: 1.8 !important;
-            min-height: 48px !important;
+            min-height: 56px !important;
             display: flex !important;
             align-items: center !important;
+            position: relative !important;
+            z-index: 2 !important;
+            background: #FFFFFF !important;
         }
         
         div[data-testid="stExpander"] div[role="button"] {
             line-height: 1.8 !important;
-            min-height: 48px !important;
+            min-height: 56px !important;
+            padding: 16px 12px !important;
         }
         
         div[data-testid="stExpander"] summary p {
             margin: 0 !important;
+            padding: 0 !important;
             line-height: 1.8 !important;
+            position: relative !important;
+            z-index: 3 !important;
+        }
+        
+        /* Hide keyboard shortcut hints that overlap */
+        div[data-testid="stExpander"] summary::before,
+        div[data-testid="stExpander"] summary::after {
+            display: none !important;
+        }
+        
+        /* Hide any tooltips near expanders */
+        div[data-testid="stExpander"] [data-testid="stTooltipHoverTarget"] {
+            display: none !important;
         }
         
         /* ALL BUTTONS - Cream background, charcoal border & text */
