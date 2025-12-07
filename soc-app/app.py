@@ -547,11 +547,11 @@ def main():
     # === PORTFOLIO VIEW (if toggled on) ===
     if st.session_state.get('show_portfolio', False):
         with st.container(border=True):
-            col_header, col_close = st.columns([5, 1])
+            col_header, col_close = st.columns([4, 1])
             with col_header:
                 st.markdown("### 📁 My Portfolio")
             with col_close:
-                if st.button("✖", key="close_portfolio", help="Close"):
+                if st.button("Close portfolio window", key="close_portfolio", use_container_width=True):
                     st.session_state.show_portfolio = False
                     st.rerun()
             
@@ -561,61 +561,80 @@ def main():
             if user_id:
                 portfolio = get_user_portfolio(user_id)
                 if portfolio:
-                    st.caption(f"**{len(portfolio)}** assets tracked • {user_tier.upper()} tier")
+                    st.caption(f"**{len(portfolio)}** assets tracked")
+                    st.markdown("---")
                     
-                    # Display portfolio in a nice grid
-                    num_cols = min(4, max(2, len(portfolio)))
-                    cols = st.columns(num_cols)
+                    # Fetch analysis for all portfolio assets
+                    with st.spinner("Loading portfolio data..."):
+                        portfolio_results = run_analysis(portfolio)
                     
-                    for i, ticker in enumerate(portfolio):
-                        col_idx = i % num_cols
-                        with cols[col_idx]:
-                            with st.container(border=True):
-                                st.markdown(f"**{ticker}**")
+                    if portfolio_results:
+                        # Create table data
+                        table_data = []
+                        for result in portfolio_results:
+                            table_data.append({
+                                "Ticker": result['symbol'],
+                                "Asset Name": result.get('name', result['symbol']),
+                                "Criticality": int(result.get('criticality_score', 0)),
+                                "Regime": result.get('signal', 'Unknown'),
+                                "_result": result  # Store full result for actions
+                            })
+                        
+                        # Sort by criticality (highest first)
+                        table_data.sort(key=lambda x: x['Criticality'], reverse=True)
+                        
+                        # Display table
+                        for i, row in enumerate(table_data):
+                            # Color code criticality
+                            crit = row['Criticality']
+                            if crit > 80:
+                                crit_color = "#FF4040"
+                            elif crit > 60:
+                                crit_color = "#FF6600"
+                            else:
+                                crit_color = "#00C864"
+                            
+                            # Get regime emoji
+                            regime_text = row['Regime']
+                            regime_emoji = regime_text.split()[0] if regime_text else "⚪"
+                            
+                            # Row container
+                            with st.container():
+                                col1, col2, col3, col4, col5 = st.columns([1, 3, 1.5, 1, 1])
                                 
-                                col_analyze, col_remove = st.columns(2)
-                                with col_analyze:
-                                    if st.button("Analyze", key=f"analyze_{ticker}", use_container_width=True):
-                                        # Analyze this ticker
-                                        results = run_analysis([ticker])
-                                        if results and len(results) > 0:
-                                            st.session_state.current_ticker = ticker
-                                            st.session_state.scan_results = results
-                                            st.session_state.selected_asset = 0
-                                            st.session_state.analysis_mode = "deep_dive"
-                                            st.session_state.show_portfolio = False  # Close portfolio
-                                            st.rerun()
-                                with col_remove:
-                                    if st.button("🗑️", key=f"remove_{ticker}", help="Remove", use_container_width=True):
+                                with col1:
+                                    st.markdown(f"**{row['Ticker']}**")
+                                
+                                with col2:
+                                    st.markdown(f"{row['Asset Name']}")
+                                
+                                with col3:
+                                    st.markdown(f"{regime_emoji} <span style='color: {crit_color}; font-weight: 600;'>Criticality: {crit}</span>", unsafe_allow_html=True)
+                                
+                                with col4:
+                                    if st.button("→ Deep Dive", key=f"deepdive_{row['Ticker']}", use_container_width=True, type="primary"):
+                                        # Load this asset
+                                        st.session_state.current_ticker = row['Ticker']
+                                        st.session_state.scan_results = [row['_result']]
+                                        st.session_state.selected_asset = 0
+                                        st.session_state.analysis_mode = "deep_dive"
+                                        st.session_state.show_portfolio = False  # Close portfolio
+                                        st.rerun()
+                                
+                                with col5:
+                                    if st.button("🗑️", key=f"remove_{row['Ticker']}", help="Remove from portfolio", use_container_width=True):
                                         from auth_manager import remove_asset_from_portfolio
-                                        success, error = remove_asset_from_portfolio(user_id, ticker)
+                                        success, error = remove_asset_from_portfolio(user_id, row['Ticker'])
                                         if success:
                                             st.rerun()
                                         else:
                                             st.error(error)
+                                
+                                st.markdown("<hr style='margin: 8px 0; opacity: 0.2;'>", unsafe_allow_html=True)
+                    else:
+                        st.warning("Could not load portfolio data. Please try again.")
                 else:
                     st.info("📌 No assets yet. Search for a ticker and click '⭐ Add to Portfolio'")
-                
-                # Upgrade prompt for free users
-                if user_tier == "free":
-                    st.markdown("---")
-                    col_upgrade1, col_upgrade2, col_upgrade3 = st.columns([1, 2, 1])
-                    with col_upgrade2:
-                        st.markdown("""
-                        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1.5rem; border-radius: 12px; color: white; text-align: center;">
-                            <div style="font-size: 1.2rem; font-weight: 700; margin-bottom: 12px;">⭐ Upgrade to Premium</div>
-                            <div style="font-size: 0.95rem; margin-bottom: 16px;">Unlock unlimited power</div>
-                            <ul style="text-align: left; font-size: 0.9rem; margin: 0 0 16px 0; padding-left: 24px;">
-                                <li>Unlimited portfolio assets (currently: 3 max)</li>
-                                <li>Unlimited DCA simulations (currently: 5/day)</li>
-                                <li>Regular market email reports</li>
-                                <li>Instant alert emails</li>
-                            </ul>
-                        </div>
-                        """, unsafe_allow_html=True)
-                        
-                        if st.button("⭐ Upgrade Now", type="primary", use_container_width=True, key="upgrade_from_portfolio"):
-                            st.info("💡 Contact support@socseismograph.com for upgrade options")
         
         st.markdown("---")
     
