@@ -801,6 +801,128 @@ def main():
             
             result_tickers = [r['symbol'] for r in results]
             render_dca_simulation(result_tickers)
+    
+    # === FOOTER WITH LEGAL LINKS ===
+    st.markdown("<div style='height: 3rem;'></div>", unsafe_allow_html=True)
+    st.markdown("---")
+    
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+    with col_center:
+        st.markdown("""
+        <div style="text-align: center; padding: 1rem 0; font-family: 'Merriweather', serif; font-size: 0.85rem; color: #666;">
+            <p style="margin: 0 0 8px 0;">© 2025 TECTONIQ. All rights reserved.</p>
+            <div style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
+                <a href="?page=disclaimer" style="color: #2C3E50; text-decoration: none; font-weight: 600;">Disclaimer</a>
+                <span style="color: #BDC3C7;">|</span>
+                <a href="?page=data-protection" style="color: #2C3E50; text-decoration: none; font-weight: 600;">Data Protection</a>
+                <span style="color: #BDC3C7;">|</span>
+                <a href="?page=imprint" style="color: #2C3E50; text-decoration: none; font-weight: 600;">Imprint</a>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Handle legal page clicks via query params
+        query_params = st.query_params
+        if 'page' in query_params:
+            page = query_params['page']
+            if page == 'disclaimer':
+                render_legal_page_disclaimer()
+            elif page == 'data-protection':
+                render_legal_page_data_protection()
+            elif page == 'imprint':
+                render_legal_page_imprint()
+
+
+def render_legal_page_disclaimer():
+    """Render disclaimer legal page."""
+    st.markdown("### ⚖️ Legal Disclaimer")
+    st.markdown("""
+    This application is provided for educational and informational purposes only.
+    Nothing on this platform constitutes financial, investment, or trading advice.
+    
+    **No Investment Recommendations:**
+    - We do not recommend buying, selling, or holding any financial instruments
+    - All analysis is purely statistical observation
+    - Past performance is not indicative of future results
+    
+    **Limitation of Liability:**
+    - The creators shall not be liable for any damages arising from use
+    - Users accept full responsibility for their investment decisions
+    
+    **Independent Verification Required:**
+    - Consult with qualified financial advisors before making decisions
+    - Conduct your own research and due diligence
+    """)
+    if st.button("← Back to App", key="back_disclaimer"):
+        st.query_params.clear()
+        st.rerun()
+
+
+def render_legal_page_data_protection():
+    """Render data protection legal page."""
+    st.markdown("### 🔒 Data Protection Policy")
+    st.markdown("""
+    **Data Controller:** TECTONIQ Platform
+    
+    **Data We Collect:**
+    - Email address (for authentication)
+    - Portfolio preferences (ticker symbols you save)
+    - Usage analytics (anonymous)
+    
+    **How We Use Your Data:**
+    - To provide authentication services
+    - To save your portfolio preferences
+    - To improve the application
+    
+    **Data Storage:**
+    - Stored securely via Supabase (EU servers)
+    - Encrypted in transit and at rest
+    - Not shared with third parties
+    
+    **Your Rights:**
+    - Right to access your data
+    - Right to delete your account
+    - Right to data portability
+    
+    **Contact:** For data protection inquiries, email privacy@tectoniq.app
+    """)
+    if st.button("← Back to App", key="back_data"):
+        st.query_params.clear()
+        st.rerun()
+
+
+def render_legal_page_imprint():
+    """Render imprint legal page."""
+    st.markdown("### 📄 Imprint / Legal Notice")
+    st.markdown("""
+    **Service Provider:**  
+    TECTONIQ Platform  
+    [Your Address]  
+    [City, Postal Code]  
+    [Country]
+    
+    **Contact:**  
+    Email: info@tectoniq.app  
+    Web: tectoniq.app
+    
+    **Responsible for Content:**  
+    [Your Name / Company Name]
+    
+    **Disclaimer:**  
+    This platform provides educational content only. We assume no liability for the 
+    accuracy, completeness, or timeliness of the information provided.
+    
+    **Copyright:**  
+    © 2025 TECTONIQ. All rights reserved. Unauthorized reproduction or distribution 
+    of this application or its content is prohibited.
+    
+    **Third-Party Data:**  
+    Market data provided by Yahoo Finance. We do not control or guarantee the 
+    accuracy of third-party data sources.
+    """)
+    if st.button("← Back to App", key="back_imprint"):
+        st.query_params.clear()
+        st.rerun()
 
 
 if __name__ == "__main__":

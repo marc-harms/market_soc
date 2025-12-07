@@ -254,8 +254,7 @@ def get_scientific_heritage_css() -> str:
         
         /* Cards/Containers: like stacked paper */
         div[data-testid="stMetric"], 
-        div[data-testid="column"],
-        div[data-testid="stExpander"] {
+        div[data-testid="column"] {
             background-color: #FFFFFF !important;
             border: 1px solid #D1C4E9 !important;
             box-shadow: 2px 2px 5px rgba(0,0,0,0.05) !important;
@@ -263,8 +262,31 @@ def get_scientific_heritage_css() -> str:
             border-radius: 2px !important;
         }
         
-        /* Buttons like seals - Heritage style */
-        .stButton>button {
+        /* Expander styling - fix overlapping text */
+        div[data-testid="stExpander"] {
+            background-color: #FFFFFF !important;
+            border: 1px solid #D1C4E9 !important;
+            border-radius: 2px !important;
+        }
+        
+        div[data-testid="stExpander"] summary {
+            font-family: 'Merriweather', serif !important;
+            color: #2C3E50 !important;
+            font-weight: 600 !important;
+            padding: 12px !important;
+            line-height: 1.5 !important;
+        }
+        
+        div[data-testid="stExpander"] div[role="button"] {
+            line-height: 1.5 !important;
+        }
+        
+        /* Buttons like seals - Heritage style (ALL buttons) */
+        .stButton>button,
+        button[kind="primary"],
+        button[kind="secondary"],
+        button[type="submit"],
+        .stButton button {
             border-radius: 4px !important;
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
@@ -275,32 +297,34 @@ def get_scientific_heritage_css() -> str:
             letter-spacing: 0.5px !important;
         }
         
-        .stButton>button:hover {
+        .stButton>button:hover,
+        button[kind="primary"]:hover,
+        .stButton button:hover {
             background-color: #1a252f !important;
             border-color: #1a252f !important;
             box-shadow: 2px 2px 8px rgba(0,0,0,0.15) !important;
-        }
-        
-        /* Primary buttons */
-        .stButton>button[kind="primary"] {
-            background-color: #2C3E50 !important;
-            border-color: #2C3E50 !important;
             color: #F9F7F1 !important;
         }
         
-        .stButton>button[kind="primary"]:hover {
-            background-color: #1a252f !important;
-        }
-        
-        /* Secondary buttons */
-        .stButton>button[kind="secondary"] {
+        /* Secondary buttons - outlined style */
+        .stButton>button[kind="secondary"],
+        button[kind="secondary"] {
             background-color: transparent !important;
-            border-color: #2C3E50 !important;
+            border: 2px solid #2C3E50 !important;
             color: #2C3E50 !important;
         }
         
-        .stButton>button[kind="secondary"]:hover {
+        .stButton>button[kind="secondary"]:hover,
+        button[kind="secondary"]:hover {
             background-color: rgba(44, 62, 80, 0.1) !important;
+            color: #2C3E50 !important;
+        }
+        
+        /* Disabled buttons */
+        .stButton>button:disabled,
+        button:disabled {
+            opacity: 0.4 !important;
+            cursor: not-allowed !important;
         }
         
         /* Form submit buttons */

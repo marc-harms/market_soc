@@ -184,15 +184,19 @@ def render_auth_page() -> None:
             color: #333 !important;
             font-size: 1rem !important;
         }
-        /* Fix button colors */
+        /* Heritage button styling */
         .stButton > button[kind="primary"] {
-            background-color: #0066cc !important;
-            color: white !important;
+            background-color: #2C3E50 !important;
+            color: #F9F7F1 !important;
             font-size: 1.1rem !important;
             padding: 0.6rem 1.2rem !important;
+            font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
+            font-weight: bold !important;
+            border: 2px solid #2C3E50 !important;
         }
         .stButton > button[kind="primary"]:hover {
-            background-color: #0052a3 !important;
+            background-color: #1a252f !important;
+            border-color: #1a252f !important;
         }
         /* Tab styling */
         .stTabs [data-baseweb="tab-list"] button {
