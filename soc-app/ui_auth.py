@@ -48,7 +48,7 @@ def render_disclaimer() -> None:
     
     # Display disclaimer in scrollable container
     with st.container():
-        st.markdown(LEGAL_DISCLAIMER)
+        st.markdown(LEGAL_DISCLAIMER, unsafe_allow_html=True)
     
     st.markdown("---")
     
@@ -83,15 +83,17 @@ def render_auth_page() -> None:
     This replaces the old simple access code system with full user authentication.
     Supports both login for existing users and signup for new users.
     """
-    # Apply minimal styling for auth page
+    # Apply minimal styling for auth page (light mode)
     st.markdown("""
     <style>
-        .stApp { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .stApp { 
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+        }
         .auth-container {
             background: white;
             border-radius: 16px;
             padding: 2.5rem;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
             max-width: 450px;
             margin: 0 auto;
         }
@@ -100,13 +102,21 @@ def render_auth_page() -> None:
             margin-bottom: 2rem;
         }
         .auth-header h1 {
-            color: #667eea;
+            color: #1a1a1a;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }
         .auth-header p {
             color: #666;
             font-size: 0.95rem;
+        }
+        /* Fix button colors */
+        .stButton > button[kind="primary"] {
+            background-color: #0066cc !important;
+            color: white !important;
+        }
+        .stButton > button[kind="primary"]:hover {
+            background-color: #0052a3 !important;
         }
     </style>
     """, unsafe_allow_html=True)
