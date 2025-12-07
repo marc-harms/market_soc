@@ -373,10 +373,18 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
         col_spacer1, col_search_center, col_spacer2 = st.columns([1, 2, 1])
         
         with col_search_center:
+            # Clear search field if asset is already selected
+            has_active_asset = 'scan_results' in st.session_state and st.session_state.scan_results
+            if has_active_asset and 'cockpit_search_main' in st.session_state and st.session_state.cockpit_search_main:
+                st.session_state.cockpit_search_main = ""
+            
+            # Dynamic placeholder based on whether asset is active
+            placeholder_text = "Search for another asset (press Enter)" if has_active_asset else "Enter ticker symbol (e.g., AAPL, BTC-USD, TSLA) and press Enter"
+            
             # Search field with on_change callback (triggered by Enter key)
             search_query = st.text_input(
                 "Search Asset",
-                placeholder="Enter ticker symbol (e.g., AAPL, BTC-USD, TSLA) and press Enter",
+                placeholder=placeholder_text,
                 label_visibility="collapsed",
                 key="cockpit_search_main",
                 on_change=lambda: handle_search(

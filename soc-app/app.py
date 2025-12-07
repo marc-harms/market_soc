@@ -564,23 +564,37 @@ def main():
                     st.caption(f"**{len(portfolio)}** assets tracked")
                     st.markdown("---")
                     
-                    # Fetch analysis for all portfolio assets
+                    # Fetch full analysis for all portfolio assets (includes crash_warning)
                     with st.spinner("Loading portfolio data..."):
-                        portfolio_results = run_analysis(portfolio)
+                        portfolio_analysis = []
+                        fetcher = DataFetcher(cache_enabled=True)
+                        for ticker in portfolio:
+                            try:
+                                df = fetcher.fetch_data(ticker)
+                                info = fetcher.fetch_info(ticker)
+                                if not df.empty and len(df) > MIN_DATA_POINTS:
+                                    analyzer = SOCAnalyzer(df, ticker, info, DEFAULT_SMA_WINDOW, DEFAULT_VOL_WINDOW, DEFAULT_HYSTERESIS)
+                                    phase = analyzer.get_market_phase()
+                                    full_analysis = analyzer.get_full_analysis()
+                                    phase['name'] = clean_name(info.get('name', ticker))
+                                    phase['crash_warning'] = full_analysis.get('crash_warning', {})
+                                    portfolio_analysis.append(phase)
+                            except:
+                                pass  # Skip failed tickers
                     
-                    if portfolio_results:
+                    if portfolio_analysis:
                         # Create table data
                         table_data = []
-                        for result in portfolio_results:
-                            stress_score = result.get('stress_score', 0)
-                            # Convert stress_score to 0-100 scale for display
-                            stress_level = int(min(100, stress_score * 100))
+                        for result in portfolio_analysis:
+                            # Get systemic stress level from crash_warning (same as Deep Dive)
+                            crash_warning = result.get('crash_warning', {})
+                            stress_level = crash_warning.get('score', 0)
                             
                             table_data.append({
                                 "Ticker": result['symbol'],
                                 "Asset Name": result.get('name', result['symbol']),
                                 "Criticality": int(result.get('criticality_score', 0)),
-                                "Stress Level": stress_level,
+                                "Stress Level": int(stress_level),
                                 "Regime": result.get('signal', 'Unknown'),
                                 "_result": result  # Store full result for actions
                             })
