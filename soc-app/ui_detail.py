@@ -216,20 +216,7 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
     color = get_signal_color_func(signal)
     bg = get_signal_bg_func(signal)
     
-    # Header with signal
-    st.markdown(f"""
-    <div class="detail-header">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <h3 style="margin: 0;">{result.get('name', symbol)}</h3>
-                <span style="color: #888;">{symbol}</span>
-            </div>
-            <div class="signal-badge" style="background: {bg}; color: {color};">
-                {signal}
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Active asset is already displayed in header - no need for redundant display here
     
     # Add to Portfolio Button
     user_id = get_current_user_id()
