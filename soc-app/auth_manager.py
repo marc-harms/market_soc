@@ -464,7 +464,7 @@ def show_upgrade_prompt(feature_name: str = "this feature") -> None:
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("⭐ Upgrade to Premium", type="primary", use_container_width=True):
+        if st.button("⭐ Upgrade to Premium", use_container_width=True):
             st.info("💡 **Contact:** Upgrade options coming soon! Email support@socseismograph.com")
 
 

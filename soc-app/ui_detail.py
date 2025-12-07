@@ -235,7 +235,7 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
                     else:
                         st.error(error)
             else:
-                if st.button(f"⭐ Add to Portfolio", key=f"portfolio_{symbol}", use_container_width=True, type="primary"):
+                if st.button(f"⭐ Add to Portfolio", key=f"portfolio_{symbol}", use_container_width=True):
                     success, error = add_asset_to_portfolio(user_id, symbol)
                     if success:
                         st.success(f"Added {symbol} to portfolio!")

@@ -281,7 +281,7 @@ def get_scientific_heritage_css() -> str:
             line-height: 1.5 !important;
         }
         
-        /* Buttons - Base styling (ALL buttons get these) */
+        /* ALL BUTTONS - Same style (Solid Midnight Blue like Logout) */
         .stButton>button,
         .stButton button,
         button,
@@ -297,43 +297,24 @@ def get_scientific_heritage_css() -> str:
             font-weight: bold !important;
             transition: all 0.2s ease !important;
             letter-spacing: 0.5px !important;
-        }
-        
-        /* PRIMARY buttons - Solid Midnight Blue */
-        .stButton>button[kind="primary"],
-        button[kind="primary"],
-        button[data-testid="baseButton-primary"],
-        .stButton>button:not([kind="secondary"]) {
             border: 2px solid #2C3E50 !important;
             background-color: #2C3E50 !important;
             color: #F9F7F1 !important;
         }
         
-        .stButton>button[kind="primary"]:hover,
+        .stButton>button:hover,
+        .stButton button:hover,
+        button:hover,
         button[kind="primary"]:hover,
+        button[kind="secondary"]:hover,
         button[data-testid="baseButton-primary"]:hover,
-        .stButton>button:not([kind="secondary"]):hover {
+        button[data-testid="baseButton-secondary"]:hover,
+        div[data-testid="stButton"] button:hover,
+        div.stButton > button:hover {
             background-color: #1a252f !important;
             border-color: #1a252f !important;
             box-shadow: 2px 2px 8px rgba(0,0,0,0.15) !important;
             color: #F9F7F1 !important;
-        }
-        
-        /* SECONDARY buttons - Outlined style (transparent) */
-        .stButton>button[kind="secondary"],
-        button[kind="secondary"],
-        button[data-testid="baseButton-secondary"] {
-            background-color: transparent !important;
-            border: 2px solid #2C3E50 !important;
-            color: #2C3E50 !important;
-        }
-        
-        .stButton>button[kind="secondary"]:hover,
-        button[kind="secondary"]:hover,
-        button[data-testid="baseButton-secondary"]:hover {
-            background-color: rgba(44, 62, 80, 0.1) !important;
-            border-color: #2C3E50 !important;
-            color: #2C3E50 !important;
         }
         
         /* Disabled buttons */

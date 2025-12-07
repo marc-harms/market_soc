@@ -672,7 +672,7 @@ def main():
                                     st.markdown(f"{regime_emoji} <span style='color: {crit_color}; font-weight: 600;'>Criticality: {crit}</span>", unsafe_allow_html=True)
                                 
                                 with col4:
-                                    if st.button("→ Deep Dive", key=f"deepdive_{row['Ticker']}", use_container_width=True, type="primary"):
+                                    if st.button("→ Deep Dive", key=f"deepdive_{row['Ticker']}", use_container_width=True):
                                         # Load this asset
                                         st.session_state.current_ticker = row['Ticker']
                                         st.session_state.scan_results = [row['_result']]
@@ -769,8 +769,7 @@ def main():
             if st.button(
                 "📊 Asset Deep Dive",
                 key="btn_deep_dive",
-                use_container_width=True,
-                type="primary" if st.session_state.analysis_mode == "deep_dive" else "secondary"
+                use_container_width=True
             ):
                 st.session_state.analysis_mode = "deep_dive"
                 st.rerun()
@@ -780,8 +779,7 @@ def main():
             if st.button(
                 "🎯 Portfolio Simulation",
                 key="btn_simulation",
-                use_container_width=True,
-                type="primary" if st.session_state.analysis_mode == "simulation" else "secondary"
+                use_container_width=True
             ):
                 st.session_state.analysis_mode = "simulation"
                 st.rerun()

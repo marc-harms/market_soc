@@ -95,7 +95,7 @@ def render_dca_simulation(tickers: List[str]) -> None:
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
     col_left, col_btn, col_right = st.columns([1, 1, 1])
     with col_btn:
-        run_clicked = st.button("Run Simulation", type="primary", use_container_width=True)
+        run_clicked = st.button("Run Simulation", use_container_width=True)
     
     if run_clicked:
         start_date = (datetime.now() - timedelta(days=years_back * 365)).strftime('%Y-%m-%d')

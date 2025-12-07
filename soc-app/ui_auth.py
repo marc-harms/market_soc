@@ -127,7 +127,6 @@ def render_disclaimer() -> None:
         
         if st.button(
             "✅ I Understand & Accept",
-            type="primary",
             disabled=not accepted,
             use_container_width=True
         ):
@@ -184,9 +183,10 @@ def render_auth_page() -> None:
             color: #333 !important;
             font-size: 1rem !important;
         }
-        /* Heritage button styling - Base */
+        /* ALL BUTTONS - Same style (Solid Midnight Blue like Logout) */
         .stButton > button,
         .stButton button,
+        button,
         button[kind="primary"],
         button[kind="secondary"],
         button[data-testid="baseButton-primary"],
@@ -197,39 +197,22 @@ def render_auth_page() -> None:
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
             border-radius: 4px !important;
-        }
-        
-        /* PRIMARY buttons - Solid */
-        .stButton > button[kind="primary"],
-        button[kind="primary"],
-        button[data-testid="baseButton-primary"],
-        .stButton > button:not([kind="secondary"]) {
+            border: 2px solid #2C3E50 !important;
             background-color: #2C3E50 !important;
             color: #F9F7F1 !important;
-            border: 2px solid #2C3E50 !important;
         }
-        .stButton > button[kind="primary"]:hover,
+        
+        .stButton > button:hover,
+        .stButton button:hover,
+        button:hover,
         button[kind="primary"]:hover,
+        button[kind="secondary"]:hover,
         button[data-testid="baseButton-primary"]:hover,
-        .stButton > button:not([kind="secondary"]):hover {
+        button[data-testid="baseButton-secondary"]:hover,
+        div[data-testid="stButton"] button:hover {
             background-color: #1a252f !important;
             border-color: #1a252f !important;
             color: #F9F7F1 !important;
-        }
-        
-        /* SECONDARY buttons - Outlined */
-        .stButton > button[kind="secondary"],
-        button[kind="secondary"],
-        button[data-testid="baseButton-secondary"] {
-            background-color: transparent !important;
-            border: 2px solid #2C3E50 !important;
-            color: #2C3E50 !important;
-        }
-        .stButton > button[kind="secondary"]:hover,
-        button[kind="secondary"]:hover,
-        button[data-testid="baseButton-secondary"]:hover {
-            background-color: rgba(44, 62, 80, 0.1) !important;
-            color: #2C3E50 !important;
         }
         /* Tab styling */
         .stTabs [data-baseweb="tab-list"] button {
