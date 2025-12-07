@@ -70,16 +70,8 @@ def signup(email: str, password: str) -> Tuple[bool, Optional[str], Optional[Dic
         })
         
         if response.user:
-            # Create profile with default tier
-            profile_data = {
-                "user_id": response.user.id,
-                "email": email,
-                "subscription_tier": "free",
-                "created_at": datetime.utcnow().isoformat()
-            }
-            
-            supabase.table("profiles").insert(profile_data).execute()
-            
+            # Profile is automatically created by database trigger
+            # Just return user data
             return True, None, {
                 "id": response.user.id,
                 "email": response.user.email,
