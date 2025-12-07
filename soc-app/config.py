@@ -281,12 +281,17 @@ def get_scientific_heritage_css() -> str:
             line-height: 1.5 !important;
         }
         
-        /* Buttons like seals - Heritage style (ALL buttons) */
+        /* Buttons like seals - Heritage style (ULTRA-AGGRESSIVE OVERRIDE) */
         .stButton>button,
+        .stButton button,
+        button,
         button[kind="primary"],
         button[kind="secondary"],
         button[type="submit"],
-        .stButton button {
+        button[data-testid="baseButton-primary"],
+        button[data-testid="baseButton-secondary"],
+        div[data-testid="stButton"] button,
+        div.stButton > button {
             border-radius: 4px !important;
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
@@ -298,8 +303,12 @@ def get_scientific_heritage_css() -> str:
         }
         
         .stButton>button:hover,
+        .stButton button:hover,
+        button:hover,
         button[kind="primary"]:hover,
-        .stButton button:hover {
+        button[data-testid="baseButton-primary"]:hover,
+        div[data-testid="stButton"] button:hover,
+        div.stButton > button:hover {
             background-color: #1a252f !important;
             border-color: #1a252f !important;
             box-shadow: 2px 2px 8px rgba(0,0,0,0.15) !important;

@@ -184,8 +184,12 @@ def render_auth_page() -> None:
             color: #333 !important;
             font-size: 1rem !important;
         }
-        /* Heritage button styling */
-        .stButton > button[kind="primary"] {
+        /* Heritage button styling - ALL BUTTONS */
+        .stButton > button,
+        .stButton button,
+        button[kind="primary"],
+        button[data-testid="baseButton-primary"],
+        div[data-testid="stButton"] button {
             background-color: #2C3E50 !important;
             color: #F9F7F1 !important;
             font-size: 1.1rem !important;
@@ -193,10 +197,16 @@ def render_auth_page() -> None:
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
             border: 2px solid #2C3E50 !important;
+            border-radius: 4px !important;
         }
-        .stButton > button[kind="primary"]:hover {
+        .stButton > button:hover,
+        .stButton button:hover,
+        button[kind="primary"]:hover,
+        button[data-testid="baseButton-primary"]:hover,
+        div[data-testid="stButton"] button:hover {
             background-color: #1a252f !important;
             border-color: #1a252f !important;
+            color: #F9F7F1 !important;
         }
         /* Tab styling */
         .stTabs [data-baseweb="tab-list"] button {

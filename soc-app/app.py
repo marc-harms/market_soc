@@ -528,6 +528,9 @@ def main():
     if 'current_ticker' not in st.session_state:
         st.session_state.current_ticker = None
     
+    # Apply Scientific Heritage CSS theme FIRST (before any page)
+    st.markdown(get_scientific_heritage_css(), unsafe_allow_html=True)
+    
     # Legal disclaimer gate (must accept before anything else)
     if not st.session_state.disclaimer_accepted:
         render_disclaimer()
@@ -538,9 +541,6 @@ def main():
     if not is_authenticated():
         render_auth_page()
         return
-    
-    # Apply Scientific Heritage CSS theme
-    st.markdown(get_scientific_heritage_css(), unsafe_allow_html=True)
     
     # === STICKY COCKPIT HEADER (with User Menu) ===
     render_sticky_cockpit_header(validate_ticker, search_ticker, run_analysis)
