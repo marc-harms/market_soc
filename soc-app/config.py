@@ -281,7 +281,7 @@ def get_scientific_heritage_css() -> str:
             line-height: 1.5 !important;
         }
         
-        /* ALL BUTTONS - Same style (Solid Midnight Blue like Logout) */
+        /* ALL BUTTONS - Cream background, charcoal border & text */
         .stButton>button,
         .stButton button,
         button,
@@ -291,29 +291,28 @@ def get_scientific_heritage_css() -> str:
         button[data-testid="baseButton-primary"],
         button[data-testid="baseButton-secondary"],
         div[data-testid="stButton"] button,
-        div.stButton > button,
-        .stButton>button *,
-        .stButton button *,
-        button * {
+        div.stButton > button {
             border-radius: 4px !important;
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
             transition: all 0.2s ease !important;
             letter-spacing: 0.5px !important;
-            border: 2px solid #2C3E50 !important;
-            background-color: #2C3E50 !important;
-            background: #2C3E50 !important;
-            color: #F9F7F1 !important;
+            border: 1px solid #333333 !important;
+            background-color: #F9F7F1 !important;
+            background: #F9F7F1 !important;
+            color: #333333 !important;
         }
         
-        /* Text inside buttons - FORCE cream color */
+        /* Text inside buttons - FORCE charcoal color */
         .stButton>button p,
         .stButton>button span,
         .stButton>button div,
+        .stButton>button *,
         button p,
         button span,
-        button div {
-            color: #F9F7F1 !important;
+        button div,
+        button * {
+            color: #333333 !important;
         }
         
         .stButton>button:hover,
@@ -324,14 +323,17 @@ def get_scientific_heritage_css() -> str:
         button[data-testid="baseButton-primary"]:hover,
         button[data-testid="baseButton-secondary"]:hover,
         div[data-testid="stButton"] button:hover,
-        div.stButton > button:hover,
+        div.stButton > button:hover {
+            background-color: #E6E1D3 !important;
+            background: #E6E1D3 !important;
+            border-color: #333333 !important;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.1) !important;
+            color: #333333 !important;
+        }
+        
         .stButton>button:hover *,
         button:hover * {
-            background-color: #1a252f !important;
-            background: #1a252f !important;
-            border-color: #1a252f !important;
-            box-shadow: 2px 2px 8px rgba(0,0,0,0.15) !important;
-            color: #F9F7F1 !important;
+            color: #333333 !important;
         }
         
         /* Disabled buttons */

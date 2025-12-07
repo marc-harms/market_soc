@@ -183,7 +183,7 @@ def render_auth_page() -> None:
             color: #333 !important;
             font-size: 1rem !important;
         }
-        /* ALL BUTTONS - Same style (Solid Midnight Blue like Logout) */
+        /* ALL BUTTONS - Cream background, charcoal border & text */
         .stButton > button,
         .stButton button,
         button,
@@ -191,28 +191,28 @@ def render_auth_page() -> None:
         button[kind="secondary"],
         button[data-testid="baseButton-primary"],
         button[data-testid="baseButton-secondary"],
-        div[data-testid="stButton"] button,
-        .stButton > button *,
-        button * {
+        div[data-testid="stButton"] button {
             font-size: 1.1rem !important;
             padding: 0.6rem 1.2rem !important;
             font-family: 'Rockwell Std Condensed', 'Rockwell', 'Roboto Slab', serif !important;
             font-weight: bold !important;
             border-radius: 4px !important;
-            border: 2px solid #2C3E50 !important;
-            background-color: #2C3E50 !important;
-            background: #2C3E50 !important;
-            color: #F9F7F1 !important;
+            border: 1px solid #333333 !important;
+            background-color: #F9F7F1 !important;
+            background: #F9F7F1 !important;
+            color: #333333 !important;
         }
         
-        /* Force text color inside buttons */
+        /* Force charcoal text color inside buttons */
         .stButton > button p,
         .stButton > button span,
         .stButton > button div,
+        .stButton > button *,
         button p,
         button span,
-        button div {
-            color: #F9F7F1 !important;
+        button div,
+        button * {
+            color: #333333 !important;
         }
         
         .stButton > button:hover,
@@ -222,13 +222,16 @@ def render_auth_page() -> None:
         button[kind="secondary"]:hover,
         button[data-testid="baseButton-primary"]:hover,
         button[data-testid="baseButton-secondary"]:hover,
-        div[data-testid="stButton"] button:hover,
+        div[data-testid="stButton"] button:hover {
+            background-color: #E6E1D3 !important;
+            background: #E6E1D3 !important;
+            border-color: #333333 !important;
+            color: #333333 !important;
+        }
+        
         .stButton > button:hover *,
         button:hover * {
-            background-color: #1a252f !important;
-            background: #1a252f !important;
-            border-color: #1a252f !important;
-            color: #F9F7F1 !important;
+            color: #333333 !important;
         }
         /* Tab styling */
         .stTabs [data-baseweb="tab-list"] button {
