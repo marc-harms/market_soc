@@ -525,23 +525,14 @@ class SOCAnalyzer:
         """
         figures = {}
         
-        # Theme settings - explicit colors for full control
-        if dark_mode:
-            template = "plotly_dark"
-            paper_bg = "#0E1117"
-            plot_bg = "#0E1117"
-            price_line_color = "white"
-            text_color = "#FAFAFA"
-            grid_color = "#333333"
-            sma_color = "#FFD700"
-        else:
-            template = "plotly_white"
-            paper_bg = "#FFFFFF"
-            plot_bg = "#FFFFFF"
-            price_line_color = "#1f77b4"  # Blue for better visibility on white
-            text_color = "#212529"
-            grid_color = "#E5E5E5"
-            sma_color = "#DAA520"  # Darker gold for light mode
+        # Scientific Heritage Theme - Always use clean white background
+        template = "plotly_white"
+        paper_bg = 'rgba(0,0,0,0)'  # Transparent to show cream background
+        plot_bg = 'rgba(0,0,0,0)'    # Transparent
+        price_line_color = "#2C3E50"  # Midnight Blue
+        text_color = "#333333"        # Charcoal
+        grid_color = "#E5E5E5"
+        sma_color = "#D35400"         # Ochre
         
         # Get asset name for caption
         asset_name = self.asset_info.get('name', self.symbol) if self.asset_info else self.symbol
@@ -549,15 +540,15 @@ class SOCAnalyzer:
         # --- Chart 3: Criticality (Main SOC Chart) ---
         fig3 = make_subplots(specs=[[{"secondary_y": True}]])
         
-        # Map colors for 5-tier volatility zones
+        # Scientific Heritage color map - earthier tones for "printed" look
         color_map = {
-            "low": "#00cc00",      # Green - safe
-            "normal": "#88cc00",   # Light green - normal
-            "medium": "#ffcc00",   # Yellow - caution
-            "high": "#ff6600",     # Orange - elevated
-            "extreme": "#ff0000"   # Red - critical
+            "low": "#27AE60",      # Moss Green - safe
+            "normal": "#52BE80",   # Light moss - normal
+            "medium": "#D35400",   # Ochre - caution
+            "high": "#E67E22",     # Bright ochre - elevated
+            "extreme": "#C0392B"   # Terracotta - critical
         }
-        colors = [color_map.get(z, "#ffcc00") for z in self.metrics_df["vol_zone"]]
+        colors = [color_map.get(z, "#D35400") for z in self.metrics_df["vol_zone"]]
         
         # Volatility bars
         fig3.add_trace(go.Bar(
@@ -617,8 +608,9 @@ class SOCAnalyzer:
                 y=1.02,
                 xanchor="right",
                 x=1,
-                font=dict(color=text_color)
+                font=dict(family="Lato, sans-serif", size=11, color=text_color)
             ),
+            font=dict(family="Lato, sans-serif", size=12, color=text_color),
             margin=dict(b=80)
         )
         
@@ -640,7 +632,7 @@ class SOCAnalyzer:
         )
         fig3.update_xaxes(
             title_text=f"<b>{asset_name} - SOC Analysis</b>",
-            title_font=dict(size=14, color=text_color),
+            title_font=dict(family="Merriweather, serif", size=14, color=text_color),
             title_standoff=25,
             tickformat="%Y",
             tickfont=dict(color=text_color),

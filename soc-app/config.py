@@ -86,13 +86,13 @@ REGIME_EMOJIS = {
 }
 
 # =============================================================================
-# STRESS LEVEL COLORS
+# STRESS LEVEL COLORS (Scientific Heritage Theme)
 # =============================================================================
 STRESS_LEVEL_COLORS = {
-    'BASELINE': '#00CC00',
-    'MODERATE': '#FFCC00',
-    'HEIGHTENED': '#FF6600',
-    'ELEVATED': '#FF0000'
+    'BASELINE': '#27AE60',   # Moss Green
+    'MODERATE': '#D35400',   # Ochre
+    'HEIGHTENED': '#D35400', # Ochre
+    'ELEVATED': '#C0392B'    # Terracotta
 }
 
 STRESS_LEVEL_EMOJIS = {
@@ -103,26 +103,27 @@ STRESS_LEVEL_EMOJIS = {
 }
 
 # =============================================================================
-# THEME COLORS
+# THEME COLORS - Scientific Heritage Design System
 # =============================================================================
-DARK_THEME = {
-    "bg": "#0E1117",
-    "bg2": "#262730",
-    "card": "#1E1E1E",
-    "border": "#333",
-    "text": "#FAFAFA",
-    "muted": "#888",
-    "input": "#262730"
+HERITAGE_THEME = {
+    "bg": "#F9F7F1",        # Alabaster / Warm Paper
+    "bg2": "#E6E1D3",       # Parchment / Linen
+    "card": "#FFFFFF",      # Pure white on cream background
+    "border": "#D1C4E9",    # Subtle border
+    "text": "#333333",      # Charcoal
+    "muted": "#666666",     # Muted charcoal
+    "input": "#FFFFFF",     # White input fields
+    "primary": "#2C3E50",   # Midnight Blue (brand color)
+    "shadow": "2px 2px 5px rgba(0,0,0,0.05)"  # Subtle paper shadow
 }
 
-LIGHT_THEME = {
-    "bg": "#FFFFFF",
-    "bg2": "#F0F2F6",
-    "card": "#F8F9FA",
-    "border": "#DEE2E6",
-    "text": "#212529",
-    "muted": "#6C757D",
-    "input": "#FFFFFF"
+# Regime colors - earthier tones for "printed" look
+REGIME_COLORS = {
+    'STABLE': '#27AE60',     # Moss Green
+    'ACTIVE': '#D35400',     # Ochre
+    'HIGH_ENERGY': '#D35400', # Ochre (same as active)
+    'CRITICAL': '#C0392B',   # Terracotta
+    'DORMANT': '#95A5A6'     # Stone Grey
 }
 
 # =============================================================================
@@ -200,14 +201,104 @@ DEFAULT_TRADING_FEE_PCT = 0.1
 DEFAULT_INTEREST_RATE_ANNUAL = 4.0
 
 # =============================================================================
-# CHART COLORS FOR PLOTLY
+# CHART COLORS FOR PLOTLY (Scientific Heritage Theme)
 # =============================================================================
 CHART_COLORS = {
-    'price': '#667eea',
-    'sma': '#FFD700',
-    'volatility': '#FF6B6B',
-    'positive': '#00C864',
-    'negative': '#FF4040',
-    'neutral': '#CCCCCC'
+    'price': '#2C3E50',      # Midnight Blue
+    'sma': '#D35400',        # Ochre
+    'volatility': '#C0392B', # Terracotta
+    'positive': '#27AE60',   # Moss Green
+    'negative': '#C0392B',   # Terracotta
+    'neutral': '#95A5A6'     # Stone Grey
 }
+
+# =============================================================================
+# SCIENTIFIC HERITAGE CSS
+# =============================================================================
+def get_scientific_heritage_css() -> str:
+    """
+    Returns CSS for Scientific Heritage design system.
+    
+    Typography:
+        - Merriweather (serif) for headings
+        - Lato (sans-serif) for body text
+    
+    Visual Style:
+        - Warm paper background
+        - Subtle shadows for depth
+        - Earth-tone accent colors
+    """
+    return """
+    <style>
+        /* Import elegant serif & sans-serif fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@300;400;700&family=Lato:wght@300;400&display=swap');
+        
+        /* Global background */
+        .stApp {
+            background-color: #F9F7F1 !important;
+        }
+        
+        /* Headings in "Newspaper" style */
+        h1, h2, h3, h4, h5, h6 {
+            font-family: 'Merriweather', serif !important;
+            color: #2C3E50 !important;
+            font-weight: 700 !important;
+        }
+        
+        /* Body text clean and modern */
+        p, div, label, span, input, textarea {
+            font-family: 'Lato', sans-serif !important;
+            color: #333333 !important;
+        }
+        
+        /* Cards/Containers: like stacked paper */
+        div[data-testid="stMetric"], 
+        div[data-testid="column"],
+        div[data-testid="stExpander"] {
+            background-color: #FFFFFF !important;
+            border: 1px solid #D1C4E9 !important;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.05) !important;
+            padding: 15px !important;
+            border-radius: 2px !important;
+        }
+        
+        /* Buttons like seals */
+        .stButton>button {
+            border-radius: 4px !important;
+            font-family: 'Merriweather', serif !important;
+            font-weight: bold !important;
+            border: 2px solid #2C3E50 !important;
+            background-color: #2C3E50 !important;
+            color: #F9F7F1 !important;
+        }
+        
+        .stButton>button:hover {
+            background-color: #1a252f !important;
+            border-color: #1a252f !important;
+        }
+        
+        /* Input fields */
+        input, textarea, select {
+            background-color: #FFFFFF !important;
+            border: 1px solid #D1C4E9 !important;
+            color: #333333 !important;
+        }
+        
+        /* Tables */
+        table {
+            font-family: 'Lato', sans-serif !important;
+        }
+        
+        /* Links */
+        a {
+            color: #2C3E50 !important;
+            text-decoration: underline !important;
+        }
+        
+        /* Sidebar (if used) */
+        section[data-testid="stSidebar"] {
+            background-color: #E6E1D3 !important;
+        }
+    </style>
+    """
 

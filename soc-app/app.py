@@ -40,6 +40,7 @@ from auth_manager import (
     get_user_portfolio, can_access_simulation, show_upgrade_prompt,
     can_run_simulation, increment_simulation_count
 )
+from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
 
 # =============================================================================
 # PAGE CONFIGURATION
@@ -538,8 +539,8 @@ def main():
         render_auth_page()
         return
     
-    # Apply theme
-    st.markdown(get_theme_css(st.session_state.dark_mode), unsafe_allow_html=True)
+    # Apply Scientific Heritage CSS theme
+    st.markdown(get_scientific_heritage_css(), unsafe_allow_html=True)
     
     # === STICKY COCKPIT HEADER (with User Menu) ===
     render_sticky_cockpit_header(validate_ticker, search_ticker, run_analysis)
