@@ -36,8 +36,8 @@ def render_disclaimer() -> None:
     </style>
     """, unsafe_allow_html=True)
                 
-    st.title("SOC Market Seismograph")
-    st.caption("Self-Organized Criticality Analysis Tool")
+    st.title("TECTONIQ")
+    st.caption("Move Beyond Buy & Hope")
     
     st.markdown("---")
     
@@ -207,8 +207,11 @@ def render_auth_page() -> None:
     with col2:
         st.markdown("""
         <div class="auth-header">
-            <h1 style="color: #1a1a1a; font-size: 2.2rem;">SOC Seismograph</h1>
-            <p style="color: #333; font-size: 1.1rem;">Self-Organized Criticality Market Analysis</p>
+            <h1 style="color: #1a1a1a; font-size: 2.2rem;">TECTONIQ</h1>
+            <p style="color: #555; font-size: 1.1rem; font-weight: 600;">Move Beyond Buy & Hope</p>
+            <p style="color: #666; font-size: 0.9rem; line-height: 1.5; max-width: 450px; margin: 8px auto 0;">
+                Market crashes aren't random—they are physics. TECTONIQ visualizes systemic stress levels so you can navigate volatility with open eyes.
+            </p>
         </div>
         """, unsafe_allow_html=True)
         
@@ -329,9 +332,12 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
             <div style="text-align: center; padding-top: 8px;">
                 <h2 style="margin: 0; background: linear-gradient(90deg, #667eea, #764ba2); 
                            -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                    SOC Seismograph
+                    TECTONIQ
                 </h2>
-                <p style="margin: 0; font-size: 0.85rem; color: #888;">Self-Organized Criticality Market Analysis</p>
+                <p style="margin: 0; font-size: 0.9rem; font-weight: 600; color: #555;">Move Beyond Buy & Hope</p>
+                <p style="margin: 0; font-size: 0.75rem; color: #888; line-height: 1.4; max-width: 500px; margin: 4px auto 0;">
+                    Market crashes aren't random—they are physics. TECTONIQ visualizes systemic stress levels so you can navigate volatility with open eyes.
+                </p>
             </div>
             """, unsafe_allow_html=True)
         
@@ -484,7 +490,7 @@ def render_education_landing(run_analysis_func: Callable) -> None:
     Args:
         run_analysis_func: Function to run analysis on ticker(s)
     """
-    st.markdown("### Welcome to the SOC Market Seismograph")
+    st.markdown("### Welcome to TECTONIQ")
     
     st.markdown("""
     <div style="background: rgba(102, 126, 234, 0.1); border-radius: 12px; padding: 1.5rem; margin: 1rem 0;">
