@@ -267,6 +267,7 @@ def get_scientific_heritage_css() -> str:
             background-color: #FFFFFF !important;
             border: 1px solid #D1C4E9 !important;
             border-radius: 2px !important;
+            margin-bottom: 1rem !important;
         }
         
         div[data-testid="stExpander"] summary {
@@ -274,11 +275,20 @@ def get_scientific_heritage_css() -> str:
             color: #2C3E50 !important;
             font-weight: 600 !important;
             padding: 12px !important;
-            line-height: 1.5 !important;
+            line-height: 1.8 !important;
+            min-height: 48px !important;
+            display: flex !important;
+            align-items: center !important;
         }
         
         div[data-testid="stExpander"] div[role="button"] {
-            line-height: 1.5 !important;
+            line-height: 1.8 !important;
+            min-height: 48px !important;
+        }
+        
+        div[data-testid="stExpander"] summary p {
+            margin: 0 !important;
+            line-height: 1.8 !important;
         }
         
         /* ALL BUTTONS - Cream background, charcoal border & text */
