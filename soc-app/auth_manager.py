@@ -28,16 +28,28 @@ from supabase import create_client, Client
 def get_supabase_client() -> Client:
     """
     Initialize and return Supabase client using secrets from Streamlit config.
+    If user is authenticated, restores their session to the client.
     
     Returns:
-        Configured Supabase client instance
+        Configured Supabase client instance (with auth session if logged in)
     
     Raises:
         KeyError: If SUPABASE_URL or SUPABASE_KEY not found in secrets
     """
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
-    return create_client(url, key)
+    client = create_client(url, key)
+    
+    # Restore authenticated session if exists
+    if 'supabase_session' in st.session_state:
+        try:
+            session = st.session_state['supabase_session']
+            # Set the session on the client
+            client.auth.set_session(session.access_token, session.refresh_token)
+        except Exception as e:
+            print(f"Warning: Could not restore session: {e}")
+    
+    return client
 
 
 # =============================================================================
@@ -69,7 +81,10 @@ def signup(email: str, password: str) -> Tuple[bool, Optional[str], Optional[Dic
             "password": password
         })
         
-        if response.user:
+        if response.user and response.session:
+            # Store the authenticated session in session_state
+            st.session_state['supabase_session'] = response.session
+            
             # Profile is automatically created by database trigger
             # Just return user data
             return True, None, {
@@ -127,7 +142,10 @@ def login(email: str, password: str) -> Tuple[bool, Optional[str], Optional[Dict
             "password": password
         })
         
-        if response.user:
+        if response.user and response.session:
+            # Store the authenticated session in session_state
+            st.session_state['supabase_session'] = response.session
+            
             # Fetch user profile to get tier
             profile = get_user_profile(response.user.id)
             
@@ -153,7 +171,7 @@ def logout() -> None:
     
     Note: Supabase tokens are stored client-side, so we just clear session state.
     """
-    keys_to_clear = ['user', 'tier', 'portfolio', 'authenticated']
+    keys_to_clear = ['user', 'tier', 'portfolio', 'authenticated', 'supabase_session']
     for key in keys_to_clear:
         if key in st.session_state:
             del st.session_state[key]
