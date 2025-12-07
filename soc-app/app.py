@@ -572,10 +572,15 @@ def main():
                         # Create table data
                         table_data = []
                         for result in portfolio_results:
+                            stress_score = result.get('stress_score', 0)
+                            # Convert stress_score to 0-100 scale for display
+                            stress_level = int(min(100, stress_score * 100))
+                            
                             table_data.append({
                                 "Ticker": result['symbol'],
                                 "Asset Name": result.get('name', result['symbol']),
                                 "Criticality": int(result.get('criticality_score', 0)),
+                                "Stress Level": stress_level,
                                 "Regime": result.get('signal', 'Unknown'),
                                 "_result": result  # Store full result for actions
                             })
@@ -600,7 +605,7 @@ def main():
                             
                             # Row container
                             with st.container():
-                                col1, col2, col3, col4, col5 = st.columns([1, 3, 1.5, 1, 1])
+                                col1, col2, col3, col4, col5, col6 = st.columns([1, 3, 1.5, 1.5, 1, 1])
                                 
                                 with col1:
                                     st.markdown(f"**{row['Ticker']}**")
@@ -612,6 +617,20 @@ def main():
                                     st.markdown(f"{regime_emoji} <span style='color: {crit_color}; font-weight: 600;'>Criticality: {crit}</span>", unsafe_allow_html=True)
                                 
                                 with col4:
+                                    stress = row['Stress Level']
+                                    # Color code stress level
+                                    if stress > 80:
+                                        stress_color = "#FF4040"
+                                    elif stress > 60:
+                                        stress_color = "#FF6600"
+                                    elif stress > 40:
+                                        stress_color = "#FFCC00"
+                                    else:
+                                        stress_color = "#00C864"
+                                    
+                                    st.markdown(f"<span style='color: {stress_color}; font-weight: 600;'>Stress: {stress}</span>", unsafe_allow_html=True)
+                                
+                                with col5:
                                     if st.button("→ Deep Dive", key=f"deepdive_{row['Ticker']}", use_container_width=True, type="primary"):
                                         # Load this asset
                                         st.session_state.current_ticker = row['Ticker']
@@ -621,7 +640,7 @@ def main():
                                         st.session_state.show_portfolio = False  # Close portfolio
                                         st.rerun()
                                 
-                                with col5:
+                                with col6:
                                     if st.button("🗑️", key=f"remove_{row['Ticker']}", help="Remove from portfolio", use_container_width=True):
                                         from auth_manager import remove_asset_from_portfolio
                                         success, error = remove_asset_from_portfolio(user_id, row['Ticker'])
