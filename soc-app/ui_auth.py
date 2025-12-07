@@ -364,9 +364,9 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
         col_logo, col_title, col_user = st.columns([1, 3, 2])
         
         with col_logo:
-            # TECTONIQ Logo
+            # TECTONIQ Logo (enlarged 2x)
             try:
-                st.image("assets/tectoniq_logo.png", width=80)
+                st.image("assets/tectoniq_logo.png", width=160)
             except:
                 # Fallback if logo not found
                 st.markdown("""
