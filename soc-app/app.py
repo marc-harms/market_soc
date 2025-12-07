@@ -568,6 +568,8 @@ def main():
                     with st.spinner("Loading portfolio data..."):
                         portfolio_analysis = []
                         fetcher = DataFetcher(cache_enabled=True)
+                        failed_tickers = []
+                        
                         for ticker in portfolio:
                             try:
                                 df = fetcher.fetch_data(ticker)
@@ -579,8 +581,15 @@ def main():
                                     phase['name'] = clean_name(info.get('name', ticker))
                                     phase['crash_warning'] = full_analysis.get('crash_warning', {})
                                     portfolio_analysis.append(phase)
-                            except:
-                                pass  # Skip failed tickers
+                                else:
+                                    failed_tickers.append(ticker)
+                            except Exception as e:
+                                failed_tickers.append(ticker)
+                                print(f"Error loading {ticker}: {str(e)}")  # Debug log
+                        
+                        # Show warning if some tickers failed
+                        if failed_tickers:
+                            st.warning(f"⚠️ Could not load data for: {', '.join(failed_tickers)}")
                     
                     if portfolio_analysis:
                         # Create table data
