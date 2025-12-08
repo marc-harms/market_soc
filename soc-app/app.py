@@ -893,13 +893,14 @@ def main():
                 st.rerun()
         
         with col_tab3:
-            st.button(
-                "🔑 Your portfolio",
-                key="btn_portfolio_add",
-                use_container_width=True,
-                disabled=True,
-                help="Premium feature coming soon"
-            )
+            if st.button(
+                "Add to Portfolio",
+                key="btn_portfolio_main",
+                use_container_width=True
+            ):
+                # Reuse the same behavior as Portfolio Simulation for now
+                st.session_state.analysis_mode = "simulation"
+                st.rerun()
         
         st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         
