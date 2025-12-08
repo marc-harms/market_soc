@@ -216,8 +216,7 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
     color = get_signal_color_func(signal)
     bg = get_signal_bg_func(signal)
     
-    # Active asset card is now displayed in main app before this panel
-    # Add to Portfolio button is also in main app (disabled as premium feature)
+    # Active asset card and any portfolio actions are handled in the main app layout
     
     # Explanation of Regime
     st.markdown("""

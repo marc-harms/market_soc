@@ -872,7 +872,7 @@ def main():
         results = st.session_state.scan_results
         
         # === ANALYSIS MODE TABS (all in one row) ===
-        col_spacer1, col_tab1, col_tab2, col_tab3, col_spacer2 = st.columns([0.5, 2, 2, 2, 0.5])
+        col_spacer1, col_tab1, col_tab2, col_spacer2 = st.columns([1, 2, 2, 1])
         
         with col_tab1:
             if st.button(
@@ -891,14 +891,6 @@ def main():
             ):
                 st.session_state.analysis_mode = "simulation"
                 st.rerun()
-        
-        with col_tab3:
-            st.button(
-                "🔑 Add to Portfolio",
-                key="btn_portfolio_main",
-                use_container_width=True,
-                help="Premium feature (coming soon)"
-            )
         
         st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         
