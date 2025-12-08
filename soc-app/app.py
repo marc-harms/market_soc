@@ -1194,7 +1194,7 @@ def main():
                     render_advanced_analytics(df, is_dark=is_dark)
                 else:
                     st.warning("No data available for this asset.")
-            else:
+        else:
             # Portfolio Simulation (unlimited for all users)
             st.markdown("### DCA Simulation")
             st.markdown("---")
