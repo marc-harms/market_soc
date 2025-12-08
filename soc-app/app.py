@@ -45,15 +45,20 @@ from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
 
 
 # =============================================================================
-# STATISTICAL REPORT & SIGNAL AUDIT (Tabular Report)
+# STATISTICAL REPORT & SIGNAL AUDIT (Event-Based Logic)
 # =============================================================================
 def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     """
-    Render statistical report with regime profile table and signal quality KPIs.
+    Render statistical report with regime profile and ground-truth crash detection.
+    
+    Uses event-based logic (not daily counts) for accurate statistics:
+    - Regime events from run-length encoding
+    - Ground truth crashes from drawdown analysis
+    - Signal detection performance (recall/precision)
     
     Layout:
-    - Column 1: Regime Profile Table (frequency, duration stats with colored emojis)
-    - Column 2: Signal Quality KPIs (lead time, capture rate, false alarms)
+    - Column 1: Regime Profile Table (min/avg/median/max durations)
+    - Column 2-4: Crash protection KPIs (true crashes, false alarms, lead time)
     
     Args:
         df: Price dataframe with Close or Adj Close column
@@ -126,78 +131,156 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_profile.index]
     regime_profile.index.name = "Regime"
     
-    # === CRASH FORENSICS FOR KPIs (Using Blocks, Not Daily Rows) ===
-    # Filter CRITICAL blocks that lasted at least 3 days (debouncing)
-    critical_blocks = blocks[(blocks['Regime'] == 'CRITICAL') & (blocks['Duration_Days'] >= 3)].copy()
+    # === GROUND TRUTH CRASH DETECTION ===
+    # Calculate rolling max and drawdown
+    df_local['Rolling_Max'] = price_series.rolling(window=30, min_periods=1).max()
+    df_local['Drawdown'] = ((price_series / df_local['Rolling_Max']) - 1) * 100
     
-    total_critical_signals = len(critical_blocks)
-    confirmed_crashes = []
+    # Identify periods where drawdown exceeds -10% (TRUE CRASHES)
+    df_local['In_Crash'] = df_local['Drawdown'] < -10
+    df_local['crash_block_id'] = (df_local['In_Crash'] != df_local['In_Crash'].shift(1)).cumsum()
+    
+    # Get distinct crash events
+    crash_blocks = df_local[df_local['In_Crash']].groupby('crash_block_id').agg({
+        'Drawdown': 'min',  # Max drawdown in this crash
+        'Regime': lambda x: x.mode()[0] if len(x.mode()) > 0 else 'STABLE'  # Most common regime during crash
+    })
+    crash_blocks['Start_Date'] = df_local[df_local['In_Crash']].groupby('crash_block_id').apply(lambda x: x.index[0])
+    crash_blocks['Peak_Date'] = df_local[df_local['In_Crash']].groupby('crash_block_id').apply(
+        lambda x: df_local.loc[x.index, 'Rolling_Max'].idxmax()
+    )
+    
+    total_true_crashes = len(crash_blocks)
+    
+    # === DETECTION EVALUATION (Recall) ===
+    detected_crashes = 0
+    missed_crashes = 0
     lead_times = []
     
-    # Check each CRITICAL block for true crash (>10% drawdown in next 30 days)
-    for idx, block in critical_blocks.iterrows():
-        start_date = block['Start_Date']
-        start_idx = df_local.index.get_loc(start_date)
+    for idx, crash in crash_blocks.iterrows():
+        peak_date = crash['Peak_Date']
+        crash_start = crash['Start_Date']
+        peak_idx = df_local.index.get_loc(peak_date)
         
-        # Look ahead 30 days from block start
-        end_idx = min(len(price_series) - 1, start_idx + 30)
+        # Look 10 days before peak for warning signals
+        lookback_idx = max(0, peak_idx - 10)
+        warning_window = df_local.iloc[lookback_idx:peak_idx + 1]
         
-        if end_idx > start_idx:
-            trigger_price = price_series.iloc[start_idx]
-            
-            # Calculate max drawdown in next 30 days
-            future_window = price_series.iloc[start_idx:end_idx + 1]
-            if trigger_price > 0:
-                drawdown = ((future_window.min() / trigger_price) - 1) * 100
-                
-                if drawdown < -10:  # True crash: >10% drawdown
-                    confirmed_crashes.append(start_date)
-                    
-                    # Calculate lead time: days from block start to lowest price
-                    lowest_idx = future_window.idxmin()
-                    lowest_pos = df_local.index.get_loc(lowest_idx)
-                    lead_time_days = lowest_pos - start_idx
-                    lead_times.append(max(0, lead_time_days))
+        # Check if we had CRITICAL or HIGH_ENERGY in warning window
+        had_warning = any(warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY']))
+        
+        if had_warning:
+            detected_crashes += 1
+            # Calculate lead time: first warning day to peak
+            first_warning_idx = warning_window[warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])].index[0]
+            lead_days = (peak_date - first_warning_idx).days
+            lead_times.append(max(0, lead_days))
+        else:
+            missed_crashes += 1
     
-    total_crashes_detected = len(confirmed_crashes)
+    # === FALSE ALARM EVALUATION (Precision) ===
+    # Get all warning signal blocks (CRITICAL or HIGH_ENERGY lasting >= 3 days)
+    warning_blocks = blocks[
+        (blocks['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])) &
+        (blocks['Duration_Days'] >= 3)
+    ].copy()
+    
+    total_signal_events = len(warning_blocks)
+    justified_signals = 0
+    false_alarms = 0
+    
+    for idx, signal in warning_blocks.iterrows():
+        signal_start = signal['Start_Date']
+        signal_start_idx = df_local.index.get_loc(signal_start)
+        
+        # Look ahead 30 days for crash
+        lookahead_idx = min(len(df_local) - 1, signal_start_idx + 30)
+        future_window = df_local.iloc[signal_start_idx:lookahead_idx + 1]
+        
+        # Check if drawdown exceeded -10% in this window
+        max_dd_in_window = future_window['Drawdown'].min()
+        
+        if max_dd_in_window < -10:
+            justified_signals += 1
+        else:
+            false_alarms += 1
+    
+    # Calculate KPIs
     avg_lead_time = sum(lead_times) / len(lead_times) if lead_times else 0
-    capture_rate = (len(confirmed_crashes) / total_critical_signals * 100) if total_critical_signals > 0 else 0
-    false_alarm_rate = ((total_critical_signals - len(confirmed_crashes)) / total_critical_signals * 100) if total_critical_signals > 0 else 0
+    detection_rate = (detected_crashes / total_true_crashes * 100) if total_true_crashes > 0 else 0
+    false_alarm_rate = (false_alarms / total_signal_events * 100) if total_signal_events > 0 else 0
     
     with st.expander("📚 Statistical Report & Signal Audit", expanded=False):
-        col_regime, col_signal = st.columns([1.5, 1])
+        # 4-column layout: Regime Table + 3 KPI columns
+        col_regime, col_crashes, col_quality, col_timing = st.columns([2, 1, 1, 1])
         
-        # === LEFT COLUMN: REGIME PROFILE TABLE ===
+        # === COLUMN 1: REGIME PROFILE TABLE ===
         with col_regime:
             st.markdown("### 📊 Regime Profile")
-            st.caption("*Statistics calculated from uninterrupted regime phases (blocks)*")
-            st.dataframe(regime_profile, use_container_width=True, height=280)
+            st.caption("*Event-based statistics (uninterrupted phases)*")
+            st.dataframe(regime_profile, use_container_width=True, height=320)
         
-        # === RIGHT COLUMN: SIGNAL QUALITY KPIs ===
-        with col_signal:
-            st.markdown("### 🎯 Signal Quality KPIs")
-            st.caption("*Crash detection performance metrics (Last 5Y)*")
+        # === COLUMN 2: CRASH PROTECTION (The Value) ===
+        with col_crashes:
+            st.markdown("### 🛡️ Crash Protection")
+            st.caption("*Ground truth detection*")
             
             st.metric(
-                "Ø Lead Time",
-                f"{avg_lead_time:.1f} Days",
-                delta="To Lowest Point" if avg_lead_time > 0 else "No Lead Time",
-                delta_color="normal" if avg_lead_time > 0 else "off"
+                "True Crashes (5Y)",
+                f"{total_true_crashes}",
+                delta=f"{detected_crashes} detected, {missed_crashes} missed",
+                delta_color="normal" if detected_crashes > missed_crashes else "inverse"
             )
             
             st.metric(
-                "Crash Capture Rate",
-                f"{capture_rate:.0f}%",
-                delta=f"{len(confirmed_crashes)}/{total_critical_signals} detected",
+                "Detection Rate",
+                f"{detection_rate:.0f}%",
+                delta=f"{detected_crashes}/{total_true_crashes}",
                 delta_color="normal"
             )
+        
+        # === COLUMN 3: SIGNAL QUALITY (The Cost) ===
+        with col_quality:
+            st.markdown("### 🎯 Signal Quality")
+            st.caption("*Precision metrics*")
             
             st.metric(
                 "False Alarm Rate",
                 f"{false_alarm_rate:.0f}%",
-                delta=f"{total_critical_signals - len(confirmed_crashes)}/{total_critical_signals} false signals",
+                delta=f"{false_alarms}/{total_signal_events} false",
                 delta_color="inverse"
             )
+            
+            st.metric(
+                "Justified Alerts",
+                f"{justified_signals}/{total_signal_events}",
+                delta=f"{(justified_signals/total_signal_events*100):.0f}% accurate" if total_signal_events > 0 else "0%",
+                delta_color="normal"
+            )
+        
+        # === COLUMN 4: TIMING ===
+        with col_timing:
+            st.markdown("### ⏱️ Timing")
+            st.caption("*Lead time analysis*")
+            
+            st.metric(
+                "Ø Lead Time",
+                f"{avg_lead_time:.1f} Days",
+                delta="Before Peak" if avg_lead_time > 0 else "No Lead",
+                delta_color="normal" if avg_lead_time > 0 else "off"
+            )
+            
+            if lead_times:
+                min_lead = min(lead_times)
+                max_lead = max(lead_times)
+                st.metric(
+                    "Lead Time Range",
+                    f"{min_lead}-{max_lead} Days",
+                    delta=f"Based on {len(lead_times)} events",
+                    delta_color="off"
+                )
+            else:
+                st.metric("Lead Time Range", "N/A", delta="No data", delta_color="off")
 
 
 # =============================================================================
@@ -235,9 +318,9 @@ TICKER_NAME_FIXES = {
     "DEUTSCHE TELEKOM           N": "Deutsche Telekom", "Airbus                     A": "Airbus",
     "BAYERISCHE MOTOREN WERKE   S": "BMW", "VOLKSWAGEN                 V": "Volkswagen",
     "BASF                       N": "BASF", "MUENCHENER RUECKVERS.-GES. N": "Munich Re",
-    "SAP                       ": "SAP"
-}
-
+                "SAP                       ": "SAP"
+            }
+            
 SPECIAL_TICKER_NAMES = {"^GDAXI": "DAX 40 Index"}
 
 # =============================================================================
@@ -1162,7 +1245,7 @@ def main():
                     figs = analyzer.get_plotly_figures(dark_mode=is_dark)
                     st.plotly_chart(figs['chart3'], width="stretch")
                     
-                    # Advanced analytics (visual-first)
+                    # Advanced analytics (event-based)
                     render_advanced_analytics(df, is_dark=is_dark)
                 else:
                     st.warning("No data available for this asset.")
