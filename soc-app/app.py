@@ -285,6 +285,135 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
                 st.markdown("**📈 Post-Regime Outcome (The Aftermath)**")
                 st.caption("*Price changes AFTER entering each regime*")
                 st.dataframe(post_table, use_container_width=True)
+        
+        # === CRASH FORENSICS ===
+        st.markdown("---")
+        st.markdown("### 📉 Forensic Analysis: Anatomy of a Crash")
+        st.caption("*Analyze price movements before and after entering CRITICAL regime*")
+        
+        # Identify crash events (regime switched TO CRITICAL)
+        df_local['Prev_Regime'] = df_local['Regime'].shift(1)
+        df_local['Is_Crash'] = (df_local['Regime'] == 'CRITICAL') & (df_local['Prev_Regime'] != 'CRITICAL')
+        crash_events = df_local[df_local['Is_Crash']].index.tolist()
+        
+        if len(crash_events) < 2:
+            st.info("Insufficient CRITICAL regime events for crash forensics (need at least 2).")
+        else:
+            # Extract lead-up and aftermath for each crash
+            crash_data = []
+            lead_up_regimes = {-10: [], -8: [], -5: [], -3: [], -1: []}
+            
+            for crash_date in crash_events:
+                crash_idx = df_local.index.get_loc(crash_date)
+                
+                # Extract 10 days before and 10 days after
+                start_idx = max(0, crash_idx - 10)
+                end_idx = min(len(df_local) - 1, crash_idx + 10)
+                
+                if start_idx < crash_idx:
+                    # Get price at start (for normalization)
+                    start_price = price_series.iloc[start_idx]
+                    
+                    if start_price != 0:
+                        # Extract prices and regimes for this crash event
+                        for i in range(start_idx, end_idx + 1):
+                            days_from_crash = i - crash_idx
+                            price_norm = ((price_series.iloc[i] / start_price) - 1) * 100
+                            regime = df_local['Regime'].iloc[i]
+                            
+                            crash_data.append({
+                                'Days_From_Crash': days_from_crash,
+                                'Price_Change_Pct': price_norm,
+                                'Regime': regime
+                            })
+                            
+                            # Collect regime at specific lead-up points
+                            if days_from_crash in lead_up_regimes:
+                                lead_up_regimes[days_from_crash].append(regime)
+            
+            if crash_data:
+                crash_df = pd.DataFrame(crash_data)
+                
+                # Chart A: Warning Countdown (Stacked Bar)
+                lead_up_points = [-10, -8, -5, -3, -1]
+                regime_dist = []
+                
+                for day in lead_up_points:
+                    regimes_at_day = lead_up_regimes[day]
+                    total = len(regimes_at_day) if regimes_at_day else 1
+                    dist = {}
+                    for reg in regimes_order:
+                        count = regimes_at_day.count(reg)
+                        dist[reg] = (count / total) * 100
+                    regime_dist.append(dist)
+                
+                fig_warning = go.Figure()
+                for reg in regimes_order:
+                    values = [regime_dist[i][reg] for i in range(len(lead_up_points))]
+                    fig_warning.add_trace(go.Bar(
+                        x=[f"{abs(d)}d before" for d in lead_up_points],
+                        y=values,
+                        name=reg,
+                        marker_color=colors.get(reg, '#888'),
+                        hovertemplate=f"{reg}: %{{y:.1f}}%<extra></extra>"
+                    ))
+                
+                fig_warning.update_layout(
+                    title="The Warning Countdown: Regime Distribution Before Crash",
+                    barmode='stack',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(family="Merriweather, serif", color=text_color, size=11),
+                    margin=dict(l=40, r=20, t=50, b=40),
+                    height=350,
+                    yaxis_title="% of Occurrences",
+                    xaxis_title="Time Before Crash"
+                )
+                fig_warning.update_yaxes(gridcolor='#E6E1D3', gridwidth=0.5)
+                
+                # Chart B: Average Crash Trajectory (Line)
+                avg_trajectory = crash_df.groupby('Days_From_Crash')['Price_Change_Pct'].mean().reset_index()
+                avg_trajectory = avg_trajectory.sort_values('Days_From_Crash')
+                
+                fig_trajectory = go.Figure()
+                fig_trajectory.add_trace(go.Scatter(
+                    x=avg_trajectory['Days_From_Crash'],
+                    y=avg_trajectory['Price_Change_Pct'],
+                    mode='lines+markers',
+                    name='Average Price Path',
+                    line=dict(color='#2C3E50', width=2),
+                    marker=dict(size=6, color='#2C3E50')
+                ))
+                
+                # Add vertical line at x=0 (signal trigger)
+                fig_trajectory.add_vline(
+                    x=0,
+                    line=dict(color='#C0392B', width=2, dash='dash'),
+                    annotation_text="Signal Trigger",
+                    annotation_position="top"
+                )
+                
+                fig_trajectory.update_layout(
+                    title="Average Crash Trajectory: Price Path Around Signal",
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    font=dict(family="Merriweather, serif", color=text_color, size=11),
+                    margin=dict(l=40, r=20, t=50, b=40),
+                    height=350,
+                    yaxis_title="Price Change (%)",
+                    xaxis_title="Days Relative to Crash Signal (0 = Trigger)"
+                )
+                fig_trajectory.update_xaxes(gridcolor='#E6E1D3', gridwidth=0.5, zeroline=True, zerolinecolor='#333', zerolinewidth=1)
+                fig_trajectory.update_yaxes(gridcolor='#E6E1D3', gridwidth=0.5, zeroline=True, zerolinecolor='#333', zerolinewidth=1)
+                
+                # Display charts
+                col_warn, col_traj = st.columns(2)
+                with col_warn:
+                    st.plotly_chart(fig_warning, use_container_width=True)
+                with col_traj:
+                    st.plotly_chart(fig_trajectory, use_container_width=True)
+            else:
+                st.info("No crash event data available for forensic analysis.")
 
 
 # =============================================================================
