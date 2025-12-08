@@ -294,16 +294,41 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         # Identify crash events (regime switched TO CRITICAL)
         df_local['Prev_Regime'] = df_local['Regime'].shift(1)
         df_local['Is_Crash'] = (df_local['Regime'] == 'CRITICAL') & (df_local['Prev_Regime'] != 'CRITICAL')
-        crash_events = df_local[df_local['Is_Crash']].index.tolist()
+        all_crash_events = df_local[df_local['Is_Crash']].index.tolist()
         
-        if len(crash_events) < 2:
-            st.info("Insufficient CRITICAL regime events for crash forensics (need at least 2).")
+        # FILTER FOR CONFIRMED CRASHES: price dropped > 3% within 10 days
+        confirmed_crash_events = []
+        for crash_date in all_crash_events:
+            crash_idx = df_local.index.get_loc(crash_date)
+            future_idx = min(len(price_series) - 1, crash_idx + 10)
+            
+            if future_idx > crash_idx:
+                trigger_price = price_series.iloc[crash_idx]
+                future_price = price_series.iloc[future_idx]
+                
+                if trigger_price > 0 and future_price < trigger_price * 0.97:
+                    # Confirmed crash: price dropped > 3%
+                    confirmed_crash_events.append(crash_date)
+        
+        total_critical_signals = len(all_crash_events)
+        confirmed_crashes = len(confirmed_crash_events)
+        
+        if confirmed_crashes < 2:
+            st.info(f"Insufficient confirmed crash events for forensics (found {confirmed_crashes} out of {total_critical_signals} CRITICAL signals). Need at least 2 confirmed crashes.")
         else:
-            # Extract lead-up and aftermath for each crash
+            # Display metric
+            st.markdown(f"""
+            <div style="background: rgba(192, 57, 43, 0.1); border-left: 3px solid #C0392B; padding: 8px 12px; margin: 8px 0; border-radius: 4px;">
+                <strong>Analysis based on {confirmed_crashes} confirmed crash events</strong> (out of {total_critical_signals} total CRITICAL signals).
+                <br><span style="font-size: 0.85rem; opacity: 0.9;">Confirmed = Price dropped >3% within 10 days after signal.</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Extract lead-up and aftermath for each CONFIRMED crash
             crash_data = []
             lead_up_regimes = {-10: [], -8: [], -5: [], -3: [], -1: []}
             
-            for crash_date in crash_events:
+            for crash_date in confirmed_crash_events:
                 crash_idx = df_local.index.get_loc(crash_date)
                 
                 # Extract 10 days before and 10 days after
