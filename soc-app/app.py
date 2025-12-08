@@ -153,17 +153,23 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     # 2. Filter: Only count drawdowns deeper than -15% as "True Crashes"
     crash_days = drawdown < -0.15
     # Group consecutive crash days into single events
-    crash_block_id = (crash_days != crash_days.shift(1)).cumsum()
-    true_crashes = df_local[crash_days].groupby(crash_block_id).first() # Get start date of each crash
+    df_local['crash_block_id'] = (crash_days != crash_days.shift(1)).cumsum()
     
-    total_true_crashes = len(true_crashes)
+    # Get crash event start dates
+    crash_events_df = df_local[crash_days].groupby('crash_block_id').agg({
+        'Regime': 'first'
+    })
+    crash_events_df['Start_Date'] = df_local[crash_days].groupby('crash_block_id').apply(lambda x: x.index[0])
+    
+    total_true_crashes = len(crash_events_df)
+    true_crash_dates = crash_events_df['Start_Date'].tolist()
     
     # === DETECTION EVALUATION (Recall) ===
     detected_crashes = 0
     missed_crashes = 0
     lead_times = []
     
-    for crash_date in true_crashes.index:
+    for crash_date in true_crash_dates:
         try:
             crash_idx = df_local.index.get_loc(crash_date)
         except:
@@ -204,7 +210,7 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         
         # Check if any crash EVENT started within 30 days of signal
         crash_found = False
-        for crash_date in true_crashes.index:
+        for crash_date in true_crash_dates:
             if signal_start <= crash_date <= lookahead_date:
                 crash_found = True
                 break
