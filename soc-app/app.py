@@ -111,13 +111,16 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     freq_share = (regime_days / total_days * 100).replace([float('inf'), float('nan')], 0)
     
     # Calculate duration statistics from BLOCKS (not daily rows)
-    dur_stats = blocks.groupby('Regime')['Duration_Days'].agg(['mean', 'median']).reindex(regimes_order).fillna(0)
+    # Each block = one uninterrupted regime phase
+    dur_stats = blocks.groupby('Regime')['Duration_Days'].agg(['min', 'mean', 'median', 'max']).reindex(regimes_order).fillna(0)
     
     # Build Regime Profile Table with colored emojis
     regime_profile = pd.DataFrame({
         'Frequency (%)': freq_share.round(1),
-        'Avg Duration (Days)': dur_stats['mean'].round(0).astype(int),
-        'Median Duration (Days)': dur_stats['median'].round(0).astype(int)
+        'Min (Days)': dur_stats['min'].round(0).astype(int),
+        'Avg (Days)': dur_stats['mean'].round(1),
+        'Median (Days)': dur_stats['median'].round(0).astype(int),
+        'Max (Days)': dur_stats['max'].round(0).astype(int)
     })
     # Prepend colored circle emojis to index
     regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_profile.index]
@@ -167,8 +170,8 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         # === LEFT COLUMN: REGIME PROFILE TABLE ===
         with col_regime:
             st.markdown("### 📊 Regime Profile")
-            st.caption("*Historical frequency and duration statistics*")
-            st.dataframe(regime_profile, use_container_width=True, height=250)
+            st.caption("*Statistics calculated from uninterrupted regime phases (blocks)*")
+            st.dataframe(regime_profile, use_container_width=True, height=280)
         
         # === RIGHT COLUMN: SIGNAL QUALITY KPIs ===
         with col_signal:
