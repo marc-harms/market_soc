@@ -449,41 +449,7 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
                 )
             )
         
-        # === ROW 3: ACTIVE ASSET DISPLAY (if selected) ===
-        if 'scan_results' in st.session_state and st.session_state.scan_results:
-            st.markdown("---")
-            results = st.session_state.scan_results
-            if results:
-                selected = results[st.session_state.selected_asset]
-                regime_emoji = selected['signal'].split()[0] if selected.get('signal') else "⚪"
-                score = int(selected.get('criticality_score', 0))
-                signal_text = selected.get('signal', 'Unknown')
-                
-                # Color code based on score
-                if score > 80:
-                    badge_color = "#FF4040"
-                elif score > 60:
-                    badge_color = "#FF6600"
-                else:
-                    badge_color = "#00C864"
-                
-                # Centered active asset badge
-                col_left, col_center, col_right = st.columns([1, 2, 1])
-                with col_center:
-                    badge_html = f"""
-                    <div style="text-align: center; padding: 1rem; background: rgba(102, 126, 234, 0.08); 
-                                border-radius: 12px; border: 2px solid #667eea;">
-                        <div style="font-size: 0.9rem; color: #888; margin-bottom: 8px;">ACTIVE ASSET</div>
-                        <div style="font-size: 2rem; font-weight: 700; margin-bottom: 8px;">
-                            {selected["symbol"]} <span style="font-size: 2.5rem;">{regime_emoji}</span>
-                        </div>
-                        <div style="font-size: 1rem; color: #888; margin-bottom: 4px;">{signal_text}</div>
-                        <div style="font-size: 1.8rem; font-weight: 700; color: {badge_color};">
-                            Criticality: {score}
-                        </div>
-                    </div>
-                    """
-                    st.markdown(badge_html, unsafe_allow_html=True)
+        # Active asset card moved to main content area below buttons (removed duplicate)
 
 
 def handle_search(query: str, validate_func: Callable, search_func: Callable, analyze_func: Callable) -> None:

@@ -893,12 +893,14 @@ def main():
                 st.session_state.analysis_mode = "simulation"
                 st.rerun()
         
+        st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
+        
         # Add to Portfolio button (disabled with lock icon)
         col_left, col_portfolio_btn, col_right = st.columns([1, 2, 1])
         with col_portfolio_btn:
             st.button("🔒 Add to Portfolio", key="add_portfolio_main", use_container_width=True, disabled=True, help="Premium feature")
         
-        st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height: 0.8rem;'></div>", unsafe_allow_html=True)
         
         # === ACTIVE ASSET CARD ===
         selected = results[st.session_state.selected_asset]
