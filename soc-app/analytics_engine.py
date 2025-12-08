@@ -47,12 +47,35 @@ class MarketForensics:
         ob das Signal gewarnt hat.
         """
         work_df = df.copy()
+        
+        # Pick price column robustly
+        if 'Close' in work_df.columns:
+            price_col = 'Close'
+        elif 'close' in work_df.columns:
+            price_col = 'close'
+        elif 'Adj Close' in work_df.columns:
+            price_col = 'Adj Close'
+        else:
+            # Return empty metrics if no price column
+            return {
+                'total_crashes_5y': 0,
+                'avg_crash_depth': 0,
+                'detected_count': 0,
+                'detection_rate': 0,
+                'false_alarm_rate': 0,
+                'avg_lead_time_days': 0,
+                'crash_list_preview': [],
+                'total_signals': 0,
+                'justified_signals': 0,
+                'false_alarms': 0,
+                'lead_times': []
+            }
 
         # --- SCHRITT 1: DEFINITION "ECHTER CRASH" (GROUND TRUTH) ---
         
         # Drawdown vom 90-Tage Hoch (mittelfristiger Trend)
-        rolling_peak = work_df['Close'].rolling(window=90, min_periods=1).max()
-        work_df['drawdown'] = (work_df['Close'] - rolling_peak) / rolling_peak
+        rolling_peak = work_df[price_col].rolling(window=90, min_periods=1).max()
+        work_df['drawdown'] = (work_df[price_col] - rolling_peak) / rolling_peak
 
         # Harte Definition: Crash ist nur, wenn Drawdown < -20%
         # (Für Tech/Krypto evtl auf -25% anpassen, für SAP reichen -20%)
