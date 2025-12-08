@@ -556,10 +556,10 @@ def render_education_landing(run_analysis_func: Callable) -> None:
         except:
             news_content = "Welcome to TECTONIQ! Stay tuned for updates."
         
-        # Single unified news box with header and content
-        col_main, col_close = st.columns([20, 1])
+        # Single unified news box with header, content, and close button in one row
+        col_box, col_close = st.columns([95, 5])
         
-        with col_main:
+        with col_box:
             # Unified box with title and content
             st.markdown(f"""
             <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 4px; padding: 1rem 1.2rem; margin: 1rem 0;">
@@ -569,8 +569,9 @@ def render_education_landing(run_analysis_func: Callable) -> None:
             """, unsafe_allow_html=True)
         
         with col_close:
-            st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
-            if st.button("✕", key="close_news_box", help="Close this box", use_container_width=True):
+            # Close button aligned with top of box
+            st.markdown("<div style='height: 1.2rem;'></div>", unsafe_allow_html=True)
+            if st.button("✕", key="close_news_box", help="Dismiss", use_container_width=True):
                 st.session_state.show_news_box = False
                 st.rerun()
     
