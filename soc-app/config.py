@@ -322,12 +322,10 @@ def get_scientific_heritage_css() -> str:
             padding: 16px 12px !important;
             line-height: 1.8 !important;
             min-height: 56px !important;
-            display: flex !important;
-            align-items: center !important;
+            display: block !important;
             position: relative !important;
             z-index: 2 !important;
             background: #FFFFFF !important;
-            overflow: hidden !important;
         }
         
         div[data-testid="stExpander"] div[role="button"] {
@@ -340,35 +338,22 @@ def get_scientific_heritage_css() -> str:
             margin: 0 !important;
             padding: 0 !important;
             line-height: 1.8 !important;
-            position: relative !important;
-            z-index: 3 !important;
+            display: inline !important;
         }
         
-        /* Nuclear option: Hide ALL children of expander summary except the text */
-        div[data-testid="stExpander"] summary > *:not(p) {
-            display: none !important;
-            visibility: hidden !important;
-            width: 0 !important;
-            height: 0 !important;
-        }
-        
-        /* Hide keyboard shortcut hints that overlap */
+        /* Hide keyboard shortcut badges but keep text visible */
         div[data-testid="stExpander"] summary::before,
         div[data-testid="stExpander"] summary::after {
             display: none !important;
             content: none !important;
         }
         
-        /* Hide any tooltips, shortcuts, and badges near expanders */
+        /* Target keyboard shortcut elements specifically */
         div[data-testid="stExpander"] [data-testid="stTooltipHoverTarget"],
         div[data-testid="stExpander"] .stTooltipIcon,
         div[data-testid="stExpander"] [data-testid="stTooltipIcon"],
-        div[data-testid="stExpander"] [title*="keyboard"],
-        div[data-testid="stExpander"] [title*="Keyboard"],
-        div[data-testid="stExpander"] [aria-label*="keyboard"],
-        div[data-testid="stExpander"] button[title],
-        div[data-testid="stExpander"] summary button,
-        div[data-testid="stExpander"] summary [role="button"]:not(summary) {
+        div[data-testid="stExpander"] summary button[title*="keyboard"],
+        div[data-testid="stExpander"] summary [aria-label*="keyboard"] {
             display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
