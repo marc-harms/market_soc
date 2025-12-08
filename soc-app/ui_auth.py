@@ -413,9 +413,8 @@ def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_f
             # Portfolio & Logout buttons (no expander - always visible)
             col_portfolio, col_logout = st.columns(2)
             with col_portfolio:
-                if st.button("📁 Portfolio", key="header_portfolio_btn", use_container_width=True):
-                    st.session_state.show_portfolio = not st.session_state.get('show_portfolio', False)
-                    st.rerun()
+                # Disabled portfolio button with premium key icon
+                st.button("🔑 Your portfolio", key="header_portfolio_btn", use_container_width=True, disabled=True)
             with col_logout:
                 if st.button("Logout", key="header_logout_btn", use_container_width=True):
                     logout()
@@ -541,20 +540,39 @@ def render_education_landing(run_analysis_func: Callable) -> None:
     """
     st.markdown("### Welcome to TECTONIQ")
     
-    st.markdown("""
-    <div style="background: rgba(102, 126, 234, 0.1); border-radius: 12px; padding: 1.5rem; margin: 1rem 0;">
-        <h4>🔬 How It Works</h4>
-        <p style="font-size: 0.95rem; line-height: 1.6;">
-            Self-Organized Criticality (SOC) is a physics concept applied to financial markets. 
-            This app analyzes volatility patterns and trend deviations to classify assets into 
-            <b>5 regime states</b> (Dormant → Stable → Active → High Energy → Critical).
-        </p>
-        <p style="font-size: 0.95rem; line-height: 1.6;">
-            The <b>Criticality Score (0-100)</b> indicates instability levels. Higher scores 
-            suggest increased volatility and potential instability.
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    # News & Updates box (closeable)
+    if 'show_news_box' not in st.session_state:
+        st.session_state.show_news_box = True
+    
+    if st.session_state.show_news_box:
+        # Read news from file
+        try:
+            with open("news.txt", "r") as f:
+                news_content = f.read()
+        except:
+            news_content = "Welcome to TECTONIQ! Stay tuned for updates."
+        
+        col_header, col_close = st.columns([10, 1])
+        with col_header:
+            st.markdown("""
+            <div style="background: rgba(192, 57, 43, 0.1); border-left: 4px solid #C0392B; border-radius: 4px; padding: 1.5rem; margin: 1rem 0;">
+                <h4 style="margin: 0 0 12px 0; color: #C0392B;">🚨 News & Updates</h4>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col_close:
+            if st.button("✕", key="close_news_box", help="Close"):
+                st.session_state.show_news_box = False
+                st.rerun()
+        
+        # News content
+        st.markdown(f"""
+        <div style="background: rgba(192, 57, 43, 0.05); border-radius: 4px; padding: 1rem; margin: -1rem 0 1rem 0;">
+            <div style="font-size: 0.9rem; line-height: 1.7; white-space: pre-wrap;">{news_content}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
     
     st.markdown("### 🚀 Quick Start")
     st.markdown("""
@@ -565,35 +583,4 @@ def render_education_landing(run_analysis_func: Callable) -> None:
         4. Switch assets instantly using the search bar
     </div>
     """, unsafe_allow_html=True)
-    
-    st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
-    
-    # Quick add popular assets
-    st.markdown("### 📊 Popular Assets")
-    
-    col1, col2, col3, col4 = st.columns(4)
-    
-    popular_tickers = [
-        ("AAPL", "Apple"),
-        ("NVDA", "NVIDIA"),
-        ("BTC-USD", "Bitcoin"),
-        ("^GSPC", "S&P 500")
-    ]
-    
-    for i, (ticker, name) in enumerate(popular_tickers):
-        with [col1, col2, col3, col4][i]:
-            if st.button(f"{ticker}\n{name}", key=f"quick_{ticker}", use_container_width=True):
-                with st.spinner(f"Analyzing {name}..."):
-                    try:
-                        results = run_analysis_func([ticker])
-                        if results and len(results) > 0:
-                            st.session_state.current_ticker = ticker
-                            st.session_state.scan_results = results
-                            st.session_state.selected_asset = 0
-                            st.session_state.analysis_mode = "deep_dive"
-                            st.rerun()
-                        else:
-                            st.error(f"Could not analyze {ticker}")
-                    except Exception as e:
-                        st.error(f"Error analyzing {ticker}: {str(e)}")
 
