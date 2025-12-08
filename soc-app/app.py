@@ -1094,8 +1094,6 @@ def main():
                 else:
                     st.info("📌 No assets yet. Search for a ticker to get started.")
         
-        st.markdown("---")
-    
     # === TICKER SUGGESTIONS (if user searched by company name) ===
     if 'ticker_suggestions' in st.session_state and st.session_state.ticker_suggestions:
         # Centered info box
