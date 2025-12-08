@@ -545,32 +545,39 @@ def render_education_landing(run_analysis_func: Callable) -> None:
         st.session_state.show_news_box = True
     
     if st.session_state.show_news_box:
-        # Read news from file
+        # Read news from file and clean up spacing
         try:
             with open("news.txt", "r") as f:
                 news_content = f.read()
+            # Remove excessive blank lines (more than one consecutive blank line)
+            import re
+            news_content = re.sub(r'\n\s*\n\s*\n+', '\n\n', news_content)
+            news_content = news_content.strip()
         except:
             news_content = "Welcome to TECTONIQ! Stay tuned for updates."
         
-        col_header, col_close = st.columns([10, 1])
-        with col_header:
-            st.markdown("""
-            <div style="background: rgba(192, 57, 43, 0.1); border-left: 4px solid #C0392B; border-radius: 4px; padding: 1.5rem; margin: 1rem 0;">
-                <h4 style="margin: 0 0 12px 0; color: #C0392B;">🚨 News & Updates</h4>
+        # News box with header and close button
+        st.markdown("""
+        <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 4px; padding: 1rem; margin: 1rem 0; position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                <h4 style="margin: 0; color: #667eea; font-size: 1.1rem;">🚨 News & Updates</h4>
             </div>
-            """, unsafe_allow_html=True)
+        </div>
+        """, unsafe_allow_html=True)
         
+        col_content, col_close = st.columns([20, 1])
         with col_close:
-            if st.button("✕", key="close_news_box", help="Close"):
+            if st.button("✕", key="close_news_box", help="Close", use_container_width=True):
                 st.session_state.show_news_box = False
                 st.rerun()
         
-        # News content
-        st.markdown(f"""
-        <div style="background: rgba(192, 57, 43, 0.05); border-radius: 4px; padding: 1rem; margin: -1rem 0 1rem 0;">
-            <div style="font-size: 0.9rem; line-height: 1.7; white-space: pre-wrap;">{news_content}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        with col_content:
+            # News content with tight spacing
+            st.markdown(f"""
+            <div style="background: rgba(102, 126, 234, 0.08); border-radius: 4px; padding: 0.8rem 1rem; margin: -0.5rem 0 1rem 0; line-height: 1.4;">
+                <div style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap;">{news_content}</div>
+            </div>
+            """, unsafe_allow_html=True)
     
     st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
     
