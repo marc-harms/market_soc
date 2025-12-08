@@ -197,6 +197,94 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
             # Duration Table
             st.markdown("**Duration Statistics:**")
             st.dataframe(dur_stats, use_container_width=True)
+        
+        # === EVENT STUDY ANALYSIS ===
+        st.markdown("---")
+        st.markdown("### 📉 Event Study: Price Behavior Around Regime Changes")
+        st.caption("*Analyze price movements before and after regime transitions*")
+        
+        # Identify regime change trigger events
+        df_local['Prev_Regime'] = df_local['Regime'].shift(1)
+        df_local['Regime_Changed'] = (df_local['Regime'] != df_local['Prev_Regime'])
+        trigger_events = df_local[df_local['Regime_Changed']].copy()
+        
+        if len(trigger_events) < 2:
+            st.info("Insufficient regime changes for event study analysis.")
+        else:
+            # Calculate pre/post windows for each trigger event
+            pre_post_data = []
+            
+            for idx, row in trigger_events.iterrows():
+                target_regime = row['Regime']
+                trigger_idx = df_local.index.get_loc(idx)
+                
+                # Calculate percentage changes for pre windows
+                pre_windows = {}
+                for window in [30, 20, 10, 5, 1]:
+                    start_idx = max(0, trigger_idx - window)
+                    if start_idx < trigger_idx:
+                        start_price = price_series.iloc[start_idx]
+                        end_price = price_series.iloc[trigger_idx]
+                        if start_price != 0:
+                            pre_windows[f'Prior_{window}d'] = ((end_price / start_price) - 1) * 100
+                        else:
+                            pre_windows[f'Prior_{window}d'] = 0
+                    else:
+                        pre_windows[f'Prior_{window}d'] = 0
+                
+                # Calculate percentage changes for post windows
+                post_windows = {}
+                for window in [1, 5, 10, 20, 30]:
+                    end_idx = min(len(price_series) - 1, trigger_idx + window)
+                    if end_idx > trigger_idx:
+                        start_price = price_series.iloc[trigger_idx]
+                        end_price = price_series.iloc[end_idx]
+                        if start_price != 0:
+                            post_windows[f'Next_{window}d'] = ((end_price / start_price) - 1) * 100
+                        else:
+                            post_windows[f'Next_{window}d'] = 0
+                    else:
+                        post_windows[f'Next_{window}d'] = 0
+                
+                pre_post_data.append({
+                    'Regime': target_regime,
+                    **pre_windows,
+                    **post_windows
+                })
+            
+            # Create event study dataframe
+            event_df = pd.DataFrame(pre_post_data)
+            
+            # Group by regime and calculate means
+            event_summary = event_df.groupby('Regime').mean()
+            event_summary = event_summary.reindex(regimes_order).fillna(0)
+            
+            # Split into pre and post tables
+            pre_cols = ['Prior_30d', 'Prior_20d', 'Prior_10d', 'Prior_5d', 'Prior_1d']
+            post_cols = ['Next_1d', 'Next_5d', 'Next_10d', 'Next_20d', 'Next_30d']
+            
+            pre_table = event_summary[pre_cols].copy()
+            pre_table.columns = ['Prior 30d', 'Prior 20d', 'Prior 10d', 'Prior 5d', 'Prior 1d']
+            
+            post_table = event_summary[post_cols].copy()
+            post_table.columns = ['Next 1d', 'Next 5d', 'Next 10d', 'Next 20d', 'Next 30d']
+            
+            # Format as percentages
+            pre_table = pre_table.applymap(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
+            post_table = post_table.applymap(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
+            
+            # Display in two columns
+            col_pre, col_post = st.columns(2)
+            
+            with col_pre:
+                st.markdown("**📊 Pre-Regime Context (The Lead-Up)**")
+                st.caption("*Price changes BEFORE entering each regime*")
+                st.dataframe(pre_table, use_container_width=True)
+            
+            with col_post:
+                st.markdown("**📈 Post-Regime Outcome (The Aftermath)**")
+                st.caption("*Price changes AFTER entering each regime*")
+                st.dataframe(post_table, use_container_width=True)
 
 
 # =============================================================================
