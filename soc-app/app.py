@@ -1040,8 +1040,8 @@ def main():
                         **Trend:** {trend}  
                         **Criticality:** {criticality}/100  
                         **Volatility Percentile:** {vol_pct:.0f}th  
-                        **Persistence:** {persistence} days  
-                        **Historical Probability:** {win_rate:.0f}%  
+                        **Persistence:** {persistence_display} days  
+                        **Historical Probability:** {win_rate_display}  
                         **Regime:** {regime_label}
                         """)
                 else:
