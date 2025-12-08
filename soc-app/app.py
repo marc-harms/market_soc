@@ -1,3 +1,154 @@
+# =============================================================================
+# ADVANCED ANALYTICS (Plotly visual-first)
+# =============================================================================
+def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
+    """
+    Render advanced regime analytics in an expander with 4 charts:
+    A) Regime Duration (Box)
+    B) Transition Probability (Heatmap)
+    C) Risk/Reward Profile (Grouped Bar)
+    D) Historical Frequency (Donut)
+    """
+    if df is None or df.empty:
+        st.info("No data available for advanced analytics.")
+        return
+    
+    regimes_order = ['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
+    colors = {
+        'DORMANT': REGIME_COLORS.get('DORMANT', '#95A5A6'),
+        'STABLE': REGIME_COLORS.get('STABLE', '#27AE60'),
+        'ACTIVE': REGIME_COLORS.get('ACTIVE', '#F1C40F'),
+        'HIGH_ENERGY': REGIME_COLORS.get('HIGH_ENERGY', '#D35400'),
+        'CRITICAL': REGIME_COLORS.get('CRITICAL', '#C0392B'),
+    }
+    text_color = "#FFFFFF" if is_dark else "#333333"
+    
+    # Derive regimes from volatility of returns (simple heuristic)
+    df_local = df.copy()
+    df_local['return'] = df_local['Close'].pct_change()
+    df_local['vol'] = df_local['return'].abs()
+    df_local['Regime'] = pd.cut(
+        df_local['vol'],
+        bins=[-1, 0.005, 0.01, 0.02, 0.03, 10],
+        labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
+    ).astype(str)
+    
+    # Run-length encoding for durations
+    runs = []
+    prev = None
+    start_idx = None
+    for idx, reg in df_local['Regime'].items():
+        if reg != prev:
+            if prev is not None:
+                runs.append((prev, start_idx, idx))
+            prev = reg
+            start_idx = idx
+    if prev is not None:
+        runs.append((prev, start_idx, df_local.index[-1]))
+    
+    durations = pd.DataFrame(runs, columns=['Regime', 'Start', 'End'])
+    durations['Duration'] = (durations['End'] - durations['Start']).days.clip(lower=1)
+    
+    # Transition matrix
+    durations['NextRegime'] = durations['Regime'].shift(-1)
+    tm = pd.DataFrame(0, index=regimes_order, columns=regimes_order, dtype=float)
+    for _, row in durations.dropna().iterrows():
+        fr = row['Regime']
+        to = row['NextRegime']
+        if fr in tm.index and to in tm.columns:
+            tm.loc[fr, to] += 1
+    tm = tm.div(tm.sum(axis=1).replace(0, 1), axis=0) * 100
+    
+    # Risk/Reward
+    rr = df_local.groupby('Regime').agg(
+        avg_return=('return', 'mean'),
+        avg_vol=('vol', 'mean')
+    ).reindex(regimes_order).fillna(0)
+    
+    # Frequency
+    freq = df_local['Regime'].value_counts().reindex(regimes_order).fillna(0)
+    
+    with st.expander("📚 Advanced Regime Analytics", expanded=False):
+        col1, col2 = st.columns(2)
+        col3, col4 = st.columns(2)
+        
+        # Chart A: Regime Duration (Box)
+        fig_a = go.Figure()
+        for reg in regimes_order:
+            data = durations.loc[durations['Regime'] == reg, 'Duration']
+            if not data.empty:
+                fig_a.add_trace(go.Box(y=data, name=reg, boxpoints='outliers', marker_color=colors[reg]))
+        fig_a.update_layout(
+            title="Regime Duration (Days)",
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Merriweather, serif", color=text_color),
+            showlegend=False,
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        col1.plotly_chart(fig_a, use_container_width=True)
+        
+        # Chart B: Transition Probability (Heatmap)
+        fig_b = go.Figure(data=go.Heatmap(
+            z=tm.values,
+            x=tm.columns,
+            y=tm.index,
+            colorscale='Blues',
+            reversescale=False,
+            showscale=True,
+            hovertemplate="From %{y} to %{x}: %{z:.1f}%<extra></extra>"
+        ))
+        fig_b.update_layout(
+            title="Transition Probability (%)",
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Merriweather, serif", color=text_color),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        col2.plotly_chart(fig_b, use_container_width=True)
+        
+        # Chart C: Risk/Reward (Grouped Bar)
+        fig_c = go.Figure()
+        fig_c.add_trace(go.Bar(
+            x=rr.index,
+            y=rr['avg_return'],
+            name="Avg Daily Return",
+            marker_color=colors['STABLE']
+        ))
+        fig_c.add_trace(go.Bar(
+            x=rr.index,
+            y=rr['avg_vol'],
+            name="Avg Volatility",
+            marker_color="#333333"
+        ))
+        fig_c.update_layout(
+            barmode='group',
+            title="Risk / Reward by Regime",
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Merriweather, serif", color=text_color),
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        col3.plotly_chart(fig_c, use_container_width=True)
+        
+        # Chart D: Historical Frequency (Donut)
+        fig_d = go.Figure(data=[go.Pie(
+            labels=regimes_order,
+            values=freq.values,
+            hole=0.5,
+            marker=dict(colors=[colors[r] for r in regimes_order]),
+            textinfo='label+percent'
+        )])
+        fig_d.update_layout(
+            title="Historical Regime Frequency",
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Merriweather, serif", color=text_color),
+            margin=dict(l=10, r=10, t=30, b=10),
+            showlegend=False
+        )
+        col4.plotly_chart(fig_d, use_container_width=True)
+
 """
 SOC Market Seismograph - Streamlit Application
 ==============================================
@@ -28,6 +179,8 @@ from typing import List, Dict, Any
 
 import streamlit as st
 import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
 
 from logic import DataFetcher, SOCAnalyzer, run_dca_simulation, calculate_audit_metrics
 from ui_simulation import render_dca_simulation
@@ -39,6 +192,8 @@ from auth_manager import (
     can_run_simulation, increment_simulation_count
 )
 from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
+import pandas as pd
+import plotly.graph_objects as go
 
 # =============================================================================
 # PAGE CONFIGURATION
@@ -1032,18 +1187,8 @@ def main():
                     figs = analyzer.get_plotly_figures(dark_mode=is_dark)
                     st.plotly_chart(figs['chart3'], width="stretch")
                     
-                    # Descriptive statistics expander (condensed)
-                    with st.expander("Descriptive Statistics", expanded=False):
-                        st.markdown(f"""
-                        **Price:** ${price:,.2f}  
-                        **24h Change:** {change:+.2f}%  
-                        **Trend:** {trend}  
-                        **Criticality:** {criticality}/100  
-                        **Volatility Percentile:** {vol_pct:.0f}th  
-                        **Persistence:** {persistence_display} days  
-                        **Historical Probability:** {win_rate_display}  
-                        **Regime:** {regime_label}
-                        """)
+                    # Advanced analytics (visual-first)
+                    render_advanced_analytics(df, is_dark=is_dark)
                 else:
                     st.warning("No data available for this asset.")
         else:
