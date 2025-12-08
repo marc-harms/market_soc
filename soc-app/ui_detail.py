@@ -216,32 +216,8 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
     color = get_signal_color_func(signal)
     bg = get_signal_bg_func(signal)
     
-    # Active asset is already displayed in header - no need for redundant display here
-    
-    # Add to Portfolio Button
-    user_id = get_current_user_id()
-    if user_id:
-        portfolio = get_user_portfolio(user_id)
-        in_portfolio = symbol in portfolio
-        
-        col1, col2, col3 = st.columns([2, 1, 2])
-        with col2:
-            if in_portfolio:
-                if st.button(f"✅ In Portfolio", key=f"portfolio_{symbol}", use_container_width=True, help="Click to remove"):
-                    success, error = remove_asset_from_portfolio(user_id, symbol)
-                    if success:
-                        st.success(f"Removed {symbol} from portfolio")
-                        st.rerun()
-                    else:
-                        st.error(error)
-            else:
-                if st.button(f"⭐ Add to Portfolio", key=f"portfolio_{symbol}", use_container_width=True):
-                    success, error = add_asset_to_portfolio(user_id, symbol)
-                    if success:
-                        st.success(f"Added {symbol} to portfolio!")
-                        st.rerun()
-                    else:
-                        st.error(error)
+    # Active asset card is now displayed in main app before this panel
+    # Add to Portfolio button is also in main app (disabled as premium feature)
     
     # Explanation of Regime
     st.markdown("""
