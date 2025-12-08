@@ -137,7 +137,7 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_stats['Regime']]
     regime_profile.index.name = "Regime"
     
-    # Get full blocks dataframe for signal evaluation (using block_id)
+    # Get full blocks dataframe for signal evaluation
     blocks = df_local.groupby('block_id').agg({
         'Regime': 'first'
     })
@@ -145,63 +145,49 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     blocks['Start_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[0])
     blocks['End_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[-1])
     
-    # === STEP A: GROUND TRUTH CRASH DETECTION (De-Bounced) ===
-    # Calculate rolling max and drawdown
-    df_local['Rolling_Max'] = price_series.rolling(window=30, min_periods=1).max()
-    df_local['Drawdown'] = ((price_series / df_local['Rolling_Max']) - 1) * 100
+    # --- CRASH DETECTION LOGIC ---
+    # 1. Define Ground Truth: Find max drawdown from rolling 30-day peak
+    rolling_peak = price_series.rolling(window=30, min_periods=1).max()
+    drawdown = (price_series - rolling_peak) / rolling_peak
     
-    # Identify periods where drawdown exceeds -15% (TRUE CRASHES - stricter threshold)
-    df_local['In_Crash'] = df_local['Drawdown'] < -15
-    df_local['crash_block_id'] = (df_local['In_Crash'] != df_local['In_Crash'].shift(1)).cumsum()
+    # 2. Filter: Only count drawdowns deeper than -15% as "True Crashes"
+    crash_days = drawdown < -0.15
+    # Group consecutive crash days into single events
+    crash_block_id = (crash_days != crash_days.shift(1)).cumsum()
+    true_crashes = df_local[crash_days].groupby(crash_block_id).first() # Get start date of each crash
     
-    # Get UNIQUE crash events (group consecutive days into single event)
-    crash_events = df_local[df_local['In_Crash']].groupby('crash_block_id').agg({
-        'Drawdown': 'min',  # Max drawdown in this crash event
-    })
-    crash_events['Start_Date'] = df_local[df_local['In_Crash']].groupby('crash_block_id').apply(lambda x: x.index[0])
-    crash_events['Duration_Days'] = df_local[df_local['In_Crash']].groupby('crash_block_id').size()
+    total_true_crashes = len(true_crashes)
     
-    # Find peak date (where price was at rolling max just before crash)
-    crash_events['Peak_Date'] = crash_events['Start_Date'].apply(
-        lambda start_date: df_local.loc[:start_date, 'Rolling_Max'].idxmax()
-    )
-    
-    total_true_crashes = len(crash_events)
-    
-    # === STEP B: DETECTION EVALUATION (Recall - Did we catch real crashes?) ===
+    # === DETECTION EVALUATION (Recall) ===
     detected_crashes = 0
     missed_crashes = 0
     lead_times = []
     
-    for idx, crash in crash_events.iterrows():
-        peak_date = crash['Peak_Date']
-        crash_start = crash['Start_Date']
-        
+    for crash_date in true_crashes.index:
         try:
-            peak_idx = df_local.index.get_loc(peak_date)
+            crash_idx = df_local.index.get_loc(crash_date)
         except:
             continue
         
-        # Look 14 days before crash START (not peak) for warning signals
-        crash_start_idx = df_local.index.get_loc(crash_start)
-        lookback_idx = max(0, crash_start_idx - 14)
-        warning_window = df_local.iloc[lookback_idx:crash_start_idx + 1]
+        # Look 14 days before crash for warning signals (RED/ORANGE)
+        lookback_idx = max(0, crash_idx - 14)
+        warning_window = df_local.iloc[lookback_idx:crash_idx + 1]
         
         # Check if we had CRITICAL or HIGH_ENERGY in warning window
         had_warning = any(warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY']))
         
         if had_warning:
             detected_crashes += 1
-            # Calculate lead time: first warning day to peak
+            # Calculate lead time: first warning to crash start
             warning_days = warning_window[warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])]
             if len(warning_days) > 0:
                 first_warning_date = warning_days.index[0]
-                lead_days = (peak_date - first_warning_date).days
+                lead_days = (crash_date - first_warning_date).days
                 lead_times.append(max(0, lead_days))
         else:
             missed_crashes += 1
     
-    # === STEP C: FALSE ALARM EVALUATION (Precision - How many signals were justified?) ===
+    # === FALSE ALARM EVALUATION (Precision) ===
     # Get all warning signal blocks (CRITICAL or HIGH_ENERGY lasting >= 3 days)
     warning_blocks = blocks[
         (blocks['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])) &
@@ -214,15 +200,12 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     
     for idx, signal in warning_blocks.iterrows():
         signal_start = signal['Start_Date']
-        signal_start_idx = df_local.index.get_loc(signal_start)
-        
-        # Look ahead 30 days for crash EVENT (not just drawdown)
         lookahead_date = signal_start + pd.Timedelta(days=30)
         
-        # Check if any UNIQUE crash event started within 30 days of signal
+        # Check if any crash EVENT started within 30 days of signal
         crash_found = False
-        for _, crash in crash_events.iterrows():
-            if signal_start <= crash['Start_Date'] <= lookahead_date:
+        for crash_date in true_crashes.index:
+            if signal_start <= crash_date <= lookahead_date:
                 crash_found = True
                 break
         
