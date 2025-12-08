@@ -894,12 +894,13 @@ def main():
         
         with col_tab3:
             if st.button(
-                "🔑 Portfolio",
-                key="btn_portfolio",
-                use_container_width=True,
-                help="Premium feature coming soon"
+                "Add to Portfolio",
+                key="btn_portfolio_add",
+                use_container_width=True
             ):
-                st.info("🔑 Portfolio management is a Premium feature coming soon!")
+                # Reuse the same behavior as Portfolio Simulation for now
+                st.session_state.analysis_mode = "simulation"
+                st.rerun()
         
         st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         
