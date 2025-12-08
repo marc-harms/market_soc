@@ -28,6 +28,7 @@ class MarketForensics:
         # 3. Statistik über die Blöcke berechnen
         stats = block_stats.groupby('Regime')['duration_days'].agg(
             Count_Events='count',          # Wie oft kam diese Phase vor?
+            Min_Duration_Days='min',       # Kürzeste Phase
             Avg_Duration_Days='mean',      # Mittlere Dauer
             Median_Duration_Days='median', # Median (robust gegen Ausreißer)
             Max_Duration_Days='max'        # Längste Phase jemals
