@@ -970,9 +970,11 @@ def main():
                 win_rate = selected.get('win_rate', selected.get('probability', 0))
                 context_text = selected.get('context', f"Regime: {signal}.")
                 
-                with st.container():
+                # Center the card at 50% width
+                col_left_card, col_center_card, col_right_card = st.columns([1, 2, 1])
+                with col_center_card:
                     card_html = f"""
-<div style="border:1px double #333; border-radius:8px; background:#FFFFFF; padding:16px 18px; margin-bottom:12px; box-shadow:2px 2px 6px rgba(0,0,0,0.05); font-family:'Merriweather', serif;">
+<div style="border:1px double #333; border-radius:8px; background:#FFFFFF; padding:16px 18px; margin-bottom:12px; box-shadow:2px 2px 6px rgba(0,0,0,0.05); font-family:'Merriweather', serif; width:100%;">
   <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
     <div>
       <div style="font-size:1.4rem; font-weight:700; color:#2C3E50;">{name}</div>
@@ -1014,6 +1016,19 @@ def main():
                     analyzer = SOCAnalyzer(df, symbol, selected.get('info'))
                     figs = analyzer.get_plotly_figures(dark_mode=is_dark)
                     st.plotly_chart(figs['chart3'], width="stretch")
+                    
+                    # Descriptive statistics expander (condensed)
+                    with st.expander("Descriptive Statistics", expanded=False):
+                        st.markdown(f"""
+                        **Price:** ${price:,.2f}  
+                        **24h Change:** {change:+.2f}%  
+                        **Trend:** {trend}  
+                        **Criticality:** {criticality}/100  
+                        **Volatility Percentile:** {vol_pct:.0f}th  
+                        **Persistence:** {persistence} days  
+                        **Historical Probability:** {win_rate:.0f}%  
+                        **Regime:** {regime_label}
+                        """)
                 else:
                     st.warning("No data available for this asset.")
         else:
