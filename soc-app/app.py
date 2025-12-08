@@ -1,3 +1,49 @@
+
+"""
+SOC Market Seismograph - Streamlit Application
+==============================================
+
+Interactive web dashboard for Self-Organized Criticality (SOC) market analysis.
+
+Features:
+    - Multi-asset scanning with 5-Tier regime classification
+    - Deep dive analysis with historical signal performance
+    - Instability Score indicator (0-100)
+    - Lump Sum investment simulation with Dynamic Position Sizing
+    - Dark/Light theme support
+
+Theory:
+    Markets exhibit Self-Organized Criticality - they naturally evolve toward
+    critical states where small inputs can trigger events of any size.
+    This app visualizes market "energy states" through volatility clustering.
+
+Author: Market Analysis Team
+Version: 6.0 (Cleaned & Documented)
+"""
+
+# =============================================================================
+# IMPORTS
+# =============================================================================
+import requests
+from typing import List, Dict, Any
+
+import streamlit as st
+import yfinance as yf
+import pandas as pd
+import plotly.graph_objects as go
+
+from logic import DataFetcher, SOCAnalyzer, run_dca_simulation, calculate_audit_metrics
+from ui_simulation import render_dca_simulation
+from ui_detail import render_detail_panel, render_regime_persistence_chart, render_current_regime_outlook
+from ui_auth import render_disclaimer, render_auth_page, render_sticky_cockpit_header, render_education_landing
+from auth_manager import (
+    is_authenticated, logout, get_current_user_id, get_current_user_email,
+    get_user_portfolio, can_access_simulation, show_upgrade_prompt,
+    can_run_simulation, increment_simulation_count
+)
+from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
+
+
 # =============================================================================
 # ADVANCED ANALYTICS (Plotly visual-first)
 # =============================================================================
@@ -25,7 +71,19 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     
     # Derive regimes from volatility of returns (simple heuristic)
     df_local = df.copy()
-    df_local['return'] = df_local['Close'].pct_change()
+    # Pick a price series robustly
+    if 'Close' in df_local.columns:
+        price_series = df_local['Close']
+    elif 'Adj Close' in df_local.columns:
+        price_series = df_local['Adj Close']
+    else:
+        # try first numeric column
+        num_cols = df_local.select_dtypes(include='number').columns
+        if len(num_cols) == 0:
+            st.info("No price data available for advanced analytics.")
+            return
+        price_series = df_local[num_cols[0]]
+    df_local['return'] = price_series.pct_change()
     df_local['vol'] = df_local['return'].abs()
     df_local['Regime'] = pd.cut(
         df_local['vol'],
@@ -149,49 +207,6 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         )
         col4.plotly_chart(fig_d, use_container_width=True)
 
-"""
-SOC Market Seismograph - Streamlit Application
-==============================================
-
-Interactive web dashboard for Self-Organized Criticality (SOC) market analysis.
-
-Features:
-    - Multi-asset scanning with 5-Tier regime classification
-    - Deep dive analysis with historical signal performance
-    - Instability Score indicator (0-100)
-    - Lump Sum investment simulation with Dynamic Position Sizing
-    - Dark/Light theme support
-
-Theory:
-    Markets exhibit Self-Organized Criticality - they naturally evolve toward
-    critical states where small inputs can trigger events of any size.
-    This app visualizes market "energy states" through volatility clustering.
-
-Author: Market Analysis Team
-Version: 6.0 (Cleaned & Documented)
-"""
-
-# =============================================================================
-# IMPORTS
-# =============================================================================
-import requests
-from typing import List, Dict, Any
-
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import plotly.graph_objects as go
-
-from logic import DataFetcher, SOCAnalyzer, run_dca_simulation, calculate_audit_metrics
-from ui_simulation import render_dca_simulation
-from ui_detail import render_detail_panel, render_regime_persistence_chart, render_current_regime_outlook
-from ui_auth import render_disclaimer, render_auth_page, render_sticky_cockpit_header, render_education_landing
-from auth_manager import (
-    is_authenticated, logout, get_current_user_id, get_current_user_email,
-    get_user_portfolio, can_access_simulation, show_upgrade_prompt,
-    can_run_simulation, increment_simulation_count
-)
-from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
 import pandas as pd
 import plotly.graph_objects as go
 
