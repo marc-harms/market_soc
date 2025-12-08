@@ -99,72 +99,83 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
     ).astype(str)
     
-    # === RUN-LENGTH ENCODING: Group consecutive days into blocks ===
-    df_local['block_id'] = (df_local['Regime'] != df_local['Regime'].shift(1)).cumsum()
+    # === STEP A: RUN-LENGTH ENCODING (Group consecutive days into blocks) ===
+    df_local['regime_block'] = (df_local['Regime'] != df_local['Regime'].shift(1)).cumsum()
     
-    # Get block start/end dates and calculate duration
-    blocks = df_local.groupby('block_id').agg({
-        'Regime': 'first',
-        'return': 'count'  # count rows as duration
-    }).rename(columns={'return': 'Duration_Days'})
-    blocks['Start_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[0])
-    blocks['End_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[-1])
+    # STEP B: Aggregate by block to get durations (CRITICAL FIX)
+    block_durations = df_local.groupby(['Regime', 'regime_block']).size().reset_index(name='duration')
     
-    # Calculate total days per regime
+    # STEP C: Calculate statistics from BLOCK durations (not daily rows)
+    regime_stats = block_durations.groupby('Regime')['duration'].agg(['min', 'mean', 'median', 'max'])
+    regime_stats = regime_stats.reindex(regimes_order).fillna(0)
+    
+    # Calculate frequency (% of total days)
     regime_days = df_local.groupby('Regime').size().reindex(regimes_order).fillna(0)
     total_days = regime_days.sum()
     freq_share = (regime_days / total_days * 100).replace([float('inf'), float('nan')], 0)
     
-    # Calculate duration statistics from BLOCKS (not daily rows)
-    # Each block = one uninterrupted regime phase
-    dur_stats = blocks.groupby('Regime')['Duration_Days'].agg(['min', 'mean', 'median', 'max']).reindex(regimes_order).fillna(0)
-    
     # Build Regime Profile Table with colored emojis
     regime_profile = pd.DataFrame({
         'Frequency (%)': freq_share.round(1),
-        'Min (Days)': dur_stats['min'].round(0).astype(int),
-        'Avg (Days)': dur_stats['mean'].round(1),
-        'Median (Days)': dur_stats['median'].round(0).astype(int),
-        'Max (Days)': dur_stats['max'].round(0).astype(int)
+        'Min (Days)': regime_stats['min'].round(0).astype(int),
+        'Avg (Days)': regime_stats['mean'].round(1),
+        'Median (Days)': regime_stats['median'].round(0).astype(int),
+        'Max (Days)': regime_stats['max'].round(0).astype(int)
     })
     # Prepend colored circle emojis to index
     regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_profile.index]
     regime_profile.index.name = "Regime"
     
-    # === GROUND TRUTH CRASH DETECTION ===
+    # Get full blocks dataframe for signal evaluation
+    blocks = df_local.groupby('regime_block').agg({
+        'Regime': 'first',
+        'Drawdown': 'count'  # count rows as duration (will be overwritten)
+    }).rename(columns={'Drawdown': 'Duration_Days'})
+    blocks['Duration_Days'] = df_local.groupby('regime_block').size()
+    blocks['Start_Date'] = df_local.groupby('regime_block').apply(lambda x: x.index[0])
+    blocks['End_Date'] = df_local.groupby('regime_block').apply(lambda x: x.index[-1])
+    
+    # === STEP A: GROUND TRUTH CRASH DETECTION (De-Bounced) ===
     # Calculate rolling max and drawdown
     df_local['Rolling_Max'] = price_series.rolling(window=30, min_periods=1).max()
     df_local['Drawdown'] = ((price_series / df_local['Rolling_Max']) - 1) * 100
     
-    # Identify periods where drawdown exceeds -10% (TRUE CRASHES)
-    df_local['In_Crash'] = df_local['Drawdown'] < -10
+    # Identify periods where drawdown exceeds -15% (TRUE CRASHES - stricter threshold)
+    df_local['In_Crash'] = df_local['Drawdown'] < -15
     df_local['crash_block_id'] = (df_local['In_Crash'] != df_local['In_Crash'].shift(1)).cumsum()
     
-    # Get distinct crash events
-    crash_blocks = df_local[df_local['In_Crash']].groupby('crash_block_id').agg({
-        'Drawdown': 'min',  # Max drawdown in this crash
-        'Regime': lambda x: x.mode()[0] if len(x.mode()) > 0 else 'STABLE'  # Most common regime during crash
+    # Get UNIQUE crash events (group consecutive days into single event)
+    crash_events = df_local[df_local['In_Crash']].groupby('crash_block_id').agg({
+        'Drawdown': 'min',  # Max drawdown in this crash event
     })
-    crash_blocks['Start_Date'] = df_local[df_local['In_Crash']].groupby('crash_block_id').apply(lambda x: x.index[0])
-    crash_blocks['Peak_Date'] = df_local[df_local['In_Crash']].groupby('crash_block_id').apply(
-        lambda x: df_local.loc[x.index, 'Rolling_Max'].idxmax()
+    crash_events['Start_Date'] = df_local[df_local['In_Crash']].groupby('crash_block_id').apply(lambda x: x.index[0])
+    crash_events['Duration_Days'] = df_local[df_local['In_Crash']].groupby('crash_block_id').size()
+    
+    # Find peak date (where price was at rolling max just before crash)
+    crash_events['Peak_Date'] = crash_events['Start_Date'].apply(
+        lambda start_date: df_local.loc[:start_date, 'Rolling_Max'].idxmax()
     )
     
-    total_true_crashes = len(crash_blocks)
+    total_true_crashes = len(crash_events)
     
-    # === DETECTION EVALUATION (Recall) ===
+    # === STEP B: DETECTION EVALUATION (Recall - Did we catch real crashes?) ===
     detected_crashes = 0
     missed_crashes = 0
     lead_times = []
     
-    for idx, crash in crash_blocks.iterrows():
+    for idx, crash in crash_events.iterrows():
         peak_date = crash['Peak_Date']
         crash_start = crash['Start_Date']
-        peak_idx = df_local.index.get_loc(peak_date)
         
-        # Look 10 days before peak for warning signals
-        lookback_idx = max(0, peak_idx - 10)
-        warning_window = df_local.iloc[lookback_idx:peak_idx + 1]
+        try:
+            peak_idx = df_local.index.get_loc(peak_date)
+        except:
+            continue
+        
+        # Look 14 days before crash START (not peak) for warning signals
+        crash_start_idx = df_local.index.get_loc(crash_start)
+        lookback_idx = max(0, crash_start_idx - 14)
+        warning_window = df_local.iloc[lookback_idx:crash_start_idx + 1]
         
         # Check if we had CRITICAL or HIGH_ENERGY in warning window
         had_warning = any(warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY']))
@@ -172,13 +183,15 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         if had_warning:
             detected_crashes += 1
             # Calculate lead time: first warning day to peak
-            first_warning_idx = warning_window[warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])].index[0]
-            lead_days = (peak_date - first_warning_idx).days
-            lead_times.append(max(0, lead_days))
+            warning_days = warning_window[warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])]
+            if len(warning_days) > 0:
+                first_warning_date = warning_days.index[0]
+                lead_days = (peak_date - first_warning_date).days
+                lead_times.append(max(0, lead_days))
         else:
             missed_crashes += 1
     
-    # === FALSE ALARM EVALUATION (Precision) ===
+    # === STEP C: FALSE ALARM EVALUATION (Precision - How many signals were justified?) ===
     # Get all warning signal blocks (CRITICAL or HIGH_ENERGY lasting >= 3 days)
     warning_blocks = blocks[
         (blocks['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])) &
@@ -193,14 +206,17 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         signal_start = signal['Start_Date']
         signal_start_idx = df_local.index.get_loc(signal_start)
         
-        # Look ahead 30 days for crash
-        lookahead_idx = min(len(df_local) - 1, signal_start_idx + 30)
-        future_window = df_local.iloc[signal_start_idx:lookahead_idx + 1]
+        # Look ahead 30 days for crash EVENT (not just drawdown)
+        lookahead_date = signal_start + pd.Timedelta(days=30)
         
-        # Check if drawdown exceeded -10% in this window
-        max_dd_in_window = future_window['Drawdown'].min()
+        # Check if any UNIQUE crash event started within 30 days of signal
+        crash_found = False
+        for _, crash in crash_events.iterrows():
+            if signal_start <= crash['Start_Date'] <= lookahead_date:
+                crash_found = True
+                break
         
-        if max_dd_in_window < -10:
+        if crash_found:
             justified_signals += 1
         else:
             false_alarms += 1
