@@ -153,13 +153,13 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     # 2. Filter: Only count drawdowns deeper than -15% as "True Crashes"
     crash_days = drawdown < -0.15
     # Group consecutive crash days into single events
-    df_local['crash_block_id'] = (crash_days != crash_days.shift(1)).cumsum()
+    crash_block_id = (crash_days != crash_days.shift(1)).cumsum()
     
     # Get crash event start dates
-    crash_events_df = df_local[crash_days].groupby('crash_block_id').agg({
+    crash_events_df = df_local[crash_days].groupby(crash_block_id).agg({
         'Regime': 'first'
     })
-    crash_events_df['Start_Date'] = df_local[crash_days].groupby('crash_block_id').apply(lambda x: x.index[0])
+    crash_events_df['Start_Date'] = df_local[crash_days].groupby(crash_block_id).apply(lambda x: x.index[0])
     
     total_true_crashes = len(crash_events_df)
     true_crash_dates = crash_events_df['Start_Date'].tolist()
