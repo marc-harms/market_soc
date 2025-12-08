@@ -893,13 +893,13 @@ def main():
                 st.rerun()
         
         with col_tab3:
-            st.button(
+            if st.button(
                 "🔑 Portfolio",
                 key="btn_portfolio",
                 use_container_width=True,
-                disabled=True,
                 help="Premium feature coming soon"
-            )
+            ):
+                st.info("🔑 Portfolio management is a Premium feature coming soon!")
         
         st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         
