@@ -556,24 +556,30 @@ def render_education_landing(run_analysis_func: Callable) -> None:
         except:
             news_content = "Welcome to TECTONIQ! Stay tuned for updates."
         
-        # Single unified news box with header, content, and close button in one row
-        col_box, col_close = st.columns([95, 5])
-        
-        with col_box:
-            # Unified box with title and content
+        # Single unified news box with embedded close button
+        with st.container():
+            # Row with title and dismiss button
+            col_title, col_dismiss = st.columns([85, 15])
+            
+            with col_title:
+                st.markdown("""
+                <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 4px 4px 0 0; padding: 1rem 1.2rem 0.5rem 1.2rem; margin: 1rem 0 0 0;">
+                    <h4 style="margin: 0; color: #667eea; font-size: 1.1rem;">🚨 News & Updates</h4>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_dismiss:
+                st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+                if st.button("Dismiss", key="close_news_box", use_container_width=True, type="secondary"):
+                    st.session_state.show_news_box = False
+                    st.rerun()
+            
+            # Content box (continues from title)
             st.markdown(f"""
-            <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 4px; padding: 1rem 1.2rem; margin: 1rem 0;">
-                <h4 style="margin: 0 0 0.8rem 0; color: #667eea; font-size: 1.1rem;">🚨 News & Updates</h4>
+            <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 0 0 4px 4px; padding: 0.5rem 1.2rem 1rem 1.2rem; margin: 0 0 1rem 0;">
                 <div style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap; color: #333;">{news_content}</div>
             </div>
             """, unsafe_allow_html=True)
-        
-        with col_close:
-            # Close button aligned with top of box
-            st.markdown("<div style='height: 1.2rem;'></div>", unsafe_allow_html=True)
-            if st.button("✕", key="close_news_box", help="Dismiss", use_container_width=True):
-                st.session_state.show_news_box = False
-                st.rerun()
     
     st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
     
