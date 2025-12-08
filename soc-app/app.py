@@ -99,40 +99,51 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
     ).astype(str)
     
-    # === STEP A: RUN-LENGTH ENCODING (Group consecutive days into blocks) ===
-    df_local['regime_block'] = (df_local['Regime'] != df_local['Regime'].shift(1)).cumsum()
+    # --- STEP 1: DETECT BLOCKS (The Fix) ---
+    # Create a block ID that changes only when the Regime changes
+    df_local['block_id'] = (df_local['Regime'] != df_local['Regime'].shift(1)).cumsum()
     
-    # STEP B: Aggregate by block to get durations (CRITICAL FIX)
-    block_durations = df_local.groupby(['Regime', 'regime_block']).size().reset_index(name='duration')
+    # --- STEP 2: AGGREGATE BY BLOCK ---
+    # Calculate the duration of EACH individual phase first
+    # This creates a Series like: [Stable: 45 days, Critical: 12 days, Stable: 4 days...]
+    regime_blocks = df_local.groupby(['Regime', 'block_id']).size().reset_index(name='duration_days')
     
-    # STEP C: Calculate statistics from BLOCK durations (not daily rows)
-    regime_stats = block_durations.groupby('Regime')['duration'].agg(['min', 'mean', 'median', 'max'])
-    regime_stats = regime_stats.reindex(regimes_order).fillna(0)
+    # --- STEP 3: CALCULATE STATS FROM BLOCKS ---
+    # Now calculate mean/median from the BLOCKS, not the daily rows
+    regime_stats = regime_blocks.groupby('Regime')['duration_days'].agg(
+        Frequency_Count='count',       # How many times did this regime happen?
+        Avg_Duration='mean',           # Average length of a phase
+        Median_Duration='median',      # Median length
+        Min_Duration='min',            # Shortest phase
+        Max_Duration='max'             # Longest phase ever
+    ).reset_index()
     
-    # Calculate frequency (% of total days)
-    regime_days = df_local.groupby('Regime').size().reindex(regimes_order).fillna(0)
-    total_days = regime_days.sum()
-    freq_share = (regime_days / total_days * 100).replace([float('inf'), float('nan')], 0)
+    # Calculate Frequency % based on total DAYS, not blocks
+    total_days = len(df_local)
+    days_per_regime = df_local['Regime'].value_counts()
+    regime_stats['Frequency_Pct'] = regime_stats['Regime'].map(lambda x: (days_per_regime.get(x, 0) / total_days) * 100)
+    
+    # Reindex to ensure all regimes present
+    regime_stats = regime_stats.set_index('Regime').reindex(regimes_order).fillna(0).reset_index()
     
     # Build Regime Profile Table with colored emojis
     regime_profile = pd.DataFrame({
-        'Frequency (%)': freq_share.round(1),
-        'Min (Days)': regime_stats['min'].round(0).astype(int),
-        'Avg (Days)': regime_stats['mean'].round(1),
-        'Median (Days)': regime_stats['median'].round(0).astype(int),
-        'Max (Days)': regime_stats['max'].round(0).astype(int)
+        'Frequency (%)': regime_stats['Frequency_Pct'].round(1),
+        'Min (Days)': regime_stats['Min_Duration'].round(0).astype(int),
+        'Avg (Days)': regime_stats['Avg_Duration'].round(1),
+        'Median (Days)': regime_stats['Median_Duration'].round(0).astype(int),
+        'Max (Days)': regime_stats['Max_Duration'].round(0).astype(int)
     })
-    # Prepend colored circle emojis to index
-    regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_profile.index]
+    regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_stats['Regime']]
     regime_profile.index.name = "Regime"
     
-    # Get full blocks dataframe for signal evaluation
-    blocks = df_local.groupby('regime_block').agg({
+    # Get full blocks dataframe for signal evaluation (using block_id)
+    blocks = df_local.groupby('block_id').agg({
         'Regime': 'first'
     })
-    blocks['Duration_Days'] = df_local.groupby('regime_block').size()
-    blocks['Start_Date'] = df_local.groupby('regime_block').apply(lambda x: x.index[0])
-    blocks['End_Date'] = df_local.groupby('regime_block').apply(lambda x: x.index[-1])
+    blocks['Duration_Days'] = df_local.groupby('block_id').size()
+    blocks['Start_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[0])
+    blocks['End_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[-1])
     
     # === STEP A: GROUND TRUTH CRASH DETECTION (De-Bounced) ===
     # Calculate rolling max and drawdown
