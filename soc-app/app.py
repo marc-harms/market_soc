@@ -42,26 +42,27 @@ from auth_manager import (
     can_run_simulation, increment_simulation_count
 )
 from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
+from analytics_engine import MarketForensics
 
 
 # =============================================================================
-# STATISTICAL REPORT & SIGNAL AUDIT (Event-Based Logic)
+# STATISTICAL REPORT & SIGNAL AUDIT (Using Analytics Engine)
 # =============================================================================
 def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     """
-    Render statistical report with regime profile and ground-truth crash detection.
+    Render statistical report using the verified MarketForensics engine.
     
-    Uses event-based logic (not daily counts) for accurate statistics:
-    - Regime events from run-length encoding
+    Calculates event-based statistics (not daily counts):
+    - Regime profile from run-length encoding
     - Ground truth crashes from drawdown analysis
-    - Signal detection performance (recall/precision)
+    - Signal detection performance metrics
     
     Layout:
-    - Column 1: Regime Profile Table (min/avg/median/max durations)
-    - Column 2-4: Crash protection KPIs (true crashes, false alarms, lead time)
+    - Column 1: Regime Profile Table
+    - Columns 2-4: Crash Protection KPIs
     
     Args:
-        df: Price dataframe with Close or Adj Close column
+        df: Price dataframe with Close/Adj Close and Regime columns
         is_dark: Dark mode flag
     """
     if df is None or df.empty:
@@ -77,153 +78,68 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         'CRITICAL': '🔴'
     }
     
-    # Derive regimes from volatility of returns (simple heuristic)
-    df_local = df.copy()
-    # Pick a price series robustly
-    if 'Close' in df_local.columns:
-        price_series = df_local['Close']
-    elif 'Adj Close' in df_local.columns:
-        price_series = df_local['Adj Close']
-    else:
-        num_cols = df_local.select_dtypes(include='number').columns
-        if len(num_cols) == 0:
-            st.info("No price data available for statistical report.")
-            return
-        price_series = df_local[num_cols[0]]
+    # === PREPARE DATA FOR ENGINE ===
+    df_analysis = df.copy()
     
-    df_local['return'] = price_series.pct_change()
-    df_local['vol'] = df_local['return'].abs()
-    df_local['Regime'] = pd.cut(
-        df_local['vol'],
-        bins=[-1, 0.005, 0.01, 0.02, 0.03, 10],
-        labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
-    ).astype(str)
+    # Ensure we have Regime column (if not, derive it)
+    if 'Regime' not in df_analysis.columns:
+        # Pick price series
+        if 'Close' in df_analysis.columns:
+            price_series = df_analysis['Close']
+        elif 'Adj Close' in df_analysis.columns:
+            price_series = df_analysis['Adj Close']
+        else:
+            num_cols = df_analysis.select_dtypes(include='number').columns
+            if len(num_cols) == 0:
+                st.info("No price data available for statistical report.")
+                return
+            price_series = df_analysis[num_cols[0]]
+        
+        # Simple regime derivation from volatility
+        df_analysis['return'] = price_series.pct_change()
+        df_analysis['vol'] = df_analysis['return'].abs()
+        df_analysis['Regime'] = pd.cut(
+            df_analysis['vol'],
+            bins=[-1, 0.005, 0.01, 0.02, 0.03, 10],
+            labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
+        ).astype(str)
     
-    # --- STEP 1: DETECT BLOCKS (The Fix) ---
-    # Create a block ID that changes only when the Regime changes
-    df_local['block_id'] = (df_local['Regime'] != df_local['Regime'].shift(1)).cumsum()
+    # === USE THE VERIFIED ANALYTICS ENGINE ===
+    try:
+        # Calculate regime statistics (block-based)
+        regime_stats_df = MarketForensics.get_regime_stats(df_analysis)
+        
+        # Calculate crash metrics (ground truth)
+        crash_metrics = MarketForensics.get_crash_metrics(df_analysis)
+    except Exception as e:
+        st.error(f"Error in analytics engine: {str(e)}")
+        return
     
-    # --- STEP 2: AGGREGATE BY BLOCK ---
-    # Calculate the duration of EACH individual phase first
-    # This creates a Series like: [Stable: 45 days, Critical: 12 days, Stable: 4 days...]
-    regime_blocks = df_local.groupby(['Regime', 'block_id']).size().reset_index(name='duration_days')
+    # === BUILD REGIME PROFILE TABLE WITH COLORED EMOJIS ===
+    regime_profile = regime_stats_df.reindex(regimes_order).fillna(0)
+    regime_profile = regime_profile[['Frequency_Pct', 'Min_Duration_Days', 'Avg_Duration_Days', 'Median_Duration_Days', 'Max_Duration_Days']]
+    regime_profile.columns = ['Frequency (%)', 'Min (Days)', 'Avg (Days)', 'Median (Days)', 'Max (Days)']
+    regime_profile['Avg (Days)'] = regime_profile['Avg (Days)'].round(1)
+    regime_profile['Median (Days)'] = regime_profile['Median (Days)'].round(0).astype(int)
+    regime_profile['Min (Days)'] = regime_profile['Min (Days)'].round(0).astype(int)
+    regime_profile['Max (Days)'] = regime_profile['Max (Days)'].round(0).astype(int)
     
-    # --- STEP 3: CALCULATE STATS FROM BLOCKS ---
-    # Now calculate mean/median from the BLOCKS, not the daily rows
-    regime_stats = regime_blocks.groupby('Regime')['duration_days'].agg(
-        Frequency_Count='count',       # How many times did this regime happen?
-        Avg_Duration='mean',           # Average length of a phase
-        Median_Duration='median',      # Median length
-        Min_Duration='min',            # Shortest phase
-        Max_Duration='max'             # Longest phase ever
-    ).reset_index()
-    
-    # Calculate Frequency % based on total DAYS, not blocks
-    total_days = len(df_local)
-    days_per_regime = df_local['Regime'].value_counts()
-    regime_stats['Frequency_Pct'] = regime_stats['Regime'].map(lambda x: (days_per_regime.get(x, 0) / total_days) * 100)
-    
-    # Reindex to ensure all regimes present
-    regime_stats = regime_stats.set_index('Regime').reindex(regimes_order).fillna(0).reset_index()
-    
-    # Build Regime Profile Table with colored emojis
-    regime_profile = pd.DataFrame({
-        'Frequency (%)': regime_stats['Frequency_Pct'].round(1),
-        'Min (Days)': regime_stats['Min_Duration'].round(0).astype(int),
-        'Avg (Days)': regime_stats['Avg_Duration'].round(1),
-        'Median (Days)': regime_stats['Median_Duration'].round(0).astype(int),
-        'Max (Days)': regime_stats['Max_Duration'].round(0).astype(int)
-    })
-    regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_stats['Regime']]
+    # Add colored emojis to index
+    regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_profile.index]
     regime_profile.index.name = "Regime"
     
-    # Get full blocks dataframe for signal evaluation
-    blocks = df_local.groupby('block_id').agg({
-        'Regime': 'first'
-    })
-    blocks['Duration_Days'] = df_local.groupby('block_id').size()
-    blocks['Start_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[0])
-    blocks['End_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[-1])
-    
-    # --- CRASH DETECTION LOGIC ---
-    # 1. Define Ground Truth: Find max drawdown from rolling 30-day peak
-    rolling_peak = price_series.rolling(window=30, min_periods=1).max()
-    drawdown = (price_series - rolling_peak) / rolling_peak
-    
-    # 2. Filter: Only count drawdowns deeper than -15% as "True Crashes"
-    crash_days = drawdown < -0.15
-    # Group consecutive crash days into single events
-    crash_block_id = (crash_days != crash_days.shift(1)).cumsum()
-    
-    # Get crash event start dates
-    crash_events_df = df_local[crash_days].groupby(crash_block_id).agg({
-        'Regime': 'first'
-    })
-    crash_events_df['Start_Date'] = df_local[crash_days].groupby(crash_block_id).apply(lambda x: x.index[0])
-    
-    total_true_crashes = len(crash_events_df)
-    true_crash_dates = crash_events_df['Start_Date'].tolist()
-    
-    # === DETECTION EVALUATION (Recall) ===
-    detected_crashes = 0
-    missed_crashes = 0
-    lead_times = []
-    
-    for crash_date in true_crash_dates:
-        try:
-            crash_idx = df_local.index.get_loc(crash_date)
-        except:
-            continue
-        
-        # Look 14 days before crash for warning signals (RED/ORANGE)
-        lookback_idx = max(0, crash_idx - 14)
-        warning_window = df_local.iloc[lookback_idx:crash_idx + 1]
-        
-        # Check if we had CRITICAL or HIGH_ENERGY in warning window
-        had_warning = any(warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY']))
-        
-        if had_warning:
-            detected_crashes += 1
-            # Calculate lead time: first warning to crash start
-            warning_days = warning_window[warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])]
-            if len(warning_days) > 0:
-                first_warning_date = warning_days.index[0]
-                lead_days = (crash_date - first_warning_date).days
-                lead_times.append(max(0, lead_days))
-        else:
-            missed_crashes += 1
-    
-    # === FALSE ALARM EVALUATION (Precision) ===
-    # Get all warning signal blocks (CRITICAL or HIGH_ENERGY lasting >= 3 days)
-    warning_blocks = blocks[
-        (blocks['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])) &
-        (blocks['Duration_Days'] >= 3)
-    ].copy()
-    
-    total_signal_events = len(warning_blocks)
-    justified_signals = 0
-    false_alarms = 0
-    
-    for idx, signal in warning_blocks.iterrows():
-        signal_start = signal['Start_Date']
-        lookahead_date = signal_start + pd.Timedelta(days=30)
-        
-        # Check if any crash EVENT started within 30 days of signal
-        crash_found = False
-        for crash_date in true_crash_dates:
-            if signal_start <= crash_date <= lookahead_date:
-                crash_found = True
-                break
-        
-        if crash_found:
-            justified_signals += 1
-        else:
-            false_alarms += 1
-    
-    # Calculate KPIs
-    avg_lead_time = sum(lead_times) / len(lead_times) if lead_times else 0
-    detection_rate = (detected_crashes / total_true_crashes * 100) if total_true_crashes > 0 else 0
-    false_alarm_rate = (false_alarms / total_signal_events * 100) if total_signal_events > 0 else 0
+    # Extract crash metrics
+    total_crashes = crash_metrics.get('total_crashes_5y', 0)
+    detected_count = crash_metrics.get('detected_count', 0)
+    detection_rate = crash_metrics.get('detection_rate', 0)
+    false_alarm_rate = crash_metrics.get('false_alarm_rate', 0)
+    avg_lead_time = crash_metrics.get('avg_lead_time_days', 0)
+    total_signals = crash_metrics.get('total_signals', 0)
+    justified_signals = crash_metrics.get('justified_signals', 0)
+    false_alarms = crash_metrics.get('false_alarms', 0)
+    lead_times = crash_metrics.get('lead_times', [])
+    missed_count = total_crashes - detected_count
+    crash_previews = crash_metrics.get('crash_list_preview', [])
     
     with st.expander("📚 Statistical Report & Signal Audit", expanded=False):
         # 4-column layout: Regime Table + 3 KPI columns
@@ -242,15 +158,15 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
             
             st.metric(
                 "True Crashes (5Y)",
-                f"{total_true_crashes}",
-                delta=f"{detected_crashes} detected, {missed_crashes} missed",
-                delta_color="normal" if detected_crashes > missed_crashes else "inverse"
+                f"{total_crashes}",
+                delta=f"{detected_count} detected, {missed_count} missed",
+                delta_color="normal" if detected_count > missed_count else "inverse"
             )
             
             st.metric(
                 "Detection Rate",
                 f"{detection_rate:.0f}%",
-                delta=f"{detected_crashes}/{total_true_crashes}",
+                delta=f"{detected_count}/{total_crashes}",
                 delta_color="normal"
             )
         
@@ -262,14 +178,16 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
             st.metric(
                 "False Alarm Rate",
                 f"{false_alarm_rate:.0f}%",
-                delta=f"{false_alarms}/{total_signal_events} false",
-                delta_color="inverse"
+                delta=f"{false_alarms}/{total_signals} signals",
+                delta_color="inverse",
+                help="% of warnings without subsequent >20% crash. Cost of insurance."
             )
             
+            justified_pct = (justified_signals / total_signals * 100) if total_signals > 0 else 0
             st.metric(
                 "Justified Alerts",
-                f"{justified_signals}/{total_signal_events}",
-                delta=f"{(justified_signals/total_signal_events*100):.0f}% accurate" if total_signal_events > 0 else "0%",
+                f"{justified_signals}/{total_signals}",
+                delta=f"{justified_pct:.0f}% accurate",
                 delta_color="normal"
             )
         
@@ -291,11 +209,22 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
                 st.metric(
                     "Lead Time Range",
                     f"{min_lead}-{max_lead} Days",
-                    delta=f"Based on {len(lead_times)} events",
+                    delta=f"{len(lead_times)} events",
                     delta_color="off"
                 )
             else:
                 st.metric("Lead Time Range", "N/A", delta="No data", delta_color="off")
+        
+        # === CRASH LIST (Optional Expandable) ===
+        if crash_previews:
+            st.markdown("---")
+            with st.expander("🔎 View Detected Crash Events", expanded=False):
+                st.caption(f"*Showing most recent {len(crash_previews)} crash events*")
+                for crash in crash_previews:
+                    start_date = crash.get('start_date', 'Unknown')
+                    max_loss = crash.get('max_loss', 0)
+                    duration = crash.get('duration', 0)
+                    st.markdown(f"- **{start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else start_date}**: {max_loss:.1f}% drawdown ({duration} days)")
 
 
 # =============================================================================

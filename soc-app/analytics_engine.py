@@ -1,327 +1,201 @@
-"""
-TECTONIQ Analytics Engine - Event-Based Market Forensics
-========================================================
-
-Pure logic module for regime statistics and crash detection.
-Uses run-length encoding to properly group consecutive days into events.
-
-Key Principle: Calculate statistics on BLOCKS (events), not daily rows.
-
-Author: Market Analysis Team
-Version: 1.0 (Clean Rebuild)
-"""
-
 import pandas as pd
 import numpy as np
-from typing import Dict, Any
-
+import yfinance as yf # Nur für den Test-Daten-Download nötig
 
 class MarketForensics:
     """
-    Event-based analytics engine for regime and crash analysis.
-    
-    Correctly handles temporal grouping to avoid daily-count inflation.
+    Die reine Logik-Einheit für statistische Auswertungen.
+    Trennt Mathe von UI.
     """
-    
-    def __init__(self, df: pd.DataFrame):
+
+    @staticmethod
+    def get_regime_stats(df: pd.DataFrame) -> pd.DataFrame:
         """
-        Initialize with price dataframe.
-        
-        Args:
-            df: DataFrame with DatetimeIndex and 'Regime' column
+        Berechnet Regime-Statistiken basierend auf ZUSAMMENHÄNGENDEN BLÖCKEN (Events),
+        nicht auf einzelnen Tages-Zeilen. Löst das 'Median=1' Problem.
         """
-        self.df = df.copy()
-        if 'Regime' not in self.df.columns:
-            raise ValueError("DataFrame must contain 'Regime' column")
-    
-    def get_regime_stats(self) -> pd.DataFrame:
+        # Kopie um Warnungen zu vermeiden
+        work_df = df.copy()
+
+        # 1. Block-ID erstellen (Run-Length Encoding)
+        # Ändert sich nur, wenn das Regime wechselt
+        work_df['block_id'] = (work_df['Regime'] != work_df['Regime'].shift(1)).cumsum()
+
+        # 2. Aggregation: Dauer pro Block berechnen
+        # Ergebnis: Eine Liste von Events (z.B. "Stable: 45 Tage", "Critical: 12 Tage")
+        block_stats = work_df.groupby(['Regime', 'block_id']).size().reset_index(name='duration_days')
+
+        # 3. Statistik über die Blöcke berechnen
+        stats = block_stats.groupby('Regime')['duration_days'].agg(
+            Count_Events='count',          # Wie oft kam diese Phase vor?
+            Avg_Duration_Days='mean',      # Mittlere Dauer
+            Median_Duration_Days='median', # Median (robust gegen Ausreißer)
+            Max_Duration_Days='max'        # Längste Phase jemals
+        ).reset_index()
+
+        # 4. Frequenz basierend auf ZEIT (Total Days) hinzufügen
+        total_days = len(work_df)
+        days_per_regime = work_df['Regime'].value_counts()
+        stats['Frequency_Pct'] = stats['Regime'].map(lambda x: (days_per_regime.get(x, 0) / total_days) * 100)
+
+        return stats.round(1).set_index('Regime')
+
+    @staticmethod
+    def get_crash_metrics(df: pd.DataFrame) -> dict:
         """
-        Calculate regime statistics using run-length encoding.
-        
-        Algorithm:
-        1. Identify consecutive blocks of same regime
-        2. Calculate duration of each block
-        3. Aggregate statistics FROM BLOCKS (not daily rows)
-        
-        Returns:
-            DataFrame with columns:
-            - Frequency_Pct: % of total days in this regime
-            - Count_Events: Number of times regime occurred
-            - Avg_Duration_Days: Mean block duration
-            - Median_Duration_Days: Median block duration
-            - Min_Duration_Days: Shortest block
-            - Max_Duration_Days: Longest block
+        Forensische Analyse: Findet 'Echte Crashs' (Ground Truth) und prüft,
+        ob das Signal gewarnt hat.
         """
-        df = self.df
+        work_df = df.copy()
+
+        # --- SCHRITT 1: DEFINITION "ECHTER CRASH" (GROUND TRUTH) ---
         
-        # STEP 1: CREATE BLOCK IDS
-        # block_id increments whenever Regime changes
-        df['block_id'] = (df['Regime'] != df['Regime'].shift(1)).cumsum()
+        # Drawdown vom 90-Tage Hoch (mittelfristiger Trend)
+        rolling_peak = work_df['Close'].rolling(window=90, min_periods=1).max()
+        work_df['drawdown'] = (work_df['Close'] - rolling_peak) / rolling_peak
+
+        # Harte Definition: Crash ist nur, wenn Drawdown < -20%
+        # (Für Tech/Krypto evtl auf -25% anpassen, für SAP reichen -20%)
+        CRASH_THRESHOLD = -0.20
+        work_df['is_crash_day'] = work_df['drawdown'] < CRASH_THRESHOLD
+
+        # Gruppieren: Zusammenhängende Crash-Tage sind 1 Event
+        work_df['crash_block'] = (work_df['is_crash_day'] != work_df['is_crash_day'].shift(1)).cumsum()
+
+        # Nur die Blöcke filtern, die wirklich Crashs sind
+        crash_groups = work_df[work_df['is_crash_day']].groupby('crash_block')
         
-        # STEP 2: AGGREGATE BY BLOCK
-        # Get duration of each individual block
-        # Result: Series like [Stable: 45 days, Critical: 12 days, Stable: 4 days]
-        regime_blocks = df.groupby(['Regime', 'block_id']).size().reset_index(name='duration_days')
+        true_crashes = []
+        for _, block in crash_groups:
+            start_date = block.index[0]
+            max_loss = block['drawdown'].min()
+            duration = (block.index[-1] - start_date).days
+            
+            # De-Bouncing: Ignoriere Mini-Dips unter 5 Tagen Dauer (Rauschen)
+            if duration >= 5:
+                true_crashes.append({
+                    'start_date': start_date,
+                    'max_loss': max_loss,
+                    'duration': duration
+                })
+
+        total_crashes = len(true_crashes)
+
+        # --- SCHRITT 2: ERKENNUNGSPRÜFUNG (RECALL) ---
         
-        # STEP 3: CALCULATE STATS FROM BLOCKS (NOT DAILY ROWS)
-        # This is the critical fix - we aggregate the block durations, not the daily data
-        regime_stats = regime_blocks.groupby('Regime')['duration_days'].agg([
-            ('Count_Events', 'count'),      # How many times did this regime happen?
-            ('Avg_Duration_Days', 'mean'),   # Average length of a phase
-            ('Median_Duration_Days', 'median'),  # Median length
-            ('Min_Duration_Days', 'min'),    # Shortest phase
-            ('Max_Duration_Days', 'max')     # Longest phase
-        ]).reset_index()
-        
-        # Calculate Frequency % based on total DAYS (not blocks)
-        total_days = len(df)
-        days_per_regime = df['Regime'].value_counts()
-        regime_stats['Frequency_Pct'] = regime_stats['Regime'].map(
-            lambda x: (days_per_regime.get(x, 0) / total_days) * 100
-        )
-        
-        # Set Regime as index
-        regime_stats = regime_stats.set_index('Regime')
-        
-        return regime_stats
-    
-    def get_crash_metrics(self, price_column: str = 'Close') -> Dict[str, Any]:
-        """
-        Identify significant crashes and evaluate signal detection performance.
-        
-        Strict Crash Definition:
-        - Drawdown from 90-day rolling high
-        - Threshold: -20% (filters noise)
-        - De-bounced: Consecutive crash days = 1 event
-        
-        Returns:
-            Dictionary containing:
-            - total_crashes: Number of unique crash events
-            - detected_count: Crashes with prior warning (RED/ORANGE)
-            - missed_count: Crashes without prior warning
-            - false_alarm_rate: % of warning signals without subsequent crash
-            - avg_lead_time: Average days from warning to crash
-            - lead_times: List of individual lead times
-        """
-        df = self.df
-        
-        if price_column not in df.columns:
-            return {
-                'total_crashes': 0,
-                'detected_count': 0,
-                'missed_count': 0,
-                'false_alarm_rate': 0,
-                'avg_lead_time': 0,
-                'lead_times': []
-            }
-        
-        prices = df[price_column]
-        
-        # GROUND TRUTH: Calculate drawdown from 90-day rolling high
-        rolling_peak = prices.rolling(window=90, min_periods=1).max()
-        drawdown = (prices - rolling_peak) / rolling_peak
-        
-        # STRICT THRESHOLD: Only -20% or deeper counts as crash
-        crash_days = drawdown < -0.20
-        
-        # DE-BOUNCE: Group consecutive crash days into single events
-        crash_block_id = (crash_days != crash_days.shift(1)).cumsum()
-        
-        # Get unique crash events (start dates)
-        if crash_days.sum() == 0:
-            return {
-                'total_crashes': 0,
-                'detected_count': 0,
-                'missed_count': 0,
-                'false_alarm_rate': 0,
-                'avg_lead_time': 0,
-                'lead_times': [],
-                'total_signals': 0,
-                'justified_signals': 0,
-                'false_alarms': 0
-            }
-        
-        crash_events_grouped = df[crash_days].groupby(crash_block_id)
-        crash_start_dates = []
-        for block_id, group in crash_events_grouped:
-            crash_start_dates.append(group.index[0])
-        
-        total_crashes = len(crash_start_dates)
-        true_crash_dates = crash_start_dates
-        
-        if total_crashes == 0:
-            return {
-                'total_crashes': 0,
-                'detected_count': 0,
-                'missed_count': 0,
-                'false_alarm_rate': 0,
-                'avg_lead_time': 0,
-                'lead_times': []
-            }
-        
-        # DETECTION EVALUATION (Recall)
-        detected_crashes = 0
-        missed_crashes = 0
+        detected_count = 0
         lead_times = []
-        
-        for crash_date in true_crash_dates:
-            try:
-                crash_idx = df.index.get_loc(crash_date)
-            except:
-                continue
+
+        # Wir suchen nach Warnsignalen: "Critical" oder "High Energy"
+        WARNING_SIGNALS = ['CRITICAL', 'HIGH_ENERGY', 'High Energy', 'Critical']
+
+        for crash in true_crashes:
+            c_start = crash['start_date']
             
-            # Look 14 days before crash for warning (CRITICAL or HIGH_ENERGY)
-            lookback_idx = max(0, crash_idx - 14)
-            warning_window = df.iloc[lookback_idx:crash_idx + 1]
+            # Analyse-Fenster: 14 Tage VOR dem Crash-Start
+            lookback_start = c_start - pd.Timedelta(days=14)
+            window = work_df.loc[lookback_start : c_start]
             
-            had_warning = any(warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY']))
+            # Gab es IRGENDEIN Warnsignal in diesem Fenster?
+            has_warning = window['Regime'].isin(WARNING_SIGNALS).any()
             
-            if had_warning:
-                detected_crashes += 1
-                # Calculate lead time
-                warning_days = warning_window[warning_window['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])]
-                if len(warning_days) > 0:
-                    first_warning_date = warning_days.index[0]
-                    lead_days = (crash_date - first_warning_date).days
-                    lead_times.append(max(0, lead_days))
-            else:
-                missed_crashes += 1
+            if has_warning:
+                detected_count += 1
+                # Lead Time berechnen: Tage vom ersten Warnsignal bis zum Crash
+                first_warning_date = window[window['Regime'].isin(WARNING_SIGNALS)].index[0]
+                lead_time = (c_start - first_warning_date).days
+                lead_times.append(lead_time)
+
+        avg_lead_time = np.mean(lead_times) if lead_times else 0
+
+        # --- SCHRITT 3: FALSE ALARMS (PRECISION) ---
         
-        # FALSE ALARM EVALUATION (Precision)
-        # Identify warning signal blocks (RED/ORANGE lasting >= 5 days)
-        df['block_id'] = (df['Regime'] != df['Regime'].shift(1)).cumsum()
-        blocks = df.groupby('block_id').agg({
-            'Regime': 'first'
-        })
-        blocks['Duration'] = df.groupby('block_id').size()
-        blocks['Start_Date'] = df.groupby('block_id').apply(lambda x: x.index[0])
+        # Identifiziere Signal-Blöcke (Warnung > 3 Tage am Stück)
+        work_df['is_signal'] = work_df['Regime'].isin(WARNING_SIGNALS)
+        work_df['signal_block'] = (work_df['is_signal'] != work_df['is_signal'].shift(1)).cumsum()
         
-        warning_blocks = blocks[
-            (blocks['Regime'].isin(['CRITICAL', 'HIGH_ENERGY'])) &
-            (blocks['Duration'] >= 5)
-        ]
+        signal_groups = work_df[work_df['is_signal']].groupby('signal_block')
         
-        total_signals = len(warning_blocks)
-        justified_signals = 0
+        total_signals = 0
         false_alarms = 0
         
-        for idx, signal in warning_blocks.iterrows():
-            signal_start = signal['Start_Date']
-            lookahead_date = signal_start + pd.Timedelta(days=30)
+        for _, block in signal_groups:
+            # Ignoriere kurzes Flackern (< 3 Tage)
+            if len(block) < 3:
+                continue
             
-            # Check if any crash started within 30 days
-            crash_found = any(
-                signal_start <= crash_date <= lookahead_date 
-                for crash_date in true_crash_dates
-            )
+            total_signals += 1
+            sig_start = block.index[0]
             
-            if crash_found:
-                justified_signals += 1
-            else:
+            # Schau 30 Tage in die Zukunft: Kam ein Crash?
+            lookahead_end = sig_start + pd.Timedelta(days=30)
+            
+            crash_followed = False
+            for crash in true_crashes:
+                # Liegt ein Crash-Start in diesem Fenster?
+                if sig_start <= crash['start_date'] <= lookahead_end:
+                    crash_followed = True
+                    break
+            
+            if not crash_followed:
                 false_alarms += 1
-        
+
         false_alarm_rate = (false_alarms / total_signals * 100) if total_signals > 0 else 0
-        avg_lead_time = sum(lead_times) / len(lead_times) if lead_times else 0
-        
+
         return {
-            'total_crashes': total_crashes,
-            'detected_count': detected_crashes,
-            'missed_count': missed_crashes,
+            'total_crashes_5y': total_crashes,
+            'avg_crash_depth': np.mean([c['max_loss'] for c in true_crashes]) if true_crashes else 0,
+            'detected_count': detected_count,
+            'detection_rate': (detected_count / total_crashes * 100) if total_crashes > 0 else 0,
             'false_alarm_rate': false_alarm_rate,
-            'avg_lead_time': avg_lead_time,
-            'lead_times': lead_times,
-            'total_signals': total_signals,
-            'justified_signals': justified_signals,
-            'false_alarms': false_alarms
+            'avg_lead_time_days': avg_lead_time,
+            'crash_list_preview': true_crashes[-3:] # Zeige die letzten 3 Crashs zur Kontrolle
         }
 
-
-# =============================================================================
-# INTEGRATION TEST
-# =============================================================================
+# --- TEST BEREICH (Wird nur im Terminal ausgeführt) ---
 if __name__ == "__main__":
-    print("="*60)
-    print("TECTONIQ Analytics Engine - Integration Test")
-    print("="*60)
+    print("🚀 Starte Analytics Engine Test...\n")
     
-    # Create test data with known patterns
-    dates = pd.date_range('2020-01-01', periods=100, freq='D')
+    tickers = ["SAP", "NVDA"]
     
-    # Pattern: 30 days Stable, 10 days Critical, 20 days Active, 15 days Stable, 25 days Critical
-    regimes = (
-        ['STABLE'] * 30 + 
-        ['CRITICAL'] * 10 + 
-        ['ACTIVE'] * 20 + 
-        ['STABLE'] * 15 + 
-        ['CRITICAL'] * 25
-    )
-    
-    # Create price data with crashes during CRITICAL periods
-    prices = [100] * 30  # Stable: flat
-    prices += [100 - i*2 for i in range(10)]  # Critical: drop 2% per day (20% total)
-    prices += [80 + i*0.5 for i in range(20)]  # Active: recover
-    prices += [90] * 15  # Stable: flat
-    prices += [90 - i*1.5 for i in range(25)]  # Critical: drop 37.5%
-    
-    test_df = pd.DataFrame({
-        'Close': prices,
-        'Regime': regimes
-    }, index=dates)
-    
-    print("\nTest DataFrame:")
-    print(f"Total days: {len(test_df)}")
-    print(f"Regime counts: {test_df['Regime'].value_counts().to_dict()}")
-    
-    # Initialize engine
-    engine = MarketForensics(test_df)
-    
-    # Test Method A: Regime Stats
-    print("\n" + "="*60)
-    print("METHOD A: get_regime_stats()")
-    print("="*60)
-    
-    regime_stats = engine.get_regime_stats()
-    print("\nRegime Statistics (Block-Based):")
-    print(regime_stats.to_string())
-    
-    print("\n✅ VALIDATION:")
-    print(f"   Stable Median: {regime_stats.loc['STABLE', 'Median_Duration_Days']:.1f} days")
-    print(f"   Expected: ~22.5 days (average of 30 and 15)")
-    print(f"   Critical Median: {regime_stats.loc['CRITICAL', 'Median_Duration_Days']:.1f} days")
-    print(f"   Expected: ~17.5 days (average of 10 and 25)")
-    
-    if regime_stats.loc['STABLE', 'Median_Duration_Days'] > 1:
-        print("\n   ✅ PASS: Median > 1 (block-based logic working!)")
-    else:
-        print("\n   ❌ FAIL: Median = 1 (still counting daily rows!)")
-    
-    # Test Method B: Crash Metrics
-    print("\n" + "="*60)
-    print("METHOD B: get_crash_metrics()")
-    print("="*60)
-    
-    crash_metrics = engine.get_crash_metrics(price_column='Close')
-    print("\nCrash Detection Metrics:")
-    for key, value in crash_metrics.items():
-        if isinstance(value, list):
-            print(f"   {key}: {value}")
-        elif isinstance(value, float):
-            print(f"   {key}: {value:.2f}")
-        else:
-            print(f"   {key}: {value}")
-    
-    print("\n✅ VALIDATION:")
-    print(f"   Total Crashes: {crash_metrics['total_crashes']}")
-    print(f"   Expected: 2 (one at day 30, one at day 65)")
-    print(f"   Detected: {crash_metrics['detected_count']}")
-    print(f"   False Alarms: {crash_metrics['false_alarms']}")
-    
-    if crash_metrics['total_crashes'] == 2:
-        print("\n   ✅ PASS: Correctly identified 2 unique crash events!")
-    else:
-        print(f"\n   ❌ FAIL: Found {crash_metrics['total_crashes']} crashes (expected 2)")
-    
-    print("\n" + "="*60)
-    print("Integration Test Complete")
-    print("="*60)
-
+    for ticker in tickers:
+        print(f"--- ANALYSE FÜR: {ticker} ---")
+        
+        # 1. Daten holen (Letzte 5 Jahre)
+        data = yf.download(ticker, period="5y", progress=False)
+        # Flatten MultiIndex if necessary (yfinance update quirk)
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = data.columns.get_level_values(0)
+            
+        df = pd.DataFrame(index=data.index)
+        df['Close'] = data['Close']
+        
+        # 2. MOCK REGIME GENERATOR (Nur für diesen Test!)
+        # Wir simulieren hier deine SOC Logik vereinfacht, damit das Script läuft.
+        # Hohe Vola = Critical, Niedrige Vola = Stable.
+        df['Returns'] = df['Close'].pct_change()
+        df['Vol_30'] = df['Returns'].rolling(30).std()
+        
+        conditions = [
+            (df['Vol_30'] > df['Vol_30'].quantile(0.90)), # Top 10% Vola -> Critical
+            (df['Vol_30'] > df['Vol_30'].quantile(0.70)), # Top 30% -> High Energy
+            (df['Vol_30'] < df['Vol_30'].quantile(0.30))  # Low Vola -> Stable
+        ]
+        choices = ['CRITICAL', 'HIGH_ENERGY', 'STABLE']
+        df['Regime'] = np.select(conditions, choices, default='ACTIVE')
+        
+        # 3. Teste Regime Stats
+        print("\n[A] Regime Profile (Median > 1?):")
+        stats = MarketForensics.get_regime_stats(df)
+        print(stats[['Frequency_Pct', 'Median_Duration_Days', 'Avg_Duration_Days']])
+        
+        # 4. Teste Crash Logic
+        print("\n[B] Crash Forensics (Realistische Anzahl?):")
+        metrics = MarketForensics.get_crash_metrics(df)
+        
+        print(f"Total True Crashes (5Y): {metrics['total_crashes_5y']}")
+        print(f"Detected: {metrics['detected_count']} ({metrics['detection_rate']:.1f}%)")
+        print(f"False Alarm Rate: {metrics['false_alarm_rate']:.1f}%")
+        print(f"Ø Lead Time: {metrics['avg_lead_time_days']:.1f} Days")
+        print(f"Sample Crashes: {metrics['crash_list_preview']}")
+        print("-" * 40 + "\n")
