@@ -957,9 +957,8 @@ def main():
                                             st.error(error)
                                 
                                 st.markdown("<hr style='margin: 8px 0; opacity: 0.2;'>", unsafe_allow_html=True)
-                    # If portfolio_analysis is empty, error message was already shown above
-        else:
-                    st.info("📌 No assets yet. Search for a ticker to get started.")
+            else:
+                st.warning("Please log in to view your portfolio.")
         
         st.markdown("---")
             
