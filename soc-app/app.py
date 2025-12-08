@@ -128,9 +128,8 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     
     # Get full blocks dataframe for signal evaluation
     blocks = df_local.groupby('regime_block').agg({
-        'Regime': 'first',
-        'Drawdown': 'count'  # count rows as duration (will be overwritten)
-    }).rename(columns={'Drawdown': 'Duration_Days'})
+        'Regime': 'first'
+    })
     blocks['Duration_Days'] = df_local.groupby('regime_block').size()
     blocks['Start_Date'] = df_local.groupby('regime_block').apply(lambda x: x.index[0])
     blocks['End_Date'] = df_local.groupby('regime_block').apply(lambda x: x.index[-1])
