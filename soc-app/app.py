@@ -971,83 +971,79 @@ def main():
                 context_text = selected.get('context', f"Regime: {signal}.")
                 
                 with st.container():
-                    st.markdown(f"""
-                    <div style="
-                        border: 1px double #333;
-                        border-radius: 8px;
-                        background: #FFFFFF;
-                        padding: 16px 18px;
-                        margin-bottom: 12px;
-                        box-shadow: 2px 2px 6px rgba(0,0,0,0.05);
-                        font-family: 'Merriweather', serif;
-                    ">
-                        <!-- Top Row -->
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
-                            <div>
-                                <div style="font-size: 1.4rem; font-weight: 700; color: #2C3E50;">{name}</div>
-                                <div style="font-size: 1rem; color: #555;">{full_name}</div>
-                            </div>
-                            <div style="min-width: 64px; text-align: center;">
-                                <div style="
-                                    width: 64px; height: 64px;
-                                    border-radius: 50%;
-                                    background: {crit_color};
-                                    color: #fff;
-                                    display: flex; align-items: center; justify-content: center;
-                                    font-size: 1.4rem; font-weight: 800;
-                                    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
-                                ">{criticality}</div>
-                                <div style="font-size: 0.75rem; color: #555; margin-top: 4px;">Criticality</div>
-                            </div>
-                        </div>
-                        
-                        <!-- Type Line / Regime Strip -->
-                        <div style="
-                            margin: 12px 0;
-                            padding: 6px 10px;
-                            background: {regime_color};
-                            color: #fff;
-                            font-weight: 700;
-                            letter-spacing: 0.5px;
-                            border-radius: 4px;
-                            text-transform: uppercase;
-                        ">{regime_label}</div>
-                        
-                        <!-- Center Content -->
-                        <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px;">
-                            <div>
-                                <div style="font-size: 2rem; font-weight: 800; color: #2C3E50;">
-                                    ${price:,.2f}
-                                </div>
-                                <div style="font-size: 0.95rem; color: {'#27AE60' if change >=0 else '#C0392B'};">
-                                    {change:+.2f}%
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Oracle Text -->
-                        <div style="
-                            margin-top: 12px;
-                            padding: 10px 12px;
-                            background: #F9F7F1;
-                            border: 1px solid #D1C4E9;
-                            border-radius: 6px;
-                            font-size: 0.95rem;
-                            line-height: 1.5;
-                            color: #333;
-                            font-family: 'Merriweather', serif;
-                        ">
-                            Persistence: {persistence} days. Historical Probability: {win_rate:.0f}%.
-                            Context: {context_text}
-                        </div>
-                        
-                        <!-- Footer Stats -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 0.95rem; color: #333;">
-                            <div>Trend: <strong>{trend}</strong></div>
-                            <div>Volatility: <strong>{vol_pct:.0f}th %ile</strong></div>
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    card_html = f"""
+<div style="
+    border: 1px double #333;
+    border-radius: 8px;
+    background: #FFFFFF;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+    box-shadow: 2px 2px 6px rgba(0,0,0,0.05);
+    font-family: 'Merriweather', serif;
+">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+        <div>
+            <div style="font-size: 1.4rem; font-weight: 700; color: #2C3E50;">{name}</div>
+            <div style="font-size: 1rem; color: #555;">{full_name}</div>
+        </div>
+        <div style="min-width: 64px; text-align: center;">
+            <div style="
+                width: 64px; height: 64px;
+                border-radius: 50%;
+                background: {crit_color};
+                color: #fff;
+                display: flex; align-items: center; justify-content: center;
+                font-size: 1.4rem; font-weight: 800;
+                box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            ">{criticality}</div>
+            <div style="font-size: 0.75rem; color: #555; margin-top: 4px;">Criticality</div>
+        </div>
+    </div>
+
+    <div style="
+        margin: 12px 0;
+        padding: 6px 10px;
+        background: {regime_color};
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        border-radius: 4px;
+        text-transform: uppercase;
+    ">{regime_label}</div>
+
+    <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px;">
+        <div>
+            <div style="font-size: 2rem; font-weight: 800; color: #2C3E50;">
+                ${price:,.2f}
+            </div>
+            <div style="font-size: 0.95rem; color: {'#27AE60' if change >=0 else '#C0392B'};">
+                {change:+.2f}%
+            </div>
+        </div>
+    </div>
+
+    <div style="
+        margin-top: 12px;
+        padding: 10px 12px;
+        background: #F9F7F1;
+        border: 1px solid #D1C4E9;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: #333;
+        font-family: 'Merriweather', serif;
+    ">
+        Persistence: {persistence} days. Historical Probability: {win_rate:.0f}%.
+        Context: {context_text}
+    </div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 0.95rem; color: #333;">
+        <div>Trend: <strong>{trend}</strong></div>
+        <div>Volatility: <strong>{vol_pct:.0f}th %ile</strong></div>
+    </div>
+</div>
+"""
+                    st.markdown(card_html, unsafe_allow_html=True)
                 
                 # === SOC Chart (Plotly) ===
                 is_dark = st.session_state.get('dark_mode', False)
