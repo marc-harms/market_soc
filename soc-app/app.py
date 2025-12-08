@@ -1050,6 +1050,7 @@ def main():
                     """, unsafe_allow_html=True)
                 
                 # === SOC Chart (Plotly) ===
+                is_dark = st.session_state.get('dark_mode', False)
                 fetcher = DataFetcher(cache_enabled=True)
                 df = fetcher.fetch_data(symbol)
                 if not df.empty:
