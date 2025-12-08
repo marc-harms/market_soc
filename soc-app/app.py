@@ -863,37 +863,6 @@ def main():
     
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
     
-    # === ANALYSIS MODE TABS (always visible) ===
-    col_spacer1, col_tab1, col_tab2, col_tab3, col_spacer2 = st.columns([0.5, 2, 2, 2, 0.5])
-    
-    with col_tab1:
-        if st.button(
-            "📊 Asset Deep Dive",
-            key="btn_deep_dive",
-            use_container_width=True
-        ):
-            st.session_state.analysis_mode = "deep_dive"
-            st.rerun()
-    
-    with col_tab2:
-        if st.button(
-            "🎯 Portfolio Simulation",
-            key="btn_simulation",
-            use_container_width=True
-        ):
-            st.session_state.analysis_mode = "simulation"
-            st.rerun()
-    
-    with col_tab3:
-        st.button(
-            "🔑 Add to Portfolio",
-            key="btn_portfolio_main",
-            use_container_width=True,
-            help="Premium feature (coming soon)"
-        )
-    
-    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
-    
     # === MAIN CONTENT AREA (Dynamic) ===
     if 'scan_results' not in st.session_state or not st.session_state.scan_results:
         # CONDITION A: No Asset Selected - Show Education Landing
@@ -901,6 +870,37 @@ def main():
     else:
         # CONDITION B: Asset Selected - Show Analysis
         results = st.session_state.scan_results
+        
+        # === ANALYSIS MODE TABS (all in one row) ===
+        col_spacer1, col_tab1, col_tab2, col_tab3, col_spacer2 = st.columns([0.5, 2, 2, 2, 0.5])
+        
+        with col_tab1:
+            if st.button(
+                "📊 Asset Deep Dive",
+                key="btn_deep_dive",
+                use_container_width=True
+            ):
+                st.session_state.analysis_mode = "deep_dive"
+                st.rerun()
+        
+        with col_tab2:
+            if st.button(
+                "🎯 Portfolio Simulation",
+                key="btn_simulation",
+                use_container_width=True
+            ):
+                st.session_state.analysis_mode = "simulation"
+                st.rerun()
+        
+        with col_tab3:
+            st.button(
+                "🔑 Add to Portfolio",
+                key="btn_portfolio_main",
+                use_container_width=True,
+                help="Premium feature (coming soon)"
+            )
+        
+        st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         
         # === ACTIVE ASSET CARD ===
         selected = results[st.session_state.selected_asset]
