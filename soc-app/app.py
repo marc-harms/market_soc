@@ -1049,36 +1049,7 @@ def main():
         
         st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         
-        # === ACTIVE ASSET CARD ===
-        selected = results[st.session_state.selected_asset]
-        symbol = selected['symbol']
-        signal = selected['signal']
-        criticality = selected.get('criticality_score', 0)
-        
-        # Get crash warning score if available
-        crash_warning = selected.get('crash_warning', {})
-        instability_score = crash_warning.get('score', 0)
-                
-        # Center the active asset card
-        col_left, col_center, col_right = st.columns([1, 2, 1])
-        with col_center:
-            # Determine criticality color
-            if criticality > 80:
-                crit_color = '#C0392B'  # Critical/Red
-            elif criticality > 60:
-                crit_color = '#D35400'  # High Energy/Orange
-            elif criticality > 40:
-                crit_color = '#F1C40F'  # Active/Gold
-            else:
-                crit_color = '#27AE60'  # Stable/Green
-            
-            st.markdown(f"""
-            <div class="active-asset-badge" style="background: #FFFFFF; border: 2px solid {crit_color}; border-radius: 8px; padding: 1rem; text-align: center; margin: 0.5rem 0 1rem 0; box-shadow: 2px 2px 8px rgba(0,0,0,0.08);">
-                <div class="asset-symbol" style="font-family: 'Rockwell Std Condensed', Rockwell, 'Roboto Slab', serif; font-size: 2rem; font-weight: 700; color: {crit_color};">{symbol}</div>
-                <div class="asset-signal" style="font-family: 'Rockwell Std Condensed', Rockwell, 'Roboto Condensed', sans-serif; font-size: 1rem; color: #666; margin: 0.3rem 0;">{signal}</div>
-                <div class="criticality-score" style="font-family: 'Rockwell Std Condensed', Rockwell, 'Roboto Slab', serif; font-size: 1.5rem; font-weight: 700; color: {crit_color}; margin-top: 0.3rem;">Criticality: {criticality}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        # Active asset card removed - hero card is shown in deep dive section instead
         
         st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
         
