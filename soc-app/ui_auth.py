@@ -556,28 +556,23 @@ def render_education_landing(run_analysis_func: Callable) -> None:
         except:
             news_content = "Welcome to TECTONIQ! Stay tuned for updates."
         
-        # News box with header and close button
-        st.markdown("""
-        <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 4px; padding: 1rem; margin: 1rem 0; position: relative;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <h4 style="margin: 0; color: #667eea; font-size: 1.1rem;">🚨 News & Updates</h4>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        # Single unified news box with header and content
+        col_main, col_close = st.columns([20, 1])
         
-        col_content, col_close = st.columns([20, 1])
-        with col_close:
-            if st.button("✕", key="close_news_box", help="Close", use_container_width=True):
-                st.session_state.show_news_box = False
-                st.rerun()
-        
-        with col_content:
-            # News content with tight spacing
+        with col_main:
+            # Unified box with title and content
             st.markdown(f"""
-            <div style="background: rgba(102, 126, 234, 0.08); border-radius: 4px; padding: 0.8rem 1rem; margin: -0.5rem 0 1rem 0; line-height: 1.4;">
-                <div style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap;">{news_content}</div>
+            <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 4px; padding: 1rem 1.2rem; margin: 1rem 0;">
+                <h4 style="margin: 0 0 0.8rem 0; color: #667eea; font-size: 1.1rem;">🚨 News & Updates</h4>
+                <div style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap; color: #333;">{news_content}</div>
             </div>
             """, unsafe_allow_html=True)
+        
+        with col_close:
+            st.markdown("<div style='height: 1.5rem;'></div>", unsafe_allow_html=True)
+            if st.button("✕", key="close_news_box", help="Close this box", use_container_width=True):
+                st.session_state.show_news_box = False
+                st.rerun()
     
     st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
     
