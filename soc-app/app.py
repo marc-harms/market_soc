@@ -857,7 +857,6 @@ def main():
             st.session_state.ticker_suggestions = []
             st.rerun()
         
-        st.markdown("---")
     
     st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
     
@@ -965,10 +964,20 @@ def main():
                 else:
                     crit_color = "#27AE60"
                 
-                # Basic persistence and win rate (fallbacks)
-                persistence = selected.get('current_streak_days', selected.get('current_streak', 0))
-                win_rate = selected.get('win_rate', selected.get('probability', 0))
-                context_text = selected.get('context', f"Regime: {signal}.")
+                # Basic persistence and win rate (with safer fallbacks)
+                persistence = (
+                    selected.get('current_streak_days')
+                    or selected.get('current_streak')
+                    or selected.get('streak')
+                    or "N/A"
+                )
+                win_rate_raw = (
+                    selected.get('win_rate')
+                    or selected.get('probability')
+                    or selected.get('historical_probability')
+                )
+                win_rate = f"{win_rate_raw:.0f}%" if isinstance(win_rate_raw, (int, float)) else "N/A"
+                context_text = selected.get('context') or f"Regime: {regime_label}."
                 
                 # Center the card at 50% width
                 col_left_card, col_center_card, col_right_card = st.columns([1, 2, 1])
