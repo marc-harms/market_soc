@@ -27,9 +27,7 @@ import requests
 from typing import List, Dict, Any
 
 import streamlit as st
-import pandas as pd
 import yfinance as yf
-import plotly.graph_objects as go
 
 from logic import DataFetcher, SOCAnalyzer, run_dca_simulation, calculate_audit_metrics
 from ui_simulation import render_dca_simulation
@@ -802,7 +800,7 @@ def main():
                                 st.markdown("<hr style='margin: 8px 0; opacity: 0.2;'>", unsafe_allow_html=True)
                     # If portfolio_analysis is empty, error message was already shown above
                 else:
-                    st.info("📌 No assets yet. Search for a ticker and click '⭐ Add to Portfolio'")
+                    st.info("📌 No assets yet. Search for a ticker to get started.")
         
         st.markdown("---")
     
