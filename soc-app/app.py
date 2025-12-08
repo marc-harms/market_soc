@@ -49,6 +49,128 @@ from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
 # =============================================================================
 def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     """
+    Render simplified advanced analytics:
+    - Regime Frequency (Donut + table)
+    - Regime Duration (Box + table)
+    """
+    if df is None or df.empty:
+        st.info("No data available for advanced analytics.")
+        return
+    
+    regimes_order = ['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
+    colors = {
+        'DORMANT': REGIME_COLORS.get('DORMANT', '#95A5A6'),
+        'STABLE': REGIME_COLORS.get('STABLE', '#27AE60'),
+        'ACTIVE': REGIME_COLORS.get('ACTIVE', '#F1C40F'),
+        'HIGH_ENERGY': REGIME_COLORS.get('HIGH_ENERGY', '#D35400'),
+        'CRITICAL': REGIME_COLORS.get('CRITICAL', '#C0392B'),
+    }
+    text_color = "#FFFFFF" if is_dark else "#333333"
+    
+    # Derive regimes from volatility of returns (simple heuristic)
+    df_local = df.copy()
+    if 'Close' in df_local.columns:
+        price_series = df_local['Close']
+    elif 'Adj Close' in df_local.columns:
+        price_series = df_local['Adj Close']
+    else:
+        num_cols = df_local.select_dtypes(include='number').columns
+        if len(num_cols) == 0:
+            st.info("No price data available for advanced analytics.")
+            return
+        price_series = df_local[num_cols[0]]
+    df_local['return'] = price_series.pct_change()
+    df_local['vol'] = df_local['return'].abs()
+    df_local['Regime'] = pd.cut(
+        df_local['vol'],
+        bins=[-1, 0.005, 0.01, 0.02, 0.03, 10],
+        labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
+    ).astype(str)
+    
+    # Run-length encoding for durations
+    runs = []
+    prev = None
+    start_idx = None
+    for idx, reg in df_local['Regime'].items():
+        if reg != prev:
+            if prev is not None:
+                runs.append((prev, start_idx, idx))
+            prev = reg
+            start_idx = idx
+    if prev is not None:
+        runs.append((prev, start_idx, df_local.index[-1]))
+    
+    durations = pd.DataFrame(runs, columns=['Regime', 'Start', 'End'])
+    durations['Duration'] = (durations['End'] - durations['Start']).dt.days.clip(lower=1)
+    
+    # Frequency summary
+    freq_days = df_local['Regime'].value_counts().reindex(regimes_order).fillna(0)
+    freq_runs = durations['Regime'].value_counts().reindex(regimes_order).fillna(0)
+    total_days = freq_days.sum()
+    freq_share = (freq_days / total_days * 100).replace([float('inf'), float('nan')], 0)
+    
+    freq_df = pd.DataFrame({
+        'Total Days': freq_days.astype(int),
+        'Share (%)': freq_share.round(1),
+        'Occurrences': freq_runs.astype(int)
+    })
+    freq_df.index.name = "Regime"
+    
+    # Duration summary
+    dur_stats = durations.groupby('Regime')['Duration'].agg(['min', 'mean', 'median', 'max']).reindex(regimes_order).fillna(0)
+    dur_stats = dur_stats.rename(columns={
+        'min': 'Min Days',
+        'mean': 'Avg Days',
+        'median': 'Median Days',
+        'max': 'Max Days'
+    })
+    dur_stats['Avg Days'] = dur_stats['Avg Days'].round(1)
+    dur_stats.index.name = "Regime"
+    
+    with st.expander("Advanced Analytics: Probability, Duration & Risk Models", expanded=False):
+        col_freq, col_dur = st.columns(2)
+        
+        # Frequency Donut
+        fig_freq = go.Figure(data=[go.Pie(
+            labels=freq_days.index,
+            values=freq_days.values,
+            hole=0.5,
+            marker=dict(colors=[colors.get(r, '#888') for r in freq_days.index]),
+            textinfo='label+percent'
+        )])
+        fig_freq.update_layout(
+            title="Historical Regime Frequency",
+            annotations=[dict(text=f"{int(total_days)} Days", showarrow=False, font=dict(size=12, family="Merriweather, serif"))],
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Merriweather, serif", color=text_color),
+            margin=dict(l=10, r=10, t=30, b=10),
+            showlegend=False
+        )
+        col_freq.plotly_chart(fig_freq, use_container_width=True)
+        col_freq.dataframe(freq_df, use_container_width=True)
+        
+        # Duration Box + table
+        fig_dur = go.Figure()
+        for reg in regimes_order:
+            data = durations.loc[durations['Regime'] == reg, 'Duration']
+            if not data.empty:
+                fig_dur.add_trace(go.Box(y=data, name=reg, boxpoints='outliers', marker_color=colors.get(reg, '#888')))
+        fig_dur.update_layout(
+            title="Regime Duration Statistics (Days)",
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(family="Merriweather, serif", color=text_color),
+            showlegend=False,
+            margin=dict(l=10, r=10, t=30, b=10)
+        )
+        col_dur.plotly_chart(fig_dur, use_container_width=True)
+        col_dur.dataframe(dur_stats, use_container_width=True)
+# =============================================================================
+# ADVANCED ANALYTICS (Plotly visual-first)
+# =============================================================================
+def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
+    """
     Render advanced regime analytics in an expander with 4 charts:
     A) Regime Duration (Box)
     B) Transition Probability (Heatmap)
