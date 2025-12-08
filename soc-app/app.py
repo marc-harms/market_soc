@@ -871,7 +871,7 @@ def main():
         # CONDITION B: Asset Selected - Show Analysis
         results = st.session_state.scan_results
         
-        # === ANALYSIS MODE TABS + ADD TO PORTFOLIO (all in one row) ===
+        # === ANALYSIS MODE TABS (all in one row) ===
         col_spacer1, col_tab1, col_tab2, col_tab3, col_spacer2 = st.columns([0.5, 2, 2, 2, 0.5])
         
         with col_tab1:
@@ -893,8 +893,13 @@ def main():
                 st.rerun()
         
         with col_tab3:
-            if st.button("🔒 Add to Portfolio", key="add_portfolio_main", use_container_width=True, help="Premium feature - coming soon"):
-                st.info("🔒 Portfolio management is a Premium feature coming soon!")
+            if st.button(
+                "Portfolio",
+                key="btn_portfolio",
+                use_container_width=True
+            ):
+                st.session_state.analysis_mode = "simulation"
+                st.rerun()
         
         st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
         
