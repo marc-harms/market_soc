@@ -45,33 +45,32 @@ from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
 
 
 # =============================================================================
-# ADVANCED ANALYTICS (Simplified: Frequency + Duration Only)
+# STATISTICAL REPORT & SIGNAL AUDIT (Tabular Report)
 # =============================================================================
 def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     """
-    Render simplified advanced regime analytics: Frequency and Duration only.
+    Render statistical report with regime profile table and signal quality KPIs.
     
     Layout:
-    - Column 1: Frequency Analysis (Donut chart + table)
-    - Column 2: Duration Analysis (Box plot + table)
+    - Column 1: Regime Profile Table (frequency, duration stats with colored emojis)
+    - Column 2: Signal Quality KPIs (lead time, capture rate, false alarms)
     
     Args:
         df: Price dataframe with Close or Adj Close column
         is_dark: Dark mode flag
     """
     if df is None or df.empty:
-        st.info("No data available for advanced analytics.")
+        st.info("No data available for statistical report.")
         return
     
     regimes_order = ['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
-    colors = {
-        'DORMANT': REGIME_COLORS.get('DORMANT', '#95A5A6'),
-        'STABLE': REGIME_COLORS.get('STABLE', '#27AE60'),
-        'ACTIVE': REGIME_COLORS.get('ACTIVE', '#F1C40F'),
-        'HIGH_ENERGY': REGIME_COLORS.get('HIGH_ENERGY', '#D35400'),
-        'CRITICAL': REGIME_COLORS.get('CRITICAL', '#C0392B'),
+    regime_emojis = {
+        'DORMANT': '⚪',
+        'STABLE': '🟢',
+        'ACTIVE': '🟡',
+        'HIGH_ENERGY': '🟠',
+        'CRITICAL': '🔴'
     }
-    text_color = "#FFFFFF" if is_dark else "#333333"
     
     # Derive regimes from volatility of returns (simple heuristic)
     df_local = df.copy()
@@ -81,10 +80,9 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     elif 'Adj Close' in df_local.columns:
         price_series = df_local['Adj Close']
     else:
-        # try first numeric column
         num_cols = df_local.select_dtypes(include='number').columns
         if len(num_cols) == 0:
-            st.info("No price data available for advanced analytics.")
+            st.info("No price data available for statistical report.")
             return
         price_series = df_local[num_cols[0]]
     
@@ -112,333 +110,100 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     durations = pd.DataFrame(runs, columns=['Regime', 'Start', 'End'])
     durations['Duration'] = (durations['End'] - durations['Start']).dt.days.clip(lower=1)
     
-    # Frequency summary
+    # Calculate regime profile stats
     freq_days = df_local['Regime'].value_counts().reindex(regimes_order).fillna(0)
-    freq_runs = durations['Regime'].value_counts().reindex(regimes_order).fillna(0)
     total_days = freq_days.sum()
     freq_share = (freq_days / total_days * 100).replace([float('inf'), float('nan')], 0)
     
-    freq_df = pd.DataFrame({
-        'Total Days': freq_days.astype(int),
-        'Share (%)': freq_share.round(1),
-        'Occurrences': freq_runs.astype(int)
-    })
-    freq_df.index.name = "Regime"
+    dur_stats = durations.groupby('Regime')['Duration'].agg(['mean', 'median']).reindex(regimes_order).fillna(0)
     
-    # Duration summary
-    dur_stats = durations.groupby('Regime')['Duration'].agg(['min', 'mean', 'median', 'max']).reindex(regimes_order).fillna(0)
-    dur_stats = dur_stats.rename(columns={
-        'min': 'Min Days',
-        'mean': 'Avg Days',
-        'median': 'Median Days',
-        'max': 'Max Days'
+    # Build Regime Profile Table with colored emojis
+    regime_profile = pd.DataFrame({
+        'Frequency (%)': freq_share.round(1),
+        'Avg Duration (Days)': dur_stats['mean'].round(0).astype(int),
+        'Median Duration (Days)': dur_stats['median'].round(0).astype(int)
     })
-    dur_stats['Avg Days'] = dur_stats['Avg Days'].round(1)
-    dur_stats.index.name = "Regime"
+    # Prepend colored circle emojis to index
+    regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_profile.index]
+    regime_profile.index.name = "Regime"
     
-    with st.expander("Advanced Analytics: Probability, Duration & Risk Models", expanded=False):
-        col_freq, col_dur = st.columns(2)
+    # === CRASH FORENSICS FOR KPIs ===
+    # Identify all CRITICAL regime entries
+    df_local['Prev_Regime'] = df_local['Regime'].shift(1)
+    df_local['Is_Crash'] = (df_local['Regime'] == 'CRITICAL') & (df_local['Prev_Regime'] != 'CRITICAL')
+    all_crash_events = df_local[df_local['Is_Crash']].index.tolist()
+    
+    # Filter for TRUE CRASHES: price drops > 5% within 30 days
+    confirmed_crashes = []
+    lead_times = []
+    
+    for crash_date in all_crash_events:
+        crash_idx = df_local.index.get_loc(crash_date)
+        future_idx = min(len(price_series) - 1, crash_idx + 30)
         
-        # === COLUMN 1: FREQUENCY ANALYSIS ===
-        with col_freq:
-            # Donut Chart
-            fig_freq = go.Figure(data=[go.Pie(
-                labels=freq_days.index,
-                values=freq_days.values,
-                hole=0.5,
-                marker=dict(colors=[colors.get(r, '#888') for r in freq_days.index]),
-                textinfo='label+percent'
-            )])
-            fig_freq.update_layout(
-                title="Historical Regime Frequency",
-                annotations=[dict(
-                    text=f"{int(total_days)} Days",
-                    showarrow=False,
-                    font=dict(size=14, family="Merriweather, serif", color=text_color)
-                )],
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(family="Merriweather, serif", color=text_color, size=11),
-                margin=dict(l=10, r=10, t=40, b=10),
-                showlegend=False,
-                height=350
+        if future_idx > crash_idx:
+            trigger_price = price_series.iloc[crash_idx]
+            future_price = price_series.iloc[future_idx]
+            
+            if trigger_price > 0 and future_price < trigger_price * 0.95:
+                # Confirmed crash: price dropped > 5%
+                confirmed_crashes.append(crash_date)
+                
+                # Calculate lead time: how many days before did we see warning (HIGH_ENERGY or CRITICAL)?
+                look_back_idx = max(0, crash_idx - 30)
+                warning_seen = False
+                days_before = 0
+                
+                for i in range(crash_idx - 1, look_back_idx - 1, -1):
+                    days_before += 1
+                    regime_at_i = df_local['Regime'].iloc[i]
+                    if regime_at_i in ['HIGH_ENERGY', 'CRITICAL']:
+                        warning_seen = True
+                        lead_times.append(days_before)
+                        break
+                
+                if not warning_seen:
+                    lead_times.append(0)  # No warning
+    
+    total_crashes_detected = len(confirmed_crashes)
+    avg_lead_time = sum(lead_times) / len(lead_times) if lead_times else 0
+    capture_rate = (len([lt for lt in lead_times if lt > 0]) / len(lead_times) * 100) if lead_times else 0
+    false_alarm_rate = ((len(all_crash_events) - len(confirmed_crashes)) / len(all_crash_events) * 100) if all_crash_events else 0
+    
+    with st.expander("📚 Statistical Report & Signal Audit", expanded=False):
+        col_regime, col_signal = st.columns([1.5, 1])
+        
+        # === LEFT COLUMN: REGIME PROFILE TABLE ===
+        with col_regime:
+            st.markdown("### 📊 Regime Profile")
+            st.caption("*Historical frequency and duration statistics*")
+            st.dataframe(regime_profile, use_container_width=True, height=250)
+        
+        # === RIGHT COLUMN: SIGNAL QUALITY KPIs ===
+        with col_signal:
+            st.markdown("### 🎯 Signal Quality KPIs")
+            st.caption("*Crash detection performance metrics (Last 5Y)*")
+            
+            st.metric(
+                "Ø Lead Time",
+                f"{avg_lead_time:.1f} Days",
+                delta="Before Crash",
+                delta_color="normal"
             )
-            st.plotly_chart(fig_freq, use_container_width=True)
             
-            # Frequency Table
-            st.markdown("**Frequency Breakdown:**")
-            st.dataframe(freq_df, use_container_width=True)
-        
-        # === COLUMN 2: DURATION ANALYSIS ===
-        with col_dur:
-            # Box Plot
-            fig_dur = go.Figure()
-            for reg in regimes_order:
-                data = durations.loc[durations['Regime'] == reg, 'Duration']
-                if not data.empty:
-                    fig_dur.add_trace(go.Box(
-                        y=data,
-                        name=reg,
-                        boxpoints='outliers',
-                        marker_color=colors.get(reg, '#888')
-                    ))
-            fig_dur.update_layout(
-                title="Regime Duration Statistics (Days)",
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(family="Merriweather, serif", color=text_color, size=11),
-                showlegend=False,
-                margin=dict(l=10, r=10, t=40, b=10),
-                height=350
+            st.metric(
+                "Crash Capture Rate",
+                f"{capture_rate:.0f}%",
+                delta=f"{len([lt for lt in lead_times if lt > 0])}/{len(lead_times)} detected" if lead_times else "0/0",
+                delta_color="normal"
             )
-            fig_dur.update_yaxes(title_text="Days", gridcolor='#E6E1D3', gridwidth=0.5)
-            st.plotly_chart(fig_dur, use_container_width=True)
             
-            # Duration Table
-            st.markdown("**Duration Statistics:**")
-            st.dataframe(dur_stats, use_container_width=True)
-        
-        # === EVENT STUDY ANALYSIS ===
-        st.markdown("---")
-        st.markdown("### 📉 Event Study: Price Behavior Around Regime Changes")
-        st.caption("*Analyze price movements before and after regime transitions*")
-        
-        # Identify regime change trigger events
-        df_local['Prev_Regime'] = df_local['Regime'].shift(1)
-        df_local['Regime_Changed'] = (df_local['Regime'] != df_local['Prev_Regime'])
-        trigger_events = df_local[df_local['Regime_Changed']].copy()
-        
-        if len(trigger_events) < 2:
-            st.info("Insufficient regime changes for event study analysis.")
-        else:
-            # Calculate pre/post windows for each trigger event
-            pre_post_data = []
-            
-            for idx, row in trigger_events.iterrows():
-                target_regime = row['Regime']
-                trigger_idx = df_local.index.get_loc(idx)
-                
-                # Calculate percentage changes for pre windows
-                pre_windows = {}
-                for window in [30, 20, 10, 5, 1]:
-                    start_idx = max(0, trigger_idx - window)
-                    if start_idx < trigger_idx:
-                        start_price = price_series.iloc[start_idx]
-                        end_price = price_series.iloc[trigger_idx]
-                        if start_price != 0:
-                            pre_windows[f'Prior_{window}d'] = ((end_price / start_price) - 1) * 100
-                        else:
-                            pre_windows[f'Prior_{window}d'] = 0
-                    else:
-                        pre_windows[f'Prior_{window}d'] = 0
-                
-                # Calculate percentage changes for post windows
-                post_windows = {}
-                for window in [1, 5, 10, 20, 30]:
-                    end_idx = min(len(price_series) - 1, trigger_idx + window)
-                    if end_idx > trigger_idx:
-                        start_price = price_series.iloc[trigger_idx]
-                        end_price = price_series.iloc[end_idx]
-                        if start_price != 0:
-                            post_windows[f'Next_{window}d'] = ((end_price / start_price) - 1) * 100
-                        else:
-                            post_windows[f'Next_{window}d'] = 0
-                    else:
-                        post_windows[f'Next_{window}d'] = 0
-                
-                pre_post_data.append({
-                    'Regime': target_regime,
-                    **pre_windows,
-                    **post_windows
-                })
-            
-            # Create event study dataframe
-            event_df = pd.DataFrame(pre_post_data)
-            
-            # Group by regime and calculate means
-            event_summary = event_df.groupby('Regime').mean()
-            event_summary = event_summary.reindex(regimes_order).fillna(0)
-            
-            # Split into pre and post tables
-            pre_cols = ['Prior_30d', 'Prior_20d', 'Prior_10d', 'Prior_5d', 'Prior_1d']
-            post_cols = ['Next_1d', 'Next_5d', 'Next_10d', 'Next_20d', 'Next_30d']
-            
-            pre_table = event_summary[pre_cols].copy()
-            pre_table.columns = ['Prior 30d', 'Prior 20d', 'Prior 10d', 'Prior 5d', 'Prior 1d']
-            
-            post_table = event_summary[post_cols].copy()
-            post_table.columns = ['Next 1d', 'Next 5d', 'Next 10d', 'Next 20d', 'Next 30d']
-            
-            # Format as percentages
-            pre_table = pre_table.applymap(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
-            post_table = post_table.applymap(lambda x: f"{x:+.1f}%" if pd.notna(x) else "N/A")
-            
-            # Display in two columns
-            col_pre, col_post = st.columns(2)
-            
-            with col_pre:
-                st.markdown("**📊 Pre-Regime Context (The Lead-Up)**")
-                st.caption("*Price changes BEFORE entering each regime*")
-                st.dataframe(pre_table, use_container_width=True)
-            
-            with col_post:
-                st.markdown("**📈 Post-Regime Outcome (The Aftermath)**")
-                st.caption("*Price changes AFTER entering each regime*")
-                st.dataframe(post_table, use_container_width=True)
-        
-        # === CRASH FORENSICS ===
-        st.markdown("---")
-        st.markdown("### 📉 Forensic Analysis: Anatomy of a Crash")
-        st.caption("*Analyze price movements before and after entering CRITICAL regime*")
-        
-        # Identify crash events (regime switched TO CRITICAL)
-        df_local['Prev_Regime'] = df_local['Regime'].shift(1)
-        df_local['Is_Crash'] = (df_local['Regime'] == 'CRITICAL') & (df_local['Prev_Regime'] != 'CRITICAL')
-        all_crash_events = df_local[df_local['Is_Crash']].index.tolist()
-        
-        # FILTER FOR CONFIRMED CRASHES: price dropped > 3% within 10 days
-        confirmed_crash_events = []
-        for crash_date in all_crash_events:
-            crash_idx = df_local.index.get_loc(crash_date)
-            future_idx = min(len(price_series) - 1, crash_idx + 10)
-            
-            if future_idx > crash_idx:
-                trigger_price = price_series.iloc[crash_idx]
-                future_price = price_series.iloc[future_idx]
-                
-                if trigger_price > 0 and future_price < trigger_price * 0.97:
-                    # Confirmed crash: price dropped > 3%
-                    confirmed_crash_events.append(crash_date)
-        
-        total_critical_signals = len(all_crash_events)
-        confirmed_crashes = len(confirmed_crash_events)
-        
-        if confirmed_crashes < 2:
-            st.info(f"Insufficient confirmed crash events for forensics (found {confirmed_crashes} out of {total_critical_signals} CRITICAL signals). Need at least 2 confirmed crashes.")
-        else:
-            # Display metric
-            st.markdown(f"""
-            <div style="background: rgba(192, 57, 43, 0.1); border-left: 3px solid #C0392B; padding: 8px 12px; margin: 8px 0; border-radius: 4px;">
-                <strong>Analysis based on {confirmed_crashes} confirmed crash events</strong> (out of {total_critical_signals} total CRITICAL signals).
-                <br><span style="font-size: 0.85rem; opacity: 0.9;">Confirmed = Price dropped >3% within 10 days after signal.</span>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Extract lead-up and aftermath for each CONFIRMED crash
-            crash_data = []
-            lead_up_regimes = {-10: [], -8: [], -5: [], -3: [], -1: []}
-            
-            for crash_date in confirmed_crash_events:
-                crash_idx = df_local.index.get_loc(crash_date)
-                
-                # Extract 10 days before and 10 days after
-                start_idx = max(0, crash_idx - 10)
-                end_idx = min(len(df_local) - 1, crash_idx + 10)
-                
-                if start_idx < crash_idx:
-                    # Get price at start (for normalization)
-                    start_price = price_series.iloc[start_idx]
-                    
-                    if start_price != 0:
-                        # Extract prices and regimes for this crash event
-                        for i in range(start_idx, end_idx + 1):
-                            days_from_crash = i - crash_idx
-                            price_norm = ((price_series.iloc[i] / start_price) - 1) * 100
-                            regime = df_local['Regime'].iloc[i]
-                            
-                            crash_data.append({
-                                'Days_From_Crash': days_from_crash,
-                                'Price_Change_Pct': price_norm,
-                                'Regime': regime
-                            })
-                            
-                            # Collect regime at specific lead-up points
-                            if days_from_crash in lead_up_regimes:
-                                lead_up_regimes[days_from_crash].append(regime)
-            
-            if crash_data:
-                crash_df = pd.DataFrame(crash_data)
-                
-                # Chart A: Warning Countdown (Stacked Bar)
-                lead_up_points = [-10, -8, -5, -3, -1]
-                regime_dist = []
-                
-                for day in lead_up_points:
-                    regimes_at_day = lead_up_regimes[day]
-                    total = len(regimes_at_day) if regimes_at_day else 1
-                    dist = {}
-                    for reg in regimes_order:
-                        count = regimes_at_day.count(reg)
-                        dist[reg] = (count / total) * 100
-                    regime_dist.append(dist)
-                
-                fig_warning = go.Figure()
-                for reg in regimes_order:
-                    values = [regime_dist[i][reg] for i in range(len(lead_up_points))]
-                    fig_warning.add_trace(go.Bar(
-                        x=[f"{abs(d)}d before" for d in lead_up_points],
-                        y=values,
-                        name=reg,
-                        marker_color=colors.get(reg, '#888'),
-                        hovertemplate=f"{reg}: %{{y:.1f}}%<extra></extra>"
-                    ))
-                
-                fig_warning.update_layout(
-                    title="The Warning Countdown: Regime Distribution Before Crash",
-                    barmode='stack',
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(family="Merriweather, serif", color=text_color, size=11),
-                    margin=dict(l=40, r=20, t=50, b=40),
-                    height=350,
-                    yaxis_title="% of Occurrences",
-                    xaxis_title="Time Before Crash"
-                )
-                fig_warning.update_yaxes(gridcolor='#E6E1D3', gridwidth=0.5)
-                
-                # Chart B: Average Crash Trajectory (Line)
-                avg_trajectory = crash_df.groupby('Days_From_Crash')['Price_Change_Pct'].mean().reset_index()
-                avg_trajectory = avg_trajectory.sort_values('Days_From_Crash')
-                
-                fig_trajectory = go.Figure()
-                fig_trajectory.add_trace(go.Scatter(
-                    x=avg_trajectory['Days_From_Crash'],
-                    y=avg_trajectory['Price_Change_Pct'],
-                    mode='lines+markers',
-                    name='Average Price Path',
-                    line=dict(color='#2C3E50', width=2),
-                    marker=dict(size=6, color='#2C3E50')
-                ))
-                
-                # Add vertical line at x=0 (signal trigger)
-                fig_trajectory.add_vline(
-                    x=0,
-                    line=dict(color='#C0392B', width=2, dash='dash'),
-                    annotation_text="Signal Trigger",
-                    annotation_position="top"
-                )
-                
-                fig_trajectory.update_layout(
-                    title="Average Crash Trajectory: Price Path Around Signal",
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    font=dict(family="Merriweather, serif", color=text_color, size=11),
-                    margin=dict(l=40, r=20, t=50, b=40),
-                    height=350,
-                    yaxis_title="Price Change (%)",
-                    xaxis_title="Days Relative to Crash Signal (0 = Trigger)"
-                )
-                fig_trajectory.update_xaxes(gridcolor='#E6E1D3', gridwidth=0.5, zeroline=True, zerolinecolor='#333', zerolinewidth=1)
-                fig_trajectory.update_yaxes(gridcolor='#E6E1D3', gridwidth=0.5, zeroline=True, zerolinecolor='#333', zerolinewidth=1)
-                
-                # Display charts
-                col_warn, col_traj = st.columns(2)
-                with col_warn:
-                    st.plotly_chart(fig_warning, use_container_width=True)
-                with col_traj:
-                    st.plotly_chart(fig_trajectory, use_container_width=True)
-            else:
-                st.info("No crash event data available for forensic analysis.")
+            st.metric(
+                "False Alarm Rate",
+                f"{false_alarm_rate:.0f}%",
+                delta=f"{len(all_crash_events) - len(confirmed_crashes)}/{len(all_crash_events)} signals" if all_crash_events else "0/0",
+                delta_color="inverse"
+            )
 
 
 # =============================================================================
