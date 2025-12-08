@@ -247,32 +247,33 @@ def get_scientific_heritage_css() -> str:
             opacity: 0 !important;
         }
         
-        /* Plotly Modebar (chart action icons) - Make 3x larger with dark background */
+        /* Plotly Modebar (chart action icons) - Heritage design */
         .modebar {
-            background-color: #2C3E50 !important;
+            background-color: #F9F7F1 !important;
+            border: 1px solid #333333 !important;
             border-radius: 4px !important;
-            padding: 8px !important;
+            padding: 4px !important;
         }
         
         .modebar-btn {
-            font-size: 36px !important;
+            font-size: 24px !important;
         }
         
         .modebar-btn svg {
-            width: 36px !important;
-            height: 36px !important;
+            width: 24px !important;
+            height: 24px !important;
         }
         
         .modebar-btn path {
-            fill: #F9F7F1 !important;
+            fill: #333333 !important;
         }
         
         .modebar-btn:hover path {
-            fill: #FFFFFF !important;
+            fill: #2C3E50 !important;
         }
         
         .modebar-group {
-            padding: 4px !important;
+            padding: 2px !important;
         }
         
         /* Global background */
