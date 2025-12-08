@@ -930,7 +930,134 @@ def main():
             # Deep Dive Analysis
             if results:
                 selected = results[st.session_state.selected_asset]
-                render_detail_panel(selected, get_signal_color, get_signal_bg)
+                
+                # === SPECIMEN HERO CARD (Condensed) ===
+                symbol = selected.get('symbol', '')
+                name = selected.get('name', symbol)
+                full_name = selected.get('info', {}).get('longName', name)
+                price = selected.get('price', 0.0)
+                change = selected.get('price_change_1d', selected.get('change_pct', 0.0))
+                trend = selected.get('trend', 'Unknown')
+                criticality = int(selected.get('criticality_score', 0))
+                signal = selected.get('signal', 'Unknown')
+                vol_pct = selected.get('vol_percentile', 0)
+                
+                # Simple regime strip color mapping
+                sig_lower = signal.lower()
+                if "critical" in sig_lower:
+                    regime_color = "#C0392B"; regime_label = "CRITICAL REGIME"
+                elif "high" in sig_lower:
+                    regime_color = "#D35400"; regime_label = "HIGH ENERGY REGIME"
+                elif "active" in sig_lower:
+                    regime_color = "#F1C40F"; regime_label = "ACTIVE REGIME"
+                elif "stable" in sig_lower:
+                    regime_color = "#27AE60"; regime_label = "STABLE REGIME"
+                else:
+                    regime_color = "#95A5A6"; regime_label = signal.upper()
+                
+                # Criticality badge color
+                if criticality > 80:
+                    crit_color = "#C0392B"
+                elif criticality > 60:
+                    crit_color = "#D35400"
+                elif criticality > 40:
+                    crit_color = "#F1C40F"
+                else:
+                    crit_color = "#27AE60"
+                
+                # Basic persistence and win rate (fallbacks)
+                persistence = selected.get('current_streak_days', selected.get('current_streak', 0))
+                win_rate = selected.get('win_rate', selected.get('probability', 0))
+                context_text = selected.get('context', f"Regime: {signal}.")
+                
+                with st.container():
+                    st.markdown(f"""
+                    <div style="
+                        border: 1px double #333;
+                        border-radius: 8px;
+                        background: #FFFFFF;
+                        padding: 16px 18px;
+                        margin-bottom: 12px;
+                        box-shadow: 2px 2px 6px rgba(0,0,0,0.05);
+                        font-family: 'Merriweather', serif;
+                    ">
+                        <!-- Top Row -->
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;">
+                            <div>
+                                <div style="font-size: 1.4rem; font-weight: 700; color: #2C3E50;">{name}</div>
+                                <div style="font-size: 1rem; color: #555;">{full_name}</div>
+                            </div>
+                            <div style="min-width: 64px; text-align: center;">
+                                <div style="
+                                    width: 64px; height: 64px;
+                                    border-radius: 50%;
+                                    background: {crit_color};
+                                    color: #fff;
+                                    display: flex; align-items: center; justify-content: center;
+                                    font-size: 1.4rem; font-weight: 800;
+                                    box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+                                ">{criticality}</div>
+                                <div style="font-size: 0.75rem; color: #555; margin-top: 4px;">Criticality</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Type Line / Regime Strip -->
+                        <div style="
+                            margin: 12px 0;
+                            padding: 6px 10px;
+                            background: {regime_color};
+                            color: #fff;
+                            font-weight: 700;
+                            letter-spacing: 0.5px;
+                            border-radius: 4px;
+                            text-transform: uppercase;
+                        ">{regime_label}</div>
+                        
+                        <!-- Center Content -->
+                        <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px;">
+                            <div>
+                                <div style="font-size: 2rem; font-weight: 800; color: #2C3E50;">
+                                    ${price:,.2f}
+                                </div>
+                                <div style="font-size: 0.95rem; color: {'#27AE60' if change >=0 else '#C0392B'};">
+                                    {change:+.2f}%
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Oracle Text -->
+                        <div style="
+                            margin-top: 12px;
+                            padding: 10px 12px;
+                            background: #F9F7F1;
+                            border: 1px solid #D1C4E9;
+                            border-radius: 6px;
+                            font-size: 0.95rem;
+                            line-height: 1.5;
+                            color: #333;
+                            font-family: 'Merriweather', serif;
+                        ">
+                            Persistence: {persistence} days. Historical Probability: {win_rate:.0f}%.
+                            Context: {context_text}
+                        </div>
+                        
+                        <!-- Footer Stats -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; font-size: 0.95rem; color: #333;">
+                            <div>Trend: <strong>{trend}</strong></div>
+                            <div>Volatility: <strong>{vol_pct:.0f}th %ile</strong></div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # === SOC Chart (Plotly) ===
+                fetcher = DataFetcher(cache_enabled=True)
+                df = fetcher.fetch_data(symbol)
+                if not df.empty:
+                    analyzer = SOCAnalyzer(df, symbol, selected.get('info'))
+                    figs = analyzer.get_plotly_figures(dark_mode=is_dark)
+                    st.plotly_chart(figs['chart3'], width="stretch")
+                else:
+                    st.warning("No data available for this asset.")
         else:
             # Portfolio Simulation (unlimited for all users)
             st.markdown("### DCA Simulation")
