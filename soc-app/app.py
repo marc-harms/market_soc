@@ -105,7 +105,7 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         runs.append((prev, start_idx, df_local.index[-1]))
     
     durations = pd.DataFrame(runs, columns=['Regime', 'Start', 'End'])
-    durations['Duration'] = (durations['End'] - durations['Start']).days.clip(lower=1)
+    durations['Duration'] = (durations['End'] - durations['Start']).dt.days.clip(lower=1)
     
     # Transition matrix
     durations['NextRegime'] = durations['Regime'].shift(-1)
