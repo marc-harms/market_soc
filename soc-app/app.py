@@ -978,6 +978,12 @@ def main():
                 )
                 win_rate = f"{win_rate_raw:.0f}%" if isinstance(win_rate_raw, (int, float)) else "N/A"
                 context_text = selected.get('context') or f"Regime: {regime_label}."
+                # Normalize strings for formatting
+                if isinstance(persistence, str):
+                    persistence_display = persistence
+                else:
+                    persistence_display = f"{persistence}"
+                win_rate_display = win_rate if isinstance(win_rate, str) else f"{win_rate}"
                 
                 # Center the card at 50% width
                 col_left_card, col_center_card, col_right_card = st.columns([1, 2, 1])
@@ -1005,7 +1011,7 @@ def main():
   </div>
 
   <div style="margin-top:12px; padding:10px 12px; background:#F9F7F1; border:1px solid #D1C4E9; border-radius:6px; font-size:0.95rem; line-height:1.5; color:#333; font-family:'Merriweather', serif;">
-    Persistence: {persistence} days. Historical Probability: {win_rate:.0f}%.
+    Persistence: {persistence_display} days. Historical Probability: {win_rate_display}.
     Context: {context_text}
   </div>
 
