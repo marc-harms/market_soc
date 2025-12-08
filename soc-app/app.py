@@ -94,28 +94,24 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
     ).astype(str)
     
-    # Run-length encoding for durations
-    runs = []
-    prev = None
-    start_idx = None
-    for idx, reg in df_local['Regime'].items():
-        if reg != prev:
-            if prev is not None:
-                runs.append((prev, start_idx, idx))
-            prev = reg
-            start_idx = idx
-    if prev is not None:
-        runs.append((prev, start_idx, df_local.index[-1]))
+    # === RUN-LENGTH ENCODING: Group consecutive days into blocks ===
+    df_local['block_id'] = (df_local['Regime'] != df_local['Regime'].shift(1)).cumsum()
     
-    durations = pd.DataFrame(runs, columns=['Regime', 'Start', 'End'])
-    durations['Duration'] = (durations['End'] - durations['Start']).dt.days.clip(lower=1)
+    # Get block start/end dates and calculate duration
+    blocks = df_local.groupby('block_id').agg({
+        'Regime': 'first',
+        'return': 'count'  # count rows as duration
+    }).rename(columns={'return': 'Duration_Days'})
+    blocks['Start_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[0])
+    blocks['End_Date'] = df_local.groupby('block_id').apply(lambda x: x.index[-1])
     
-    # Calculate regime profile stats
-    freq_days = df_local['Regime'].value_counts().reindex(regimes_order).fillna(0)
-    total_days = freq_days.sum()
-    freq_share = (freq_days / total_days * 100).replace([float('inf'), float('nan')], 0)
+    # Calculate total days per regime
+    regime_days = df_local.groupby('Regime').size().reindex(regimes_order).fillna(0)
+    total_days = regime_days.sum()
+    freq_share = (regime_days / total_days * 100).replace([float('inf'), float('nan')], 0)
     
-    dur_stats = durations.groupby('Regime')['Duration'].agg(['mean', 'median']).reindex(regimes_order).fillna(0)
+    # Calculate duration statistics from BLOCKS (not daily rows)
+    dur_stats = blocks.groupby('Regime')['Duration_Days'].agg(['mean', 'median']).reindex(regimes_order).fillna(0)
     
     # Build Regime Profile Table with colored emojis
     regime_profile = pd.DataFrame({
@@ -127,48 +123,43 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_profile.index]
     regime_profile.index.name = "Regime"
     
-    # === CRASH FORENSICS FOR KPIs ===
-    # Identify all CRITICAL regime entries
-    df_local['Prev_Regime'] = df_local['Regime'].shift(1)
-    df_local['Is_Crash'] = (df_local['Regime'] == 'CRITICAL') & (df_local['Prev_Regime'] != 'CRITICAL')
-    all_crash_events = df_local[df_local['Is_Crash']].index.tolist()
+    # === CRASH FORENSICS FOR KPIs (Using Blocks, Not Daily Rows) ===
+    # Filter CRITICAL blocks that lasted at least 3 days (debouncing)
+    critical_blocks = blocks[(blocks['Regime'] == 'CRITICAL') & (blocks['Duration_Days'] >= 3)].copy()
     
-    # Filter for TRUE CRASHES: price drops > 5% within 30 days
+    total_critical_signals = len(critical_blocks)
     confirmed_crashes = []
     lead_times = []
     
-    for crash_date in all_crash_events:
-        crash_idx = df_local.index.get_loc(crash_date)
-        future_idx = min(len(price_series) - 1, crash_idx + 30)
+    # Check each CRITICAL block for true crash (>10% drawdown in next 30 days)
+    for idx, block in critical_blocks.iterrows():
+        start_date = block['Start_Date']
+        start_idx = df_local.index.get_loc(start_date)
         
-        if future_idx > crash_idx:
-            trigger_price = price_series.iloc[crash_idx]
-            future_price = price_series.iloc[future_idx]
+        # Look ahead 30 days from block start
+        end_idx = min(len(price_series) - 1, start_idx + 30)
+        
+        if end_idx > start_idx:
+            trigger_price = price_series.iloc[start_idx]
             
-            if trigger_price > 0 and future_price < trigger_price * 0.95:
-                # Confirmed crash: price dropped > 5%
-                confirmed_crashes.append(crash_date)
+            # Calculate max drawdown in next 30 days
+            future_window = price_series.iloc[start_idx:end_idx + 1]
+            if trigger_price > 0:
+                drawdown = ((future_window.min() / trigger_price) - 1) * 100
                 
-                # Calculate lead time: how many days before did we see warning (HIGH_ENERGY or CRITICAL)?
-                look_back_idx = max(0, crash_idx - 30)
-                warning_seen = False
-                days_before = 0
-                
-                for i in range(crash_idx - 1, look_back_idx - 1, -1):
-                    days_before += 1
-                    regime_at_i = df_local['Regime'].iloc[i]
-                    if regime_at_i in ['HIGH_ENERGY', 'CRITICAL']:
-                        warning_seen = True
-                        lead_times.append(days_before)
-                        break
-                
-                if not warning_seen:
-                    lead_times.append(0)  # No warning
+                if drawdown < -10:  # True crash: >10% drawdown
+                    confirmed_crashes.append(start_date)
+                    
+                    # Calculate lead time: days from block start to lowest price
+                    lowest_idx = future_window.idxmin()
+                    lowest_pos = df_local.index.get_loc(lowest_idx)
+                    lead_time_days = lowest_pos - start_idx
+                    lead_times.append(max(0, lead_time_days))
     
     total_crashes_detected = len(confirmed_crashes)
     avg_lead_time = sum(lead_times) / len(lead_times) if lead_times else 0
-    capture_rate = (len([lt for lt in lead_times if lt > 0]) / len(lead_times) * 100) if lead_times else 0
-    false_alarm_rate = ((len(all_crash_events) - len(confirmed_crashes)) / len(all_crash_events) * 100) if all_crash_events else 0
+    capture_rate = (len(confirmed_crashes) / total_critical_signals * 100) if total_critical_signals > 0 else 0
+    false_alarm_rate = ((total_critical_signals - len(confirmed_crashes)) / total_critical_signals * 100) if total_critical_signals > 0 else 0
     
     with st.expander("📚 Statistical Report & Signal Audit", expanded=False):
         col_regime, col_signal = st.columns([1.5, 1])
@@ -187,21 +178,21 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
             st.metric(
                 "Ø Lead Time",
                 f"{avg_lead_time:.1f} Days",
-                delta="Before Crash",
-                delta_color="normal"
+                delta="To Lowest Point" if avg_lead_time > 0 else "No Lead Time",
+                delta_color="normal" if avg_lead_time > 0 else "off"
             )
             
             st.metric(
                 "Crash Capture Rate",
                 f"{capture_rate:.0f}%",
-                delta=f"{len([lt for lt in lead_times if lt > 0])}/{len(lead_times)} detected" if lead_times else "0/0",
+                delta=f"{len(confirmed_crashes)}/{total_critical_signals} detected",
                 delta_color="normal"
             )
             
             st.metric(
                 "False Alarm Rate",
                 f"{false_alarm_rate:.0f}%",
-                delta=f"{len(all_crash_events) - len(confirmed_crashes)}/{len(all_crash_events)} signals" if all_crash_events else "0/0",
+                delta=f"{total_critical_signals - len(confirmed_crashes)}/{total_critical_signals} false signals",
                 delta_color="inverse"
             )
 
