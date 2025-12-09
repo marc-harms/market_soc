@@ -95,34 +95,24 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
                 return
             price_series = df_analysis[num_cols[0]]
         
-        # Simple regime derivation from volatility
+        # Simple regime derivation from SMOOTHED volatility (reduce flickering)
         df_analysis['return'] = price_series.pct_change()
-        df_analysis['vol'] = df_analysis['return'].abs()
+        df_analysis['vol_raw'] = df_analysis['return'].abs()
+        # Smooth volatility with 5-day rolling average to reduce regime flickering
+        df_analysis['vol'] = df_analysis['vol_raw'].rolling(window=5, min_periods=1).mean()
         df_analysis['Regime'] = pd.cut(
             df_analysis['vol'],
             bins=[-1, 0.005, 0.01, 0.02, 0.03, 10],
             labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
         ).astype(str)
     
-    # === DEBUG: DATA AUDIT ===
-    st.write("**🔍 Data Audit:**")
-    st.write(f"DataFrame Shape: {df_analysis.shape}")
-    st.write(f"Columns: {df_analysis.columns.tolist()}")
-    st.write(f"Has Regime column: {'Regime' in df_analysis.columns}")
-    if 'Regime' in df_analysis.columns:
-        st.write(f"Regime value counts: {df_analysis['Regime'].value_counts().to_dict()}")
-    
     # === USE THE VERIFIED ANALYTICS ENGINE ===
     try:
         # Calculate regime statistics (block-based)
         regime_stats_df = MarketForensics.get_regime_stats(df_analysis)
-        st.write("**Engine Output (regime_stats_df):**")
-        st.write(regime_stats_df)
         
         # Calculate crash metrics (ground truth)
         crash_metrics = MarketForensics.get_crash_metrics(df_analysis)
-        st.write("**Engine Output (crash_metrics):**")
-        st.write(crash_metrics)
     except Exception as e:
         st.error(f"Error in analytics engine: {str(e)}")
         import traceback
