@@ -104,15 +104,29 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
             labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
         ).astype(str)
     
+    # === DEBUG: DATA AUDIT ===
+    st.write("**🔍 Data Audit:**")
+    st.write(f"DataFrame Shape: {df_analysis.shape}")
+    st.write(f"Columns: {df_analysis.columns.tolist()}")
+    st.write(f"Has Regime column: {'Regime' in df_analysis.columns}")
+    if 'Regime' in df_analysis.columns:
+        st.write(f"Regime value counts: {df_analysis['Regime'].value_counts().to_dict()}")
+    
     # === USE THE VERIFIED ANALYTICS ENGINE ===
     try:
         # Calculate regime statistics (block-based)
         regime_stats_df = MarketForensics.get_regime_stats(df_analysis)
+        st.write("**Engine Output (regime_stats_df):**")
+        st.write(regime_stats_df)
         
         # Calculate crash metrics (ground truth)
         crash_metrics = MarketForensics.get_crash_metrics(df_analysis)
+        st.write("**Engine Output (crash_metrics):**")
+        st.write(crash_metrics)
     except Exception as e:
         st.error(f"Error in analytics engine: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
         return
     
     # === BUILD REGIME PROFILE TABLE WITH COLORED EMOJIS ===
