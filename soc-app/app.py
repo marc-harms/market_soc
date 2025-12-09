@@ -46,189 +46,67 @@ from analytics_engine import MarketForensics
 
 
 # =============================================================================
-# STATISTICAL REPORT & SIGNAL AUDIT (Using Analytics Engine)
+# STATISTICAL REPORT & SIGNAL AUDIT (Clean Rebuild)
 # =============================================================================
 def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     """
-    Render statistical report using the verified MarketForensics engine.
-    
-    Calculates event-based statistics (not daily counts):
-    - Regime profile from run-length encoding
-    - Ground truth crashes from drawdown analysis
-    - Signal detection performance metrics
-    
-    Layout:
-    - Column 1: Regime Profile Table
-    - Columns 2-4: Crash Protection KPIs
-    
-    Args:
-        df: Price dataframe with Close/Adj Close and Regime columns
-        is_dark: Dark mode flag
+    Clean rebuild using MarketForensics engine.
+    Simply calls engine and displays results.
     """
     if df is None or df.empty:
-        st.info("No data available for statistical report.")
+        st.info("No data available.")
         return
     
-    regimes_order = ['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
-    regime_emojis = {
-        'DORMANT': '⚪',
-        'STABLE': '🟢',
-        'ACTIVE': '🟡',
-        'HIGH_ENERGY': '🟠',
-        'CRITICAL': '🔴'
-    }
+    regime_emojis = {'DORMANT': '⚪', 'STABLE': '🟢', 'ACTIVE': '🟡', 'HIGH_ENERGY': '🟠', 'CRITICAL': '🔴'}
     
-    # === PREPARE DATA FOR ENGINE ===
-    df_analysis = df.copy()
+    # Prepare dataframe for engine
+    df_work = df.copy()
     
-    # Ensure we have Regime column (if not, derive it)
-    if 'Regime' not in df_analysis.columns:
-        # Pick price series
-        if 'Close' in df_analysis.columns:
-            price_series = df_analysis['Close']
-        elif 'Adj Close' in df_analysis.columns:
-            price_series = df_analysis['Adj Close']
-        else:
-            num_cols = df_analysis.select_dtypes(include='number').columns
-            if len(num_cols) == 0:
-                st.info("No price data available for statistical report.")
-                return
-            price_series = df_analysis[num_cols[0]]
-        
-        # Simple regime derivation from SMOOTHED volatility (reduce flickering)
-        df_analysis['return'] = price_series.pct_change()
-        df_analysis['vol_raw'] = df_analysis['return'].abs()
-        # Smooth volatility with 5-day rolling average to reduce regime flickering
-        df_analysis['vol'] = df_analysis['vol_raw'].rolling(window=5, min_periods=1).mean()
-        df_analysis['Regime'] = pd.cut(
-            df_analysis['vol'],
-            bins=[-1, 0.005, 0.01, 0.02, 0.03, 10],
-            labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
-        ).astype(str)
+    # Ensure lowercase column names and Regime column exists
+    df_work.columns = [c.lower() if isinstance(c, str) else c for c in df_work.columns]
     
-    # === USE THE VERIFIED ANALYTICS ENGINE ===
-    try:
-        # Calculate regime statistics (block-based)
-        regime_stats_df = MarketForensics.get_regime_stats(df_analysis)
-        
-        # Calculate crash metrics (ground truth)
-        crash_metrics = MarketForensics.get_crash_metrics(df_analysis)
-    except Exception as e:
-        st.error(f"Error in analytics engine: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc())
-        return
+    if 'regime' not in df_work.columns and 'Regime' not in df_work.columns:
+        # Derive regime from smoothed volatility
+        price_col = 'close' if 'close' in df_work.columns else 'adj close' if 'adj close' in df_work.columns else df_work.select_dtypes(include='number').columns[0]
+        df_work['return'] = df_work[price_col].pct_change()
+        df_work['vol'] = df_work['return'].abs().rolling(5).mean()
+        df_work['Regime'] = pd.cut(df_work['vol'], bins=[-1, 0.005, 0.01, 0.02, 0.03, 10], labels=['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']).astype(str)
+    elif 'regime' in df_work.columns:
+        df_work['Regime'] = df_work['regime']
     
-    # === BUILD REGIME PROFILE TABLE WITH COLORED EMOJIS ===
-    regime_profile = regime_stats_df.reindex(regimes_order).fillna(0)
-    regime_profile = regime_profile[['Frequency_Pct', 'Min_Duration_Days', 'Avg_Duration_Days', 'Median_Duration_Days', 'Max_Duration_Days']]
-    regime_profile.columns = ['Frequency (%)', 'Min (Days)', 'Avg (Days)', 'Median (Days)', 'Max (Days)']
-    regime_profile['Avg (Days)'] = regime_profile['Avg (Days)'].round(1)
-    regime_profile['Median (Days)'] = regime_profile['Median (Days)'].round(0).astype(int)
-    regime_profile['Min (Days)'] = regime_profile['Min (Days)'].round(0).astype(int)
-    regime_profile['Max (Days)'] = regime_profile['Max (Days)'].round(0).astype(int)
+    # Ensure Close column exists
+    if 'Close' not in df_work.columns and 'close' in df_work.columns:
+        df_work['Close'] = df_work['close']
     
-    # Add colored emojis to index
-    regime_profile.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_profile.index]
-    regime_profile.index.name = "Regime"
+    # Call engine
+    regime_stats = MarketForensics.get_regime_stats(df_work)
+    crash_metrics = MarketForensics.get_crash_metrics(df_work)
     
-    # Extract crash metrics
-    total_crashes = crash_metrics.get('total_crashes_5y', 0)
-    detected_count = crash_metrics.get('detected_count', 0)
-    detection_rate = crash_metrics.get('detection_rate', 0)
-    false_alarm_rate = crash_metrics.get('false_alarm_rate', 0)
-    avg_lead_time = crash_metrics.get('avg_lead_time_days', 0)
-    total_signals = crash_metrics.get('total_signals', 0)
-    justified_signals = crash_metrics.get('justified_signals', 0)
-    false_alarms = crash_metrics.get('false_alarms', 0)
-    lead_times = crash_metrics.get('lead_times', [])
-    missed_count = total_crashes - detected_count
-    crash_previews = crash_metrics.get('crash_list_preview', [])
+    # Build display table (directly from engine output)
+    regime_table = regime_stats.copy()
+    regime_table.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_table.index]
     
+    # Display expander
     with st.expander("📚 Statistical Report & Signal Audit", expanded=False):
-        # 4-column layout: Regime Table + 3 KPI columns
-        col_regime, col_crashes, col_quality, col_timing = st.columns([2, 1, 1, 1])
+        col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
         
-        # === COLUMN 1: REGIME PROFILE TABLE ===
-        with col_regime:
+        with col1:
             st.markdown("### 📊 Regime Profile")
-            st.caption("*Event-based statistics (uninterrupted phases)*")
-            st.dataframe(regime_profile, use_container_width=True, height=320)
+            st.dataframe(regime_table, use_container_width=True)
         
-        # === COLUMN 2: CRASH PROTECTION (The Value) ===
-        with col_crashes:
-            st.markdown("### 🛡️ Crash Protection")
-            st.caption("*Ground truth detection*")
-            
-            st.metric(
-                "True Crashes (5Y)",
-                f"{total_crashes}",
-                delta=f"{detected_count} detected, {missed_count} missed",
-                delta_color="normal" if detected_count > missed_count else "inverse"
-            )
-            
-            st.metric(
-                "Detection Rate",
-                f"{detection_rate:.0f}%",
-                delta=f"{detected_count}/{total_crashes}",
-                delta_color="normal"
-            )
+        with col2:
+            st.markdown("### 🛡️ Protection")
+            st.metric("True Crashes", crash_metrics['total_crashes_5y'], delta=f"{crash_metrics['detected_count']} detected")
+            st.metric("Detection Rate", f"{crash_metrics['detection_rate']:.0f}%")
         
-        # === COLUMN 3: SIGNAL QUALITY (The Cost) ===
-        with col_quality:
-            st.markdown("### 🎯 Signal Quality")
-            st.caption("*Precision metrics*")
-            
-            st.metric(
-                "False Alarm Rate",
-                f"{false_alarm_rate:.0f}%",
-                delta=f"{false_alarms}/{total_signals} signals",
-                delta_color="inverse",
-                help="% of warnings without subsequent >20% crash. Cost of insurance."
-            )
-            
-            justified_pct = (justified_signals / total_signals * 100) if total_signals > 0 else 0
-            st.metric(
-                "Justified Alerts",
-                f"{justified_signals}/{total_signals}",
-                delta=f"{justified_pct:.0f}% accurate",
-                delta_color="normal"
-            )
+        with col3:
+            st.markdown("### 🎯 Quality")
+            st.metric("False Alarms", f"{crash_metrics['false_alarm_rate']:.0f}%")
+            st.metric("Justified", f"{crash_metrics['justified_signals']}/{crash_metrics['total_signals']}")
         
-        # === COLUMN 4: TIMING ===
-        with col_timing:
+        with col4:
             st.markdown("### ⏱️ Timing")
-            st.caption("*Lead time analysis*")
-            
-            st.metric(
-                "Ø Lead Time",
-                f"{avg_lead_time:.1f} Days",
-                delta="Before Peak" if avg_lead_time > 0 else "No Lead",
-                delta_color="normal" if avg_lead_time > 0 else "off"
-            )
-            
-            if lead_times:
-                min_lead = min(lead_times)
-                max_lead = max(lead_times)
-                st.metric(
-                    "Lead Time Range",
-                    f"{min_lead}-{max_lead} Days",
-                    delta=f"{len(lead_times)} events",
-                    delta_color="off"
-                )
-            else:
-                st.metric("Lead Time Range", "N/A", delta="No data", delta_color="off")
-        
-        # === CRASH LIST (Optional Expandable) ===
-        if crash_previews:
-            st.markdown("---")
-            with st.expander("🔎 View Detected Crash Events", expanded=False):
-                st.caption(f"*Showing most recent {len(crash_previews)} crash events*")
-                for crash in crash_previews:
-                    start_date = crash.get('start_date', 'Unknown')
-                    max_loss = crash.get('max_loss', 0)
-                    duration = crash.get('duration', 0)
-                    st.markdown(f"- **{start_date.strftime('%Y-%m-%d') if hasattr(start_date, 'strftime') else start_date}**: {max_loss:.1f}% drawdown ({duration} days)")
+            st.metric("Ø Lead Time", f"{crash_metrics['avg_lead_time_days']:.1f} Days")
 
 
 # =============================================================================
