@@ -252,16 +252,16 @@ def get_scientific_heritage_css() -> str:
             background-color: #F9F7F1 !important;
             border: 1px solid #333333 !important;
             border-radius: 4px !important;
-            padding: 4px !important;
+            padding: 2px !important;
         }
         
         .modebar-btn {
-            font-size: 24px !important;
+            font-size: 12px !important;
         }
         
         .modebar-btn svg {
-            width: 24px !important;
-            height: 24px !important;
+            width: 12px !important;
+            height: 12px !important;
         }
         
         .modebar-btn path {
@@ -307,7 +307,7 @@ def get_scientific_heritage_css() -> str:
         
         /* Expander styling - fix overlapping text */
         div[data-testid="stExpander"] {
-            background-color: #FFFFFF !important;
+            background-color: #F9F7F1 !important;
             border: 1px solid #D1C4E9 !important;
             border-radius: 2px !important;
             margin-bottom: 1rem !important;
@@ -322,47 +322,98 @@ def get_scientific_heritage_css() -> str:
             padding: 16px 12px !important;
             line-height: 1.8 !important;
             min-height: 56px !important;
-            display: block !important;
+            display: flex !important;
+            align-items: center !important;
             position: relative !important;
             z-index: 2 !important;
-            background: #FFFFFF !important;
+            background: #F9F7F1 !important;
         }
         
         div[data-testid="stExpander"] div[role="button"] {
             line-height: 1.8 !important;
             min-height: 56px !important;
             padding: 16px 12px !important;
+            background-color: #F9F7F1 !important;
+        }
+        
+        /* Expander content area */
+        div[data-testid="stExpander"] > div:not([data-testid="stExpanderDetails"]) {
+            background-color: #F9F7F1 !important;
+        }
+        
+        div[data-testid="stExpanderDetails"] {
+            background-color: #F9F7F1 !important;
         }
         
         div[data-testid="stExpander"] summary p {
             margin: 0 !important;
             padding: 0 !important;
             line-height: 1.8 !important;
-            display: inline !important;
+            position: relative !important;
+            z-index: 3 !important;
         }
         
-        /* Hide keyboard shortcut badges but keep text visible */
+        /* Allow expander text to show */
+        div[data-testid="stExpander"] summary > div {
+            display: flex !important;
+            align-items: center !important;
+            width: 100% !important;
+        }
+        
+        /* Ensure expander label text is visible */
+        div[data-testid="stExpander"] summary [title*="shortcut"],
+        div[data-testid="stExpander"] summary [title*="Shortcut"],
+        div[data-testid="stExpander"] summary [title*="Keyb"] {
+            font-size: 0px !important;
+            width: 0px !important;
+            height: 0px !important;
+            opacity: 0 !important;
+            overflow: hidden !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            }
+
+
+        /* 2. Fail-Safe: Stelle sicher, dass der Titel-Text (meistens <p>) sichtbar bleibt */
+        div[data-testid="stExpander"] summary p,
+        div[data-testid="stExpander"] summary span:not([title*="shortcut"]) {
+            font-size: 1rem !important; /* Oder deine gewünschte Größe */
+            opacity: 1 !important;
+            display: block !important;
+            visibility: visible !important;
+            color: #2C3E50 !important; /* Midnight Blue */
+            }
+        
+        /* Hide keyboard shortcut hints that overlap 
         div[data-testid="stExpander"] summary::before,
         div[data-testid="stExpander"] summary::after {
             display: none !important;
             content: none !important;
-        }
+        } */
         
-        /* Target keyboard shortcut elements specifically */
+        /* Hide only tooltips and keyboard shortcut badges in expanders 
         div[data-testid="stExpander"] [data-testid="stTooltipHoverTarget"],
         div[data-testid="stExpander"] .stTooltipIcon,
         div[data-testid="stExpander"] [data-testid="stTooltipIcon"],
-        div[data-testid="stExpander"] summary button[title*="keyboard"],
-        div[data-testid="stExpander"] summary [aria-label*="keyboard"] {
+        div[data-testid="stExpander"] [aria-label*="keyboard shortcut"] {
             display: none !important;
             visibility: hidden !important;
             opacity: 0 !important;
             width: 0 !important;
             height: 0 !important;
             position: absolute !important;
-            left: -9999px !important;
+            left: -9999px !important; */
         }
         
+        /* 3. Icon Korrektur (falls der Pfeil auch verschwindet) */
+        div[data-testid="stExpander"] summary svg {
+            display: block !important;
+            visibility: visible !important;
+            width: 1rem !important;
+            height: 1rem !important;
+            }
+
         /* ALL BUTTONS - Cream background, charcoal border & text */
         .stButton>button,
         .stButton button,

@@ -199,9 +199,11 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
     """
     Render detailed analysis panel for a selected asset.
     
-    Simplified, condensed view:
-    - Hero card with core facts (name, price, trend, regime, criticality)
-    - SOC analysis plot
+    Displays: Header with regime badge, key metrics (price, criticality,
+    vol percentile, trend), SOC chart, and VISUAL analysis with:
+    - Regime Persistence Visualizer (bar chart)
+    - Current Regime Outlook (focused table)
+    - Historical data in expander with donut chart
     
     Args:
         result: Dictionary containing asset analysis results
@@ -210,93 +212,257 @@ def render_detail_panel(result: Dict[str, Any], get_signal_color_func, get_signa
     """
     is_dark = st.session_state.get('dark_mode', True)
     symbol = result['symbol']
-    signal = result.get('signal', 'Unknown')
-    price = result.get('price', 0.0)
-    trend = result.get('trend', 'Unknown')
-    criticality = int(result.get('criticality_score', 0))
-    name = result.get('name', symbol)
-    full_name = result.get('info', {}).get('longName', name)
+    signal = result['signal']
+    color = get_signal_color_func(signal)
+    bg = get_signal_bg_func(signal)
     
-    # Determine traffic-light color for regime status
-    signal_lower = signal.lower()
-    if "critical" in signal_lower:
-        regime_color = "#C0392B"
-        regime_label = "Critical"
-    elif "high" in signal_lower:
-        regime_color = "#D35400"
-        regime_label = "High Energy"
-    elif "active" in signal_lower:
-        regime_color = "#F1C40F"
-        regime_label = "Active"
-    elif "stable" in signal_lower:
-        regime_color = "#27AE60"
-        regime_label = "Stable"
-    else:
-        regime_color = "#95A5A6"
-        regime_label = signal
+    # Active asset card and any portfolio actions are handled in the main app layout
     
-    # Hero Card
-    st.markdown(f"""
-    <div style="
-        border: 1px solid #D1C4E9;
-        border-radius: 8px;
-        background: #FFFFFF;
-        padding: 16px;
-        margin: 8px 0 16px 0;
-        box-shadow: 2px 2px 8px rgba(0,0,0,0.06);
-    ">
-        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
-            <div>
-                <div style="font-size: 1.4rem; font-weight: 700; color: #2C3E50;">{name}</div>
-                <div style="font-size: 0.95rem; color: #555; margin-top: 4px;">{full_name}</div>
-                <div style="font-size: 1.2rem; font-weight: 700; margin-top: 8px; color: #2C3E50;">${price:,.2f}</div>
-                <div style="font-size: 0.95rem; color: #666;">Trend: <strong>{trend}</strong></div>
-            </div>
-            <div style="text-align: right; min-width: 180px;">
-                <div style="font-size: 0.95rem; color: #666; margin-bottom: 6px;">Regime Status</div>
-                <div style="
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 8px;
-                    background: rgba(0,0,0,0.02);
-                    border: 1px solid {regime_color};
-                    border-radius: 999px;
-                    padding: 6px 12px;
-                ">
-                    <span style="
-                        display: inline-block;
-                        width: 14px;
-                        height: 14px;
-                        border-radius: 50%;
-                        background: {regime_color};
-                        border: 1px solid rgba(0,0,0,0.1);
-                    "></span>
-                    <span style="font-weight: 700; color: #2C3E50;">{regime_label}</span>
-                </div>
-                <div style="margin-top: 10px; font-size: 0.95rem; color: #666;">Criticality</div>
-                <div style="
-                    font-size: 1.3rem;
-                    font-weight: 800;
-                    color: {regime_color};
-                    background: rgba(0,0,0,0.02);
-                    border: 1px solid {regime_color};
-                    border-radius: 6px;
-                    padding: 6px 10px;
-                    display: inline-block;
-                    min-width: 120px;
-                ">{criticality}/100</div>
-            </div>
-        </div>
+    # Explanation of Regime
+    st.markdown("""
+    <div style="background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; padding: 12px; margin: 12px 0; border-radius: 4px;">
+        <strong>📖 What is a "Regime"?</strong><br>
+        <span style="font-size: 0.9rem; opacity: 0.9;">
+        A <strong>regime</strong> is the asset's current statistical behavior pattern based on price volatility and trend direction. 
+        Think of it as the market's "mood" for this asset: <span style="color: #00C864;">🟢 Stable</span> (low volatility, clear trend), 
+        <span style="color: #FFB800;">🟡 Transitioning</span> (moderate volatility, changing direction), or 
+        <span style="color: #FF4040;">🔴 Volatile</span> (high volatility, unclear direction).
+        </span>
     </div>
     """, unsafe_allow_html=True)
     
-    # SOC Chart only (condensed output)
+    # Metrics row - including new Criticality Score
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Price", f"${result['price']:,.2f}")
+    col2.metric("Criticality", f"{result.get('criticality_score', 0)}/100")
+    col3.metric("Vol %ile", f"{result.get('vol_percentile', 50):.0f}th")
+    col4.metric("Trend", result['trend'])
+    
+    # Chart
     fetcher = DataFetcher(cache_enabled=True)
     df = fetcher.fetch_data(symbol)
+    
     if not df.empty:
         analyzer = SOCAnalyzer(df, symbol, result.get('info'))
         figs = analyzer.get_plotly_figures(dark_mode=is_dark)
         st.plotly_chart(figs['chart3'], width="stretch")
-    else:
-        st.warning("No data available for this asset.")
+        
+        # Historical Signal Analysis
+        with st.spinner("Analyzing historical signals..."):
+            analysis = analyzer.get_historical_signal_analysis()
+        
+        if 'error' in analysis:
+            st.warning(analysis['error'])
+        else:
+                # === INSTABILITY SCORE (Compliance-safe) ===
+                stress_data = analysis.get('crash_warning', {})
+                if stress_data:
+                    score = stress_data.get('score', 0)
+                    level = stress_data.get('level', 'BASELINE')
+                    level_color = stress_data.get('level_color', '#00CC00')
+                    level_emoji = stress_data.get('level_emoji', '📊')
+                    interpretation = stress_data.get('interpretation', '')
+                    statistical_factors = stress_data.get('risk_factors', [])
+                    
+                    # Determine background color based on level
+                    if level == "ELEVATED":
+                        bg_color = "rgba(255, 0, 0, 0.15)"
+                        border_color = "#FF0000"
+                    elif level == "HEIGHTENED":
+                        bg_color = "rgba(255, 102, 0, 0.15)"
+                        border_color = "#FF6600"
+                    elif level == "MODERATE":
+                        bg_color = "rgba(255, 204, 0, 0.15)"
+                        border_color = "#FFCC00"
+                    else:
+                        bg_color = "rgba(0, 204, 0, 0.1)"
+                        border_color = "#00CC00"
+                    
+                    # Build statistical factors HTML
+                    factors_html = ""
+                    if statistical_factors:
+                        factors_html = "<div style='margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.2);'>"
+                        factors_html += "<strong>Statistical Indicators:</strong><ul style='margin: 8px 0 0 0; padding-left: 20px;'>"
+                        for factor in statistical_factors:
+                            factors_html += f"<li style='margin: 4px 0;'>{factor}</li>"
+                        factors_html += "</ul></div>"
+                    
+                    st.markdown(f"""
+                    <div style="
+                        background: {bg_color};
+                        border: 2px solid {border_color};
+                        border-radius: 12px;
+                        padding: 20px;
+                        margin-bottom: 24px;
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <div style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; margin-bottom: 4px;">
+                                    📊 Instability Score
+                                </div>
+                                <div style="font-size: 42px; font-weight: bold; color: {level_color};">
+                                    {score}<span style="font-size: 20px; opacity: 0.7;">/100</span>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <div style="
+                                    background: {level_color};
+                                    color: {'#000' if level in ['BASELINE', 'MODERATE'] else '#FFF'};
+                                    padding: 8px 16px;
+                                    border-radius: 20px;
+                                    font-weight: bold;
+                                    font-size: 14px;
+                                ">
+                                    {level_emoji} {level}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 12px; font-size: 14px; opacity: 0.9;">
+                            {interpretation}
+                        </div>
+                        {factors_html}
+                        <div style="margin-top: 12px; font-size: 10px; opacity: 0.6; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
+                            ⚠️ Purely statistical analysis. Past performance is not indicative of future results.
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Explanation of relationship between Regime and Stress Level
+                    st.markdown("""
+                    <div style="background: rgba(102, 126, 234, 0.1); border-left: 3px solid #667eea; padding: 12px; margin: 12px 0; border-radius: 4px;">
+                        <strong>🎯 Regime vs. Instability Score – What's the Difference?</strong><br>
+                        <span style="font-size: 0.9rem; opacity: 0.9;">
+                        • <strong>Regime</strong> (shown at top) = This asset's individual price behavior pattern<br>
+                        • <strong>Instability Score</strong> (shown above) = Overall market-wide risk across volatility, correlations, and trends<br><br>
+                        <strong>Why can they differ?</strong> An asset can be in a 🟢 Stable regime (behaving normally) while the broader market shows 🟠 Heightened instability (system-wide risk). 
+                        The asset might be insulated now, but elevated instability suggests potential future spillover risk.
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                
+                # Get current regime from analysis
+                stats = analysis['signal_stats']
+                current_regime_key = analysis.get('current_signal', 'STABLE')  # From historical analysis
+                current_regime_data = stats.get(current_regime_key, {})
+                current_duration = analysis.get('current_streak_days', 0)  # Days in current regime
+                
+                st.markdown("---")
+                
+                # === SECTION A: REGIME PERSISTENCE VISUALIZER ===
+                st.markdown("#### ⏱️ Regime Persistence Analysis")
+                st.caption("📊 **How to read this:** The colored bar shows how long the asset has been in the current regime. The dashed line shows the historical average duration. If the bar extends beyond the 95th percentile line, the regime may be nearing exhaustion.")
+                render_regime_persistence_chart(current_regime_key, current_duration, current_regime_data, is_dark)
+                
+                st.markdown("---")
+                
+                # === SECTION B: CURRENT REGIME OUTLOOK ===
+                render_current_regime_outlook(current_regime_key, current_regime_data)
+                
+                st.markdown("---")
+                
+                # === SECTION C: FULL HISTORICAL DATA (EXPANDER) ===
+                with st.expander("View All Historical Regime Data", expanded=False):
+                    # Regime Distribution Donut Chart
+                    st.markdown("##### Historical Regime Distribution")
+                    
+                    signal_order = ['STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL', 'DORMANT']
+                    signal_names = {
+                        'STABLE': 'Stable', 'ACTIVE': 'Active', 
+                        'HIGH_ENERGY': 'High Energy', 'CRITICAL': 'Critical', 'DORMANT': 'Dormant'
+                    }
+                    signal_emojis = {'STABLE': '🟢', 'ACTIVE': '🟡', 'HIGH_ENERGY': '🟠', 'CRITICAL': '🔴', 'DORMANT': '⚪'}
+                    signal_colors_map = {
+                        'STABLE': '#00C864', 'ACTIVE': '#FFCC00', 
+                        'HIGH_ENERGY': '#FF6600', 'CRITICAL': '#FF4040', 'DORMANT': '#888888'
+                    }
+                    
+                    # Build donut chart data
+                    labels = []
+                    values = []
+                    colors = []
+                    
+                    for sig in signal_order:
+                        data = stats.get(sig, {})
+                        pct = data.get('pct_of_time', 0)
+                        if pct > 0:
+                            emoji = signal_emojis.get(sig, '')
+                            name = signal_names.get(sig, sig)
+                            labels.append(f"{emoji} {name}")
+                            values.append(pct)
+                            colors.append(signal_colors_map.get(sig, '#888888'))
+                    
+                    # Create donut chart
+                    fig_donut = go.Figure(data=[go.Pie(
+                        labels=labels,
+                        values=values,
+                        hole=0.4,
+                        marker=dict(colors=colors),
+                        textinfo='label+percent',
+                        textposition='outside'
+                    )])
+                    
+                    bg_color_chart = 'rgba(0,0,0,0)' if is_dark else 'rgba(255,255,255,0)'
+                    text_color_chart = '#FFFFFF' if is_dark else '#333333'
+                    
+                    fig_donut.update_layout(
+                        template="plotly_dark" if is_dark else "plotly_white",
+                        paper_bgcolor=bg_color_chart,
+                        height=400,
+                        margin=dict(l=20, r=20, t=40, b=20),
+                        showlegend=True,
+                        legend=dict(font=dict(color=text_color_chart)),
+                        font=dict(color=text_color_chart)
+                    )
+                    
+                    st.plotly_chart(fig_donut, use_container_width=True)
+                    
+                    st.markdown("---")
+                    
+                    # Full Returns Table (All Regimes)
+                    st.markdown("##### Complete Historical Returns by Regime")
+                    st.caption("Statistical analysis of price movements following each regime classification")
+                    
+                    forward_rows = []
+                    for sig in signal_order:
+                        data = stats.get(sig, {})
+                        phase_count = data.get('phase_count', 0)
+                        if phase_count > 0:
+                            emoji = signal_emojis[sig]
+                            forward_rows.append({
+                                'Regime': f"{emoji} {signal_names[sig]}",
+                                'Periods': str(phase_count),
+                                '10d': f"{data.get('start_return_10d', 0):+.1f}%",
+                                '30d': f"{data.get('avg_return_30d', 0):+.1f}%",
+                                '90d': f"{data.get('avg_return_90d', 0):+.1f}%",
+                                'Max DD (10d)': f"{data.get('worst_max_dd_10d', 0):.1f}%"
+                            })
+                    
+                    if forward_rows:
+                        st.table(pd.DataFrame(forward_rows))
+                    else:
+                        st.info("No historical regime data available.")
+                    
+                    st.markdown("---")
+                    
+                    # Pre-Regime Conditions Table
+                    st.markdown("##### Pre-Regime Market Conditions")
+                    st.caption("Historical price movements BEFORE each regime was classified")
+                    
+                    prior_rows = []
+                    for sig in signal_order:
+                        data = stats.get(sig, {})
+                        phase_count = data.get('phase_count', 0)
+                        if phase_count > 0:
+                            emoji = signal_emojis[sig]
+                            prior_rows.append({
+                                'Regime': f"{emoji} {signal_names[sig]}",
+                                'Prior 5d': f"{data.get('prior_5d', 0):+.1f}%",
+                                'Prior 10d': f"{data.get('prior_10d', 0):+.1f}%",
+                                'Prior 30d': f"{data.get('prior_30d', 0):+.1f}%"
+                            })
+                    
+                    if prior_rows:
+                        st.table(pd.DataFrame(prior_rows))
+                    else:
+                        st.info("No historical regime data available.")
 

@@ -150,7 +150,7 @@ def render_auth_page() -> None:
     st.markdown("""
     <style>
         .stApp { 
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            background-color: #F9F7F1;
         }
         .auth-container {
             background: white;
@@ -342,8 +342,160 @@ def render_auth_page() -> None:
     st.stop()
 
 
+def render_scientific_masthead(validate_ticker_func: Callable, search_ticker_func: Callable, run_analysis_func: Callable) -> None:
+    """
+    Render the "Scientific Heritage" Masthead header (newspaper/journal style).
+    
+    Three-level structure:
+        1. Top (Utility): User info + Logout (right-aligned)
+        2. Mid (Identity): Logo + Title + Narrative (centered)
+        3. Bottom (Action): Search bar (centered)
+    
+    Design Philosophy: Clean, open, no borders. Like a 19th-century journal masthead.
+    
+    Args:
+        validate_ticker_func: Function to validate ticker symbols
+        search_ticker_func: Function to search for ticker by company name
+        run_analysis_func: Function to run analysis on ticker(s)
+    """
+    from auth_manager import get_current_user_email, logout
+    
+    # === CSS for Masthead ===
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Merriweather:ital,wght@0,400;0,700;1,400&family=Roboto:wght@400;500;700&display=swap');
+        
+        .tectoniq-masthead {
+            background-color: #F9F7F1;
+            padding: 1.5rem 0 2rem 0;
+            margin-bottom: 2rem;
+        }
+        
+        .masthead-utility {
+            font-family: 'Roboto', sans-serif;
+            font-size: 0.85rem;
+            color: #666;
+            text-align: right;
+            margin-bottom: 1rem;
+        }
+        
+        .masthead-identity {
+            text-align: center;
+            padding: 0 2rem;
+        }
+        
+        .masthead-title {
+            font-family: 'Merriweather', serif;
+            font-size: 3.5rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #2C3E50;
+            margin: 0.5rem 0 0.25rem 0;
+            line-height: 1.1;
+        }
+        
+        .masthead-subtitle {
+            font-family: 'Roboto', sans-serif;
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: #C0392B;
+            margin: 0.25rem 0 1rem 0;
+            letter-spacing: 0.5px;
+        }
+        
+        .masthead-narrative {
+            font-family: 'Merriweather', serif;
+            font-size: 1rem;
+            font-style: italic;
+            color: #555;
+            line-height: 1.6;
+            max-width: 700px;
+            margin: 0 auto 1.5rem auto;
+        }
+        
+        .masthead-divider {
+            width: 80%;
+            max-width: 800px;
+            height: 1px;
+            background: linear-gradient(to right, transparent, #C0392B, transparent);
+            margin: 1.5rem auto;
+        }
+        
+        .masthead-action {
+            text-align: center;
+            padding: 1rem 0 0 0;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # === LEVEL 1: UTILITY BAR (User info + Logout) ===
+    col_spacer, col_utility = st.columns([3, 1])
+    
+    with col_utility:
+        user_email = get_current_user_email()
+        user_tier = st.session_state.get('tier', 'free')
+        tier_label = "Premium" if user_tier == "premium" else "Free"
+        
+        st.markdown(f"""
+        <div class="masthead-utility">
+            <strong>{user_email.split('@')[0]}</strong> ({tier_label})
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if st.button("Logout", key="masthead_logout_btn", use_container_width=True):
+            logout()
+            st.success("Logged out!")
+            st.rerun()
+    
+    # === LEVEL 2: IDENTITY (Logo + Title + Narrative) ===
+    st.markdown("""
+    <div class="tectoniq-masthead">
+        <div class="masthead-identity">
+            <div class="masthead-title">TECTONIQ</div>
+            <div class="masthead-subtitle">Move Beyond Buy & Hope</div>
+            <div class="masthead-narrative">
+                Market crashes aren't random—they are physics. TECTONIQ visualizes systemic stress levels 
+                so you can navigate volatility with open eyes.
+            </div>
+        </div>
+        <div class="masthead-divider"></div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # === LEVEL 3: ACTION (Search Bar) ===
+    col_spacer1, col_search, col_spacer2 = st.columns([1, 2, 1])
+    
+    with col_search:
+        # Clear search field if asset is already selected
+        has_active_asset = 'scan_results' in st.session_state and st.session_state.scan_results
+        if has_active_asset and 'cockpit_search_main' in st.session_state and st.session_state.cockpit_search_main:
+            st.session_state.cockpit_search_main = ""
+        
+        # Dynamic placeholder
+        placeholder_text = "Search for another asset (press Enter)" if has_active_asset else "Enter ticker symbol (e.g., AAPL, BTC-USD, TSLA) and press Enter"
+        
+        # Search field with on_change callback
+        search_query = st.text_input(
+            "Search Asset",
+            placeholder=placeholder_text,
+            label_visibility="collapsed",
+            key="cockpit_search_main",
+            on_change=lambda: handle_search(
+                st.session_state.get('cockpit_search_main', ''),
+                validate_ticker_func,
+                search_ticker_func,
+                run_analysis_func
+            )
+        )
+    
+    st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
+
+
 def render_sticky_cockpit_header(validate_ticker_func: Callable, search_ticker_func: Callable, run_analysis_func: Callable) -> None:
     """
+    DEPRECATED: Use render_scientific_masthead() instead.
+    
     Render the persistent "Cockpit" header with search and status.
     
     New Layout (Polished):
@@ -506,48 +658,7 @@ def render_education_landing(run_analysis_func: Callable) -> None:
     """
     st.markdown("### Welcome to TECTONIQ")
     
-    # News & Updates box (closeable)
-    if 'show_news_box' not in st.session_state:
-        st.session_state.show_news_box = True
-    
-    if st.session_state.show_news_box:
-        # Read news from file and clean up spacing
-        try:
-            with open("news.txt", "r") as f:
-                news_content = f.read()
-            # Remove excessive blank lines (more than one consecutive blank line)
-            import re
-            news_content = re.sub(r'\n\s*\n\s*\n+', '\n\n', news_content)
-            news_content = news_content.strip()
-        except:
-            news_content = "Welcome to TECTONIQ! Stay tuned for updates."
-        
-        # Single unified news box with embedded close button
-        with st.container():
-            # Row with title and dismiss button
-            col_title, col_dismiss = st.columns([85, 15])
-            
-            with col_title:
-                st.markdown("""
-                <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 4px 4px 0 0; padding: 1rem 1.2rem 0.5rem 1.2rem; margin: 1rem 0 0 0;">
-                    <h4 style="margin: 0; color: #667eea; font-size: 1.1rem;">🚨 News & Updates</h4>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col_dismiss:
-                st.markdown("<div style='height: 1rem;'></div>", unsafe_allow_html=True)
-                if st.button("Dismiss", key="close_news_box", use_container_width=True, type="secondary"):
-                    st.session_state.show_news_box = False
-                    st.rerun()
-            
-            # Content box (continues from title)
-            st.markdown(f"""
-            <div style="background: rgba(102, 126, 234, 0.12); border-left: 4px solid #667eea; border-radius: 0 0 4px 4px; padding: 0.5rem 1.2rem 1rem 1.2rem; margin: 0 0 1rem 0;">
-                <div style="font-size: 0.9rem; line-height: 1.4; white-space: pre-wrap; color: #333;">{news_content}</div>
-            </div>
-            """, unsafe_allow_html=True)
-    
-    st.markdown("<div style='height: 2rem;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
     
     st.markdown("### 🚀 Quick Start")
     st.markdown("""

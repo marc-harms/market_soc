@@ -35,7 +35,7 @@ import plotly.graph_objects as go
 from logic import DataFetcher, SOCAnalyzer, run_dca_simulation, calculate_audit_metrics
 from ui_simulation import render_dca_simulation
 from ui_detail import render_detail_panel, render_regime_persistence_chart, render_current_regime_outlook
-from ui_auth import render_disclaimer, render_auth_page, render_sticky_cockpit_header, render_education_landing
+from ui_auth import render_disclaimer, render_auth_page, render_sticky_cockpit_header, render_scientific_masthead, render_education_landing
 from auth_manager import (
     is_authenticated, logout, get_current_user_id, get_current_user_email,
     get_user_portfolio, can_access_simulation, show_upgrade_prompt,
@@ -43,6 +43,131 @@ from auth_manager import (
 )
 from config import get_scientific_heritage_css, HERITAGE_THEME, REGIME_COLORS
 from analytics_engine import MarketForensics
+
+
+# =============================================================================
+# HERO CARD (Specimen Style)
+# =============================================================================
+import streamlit as st
+import streamlit.components.v1 as components
+import pandas as pd
+import numpy as np
+import textwrap
+
+def generate_market_narrative(regime_raw: str, trend: str, score: float, change_24h: float) -> str:
+    """
+    Generates a concise one-sentence market narrative for the hero card.
+    Combines regime context, price trend and 24h move into a short insight.
+    """
+    try:
+        change_val = float(change_24h)
+    except Exception:
+        change_val = 0.0
+
+    regime = str(regime_raw).upper()
+
+    # Basis-Satz basierend auf Regime (Zustand)
+    if "CRITICAL" in regime:
+        base = "The market is showing signs of systemic instability and extreme stress"
+    elif "HIGH" in regime and "ENERGY" in regime:
+        base = "Volatility is surging, indicating an overheated market state"
+    elif "ACTIVE" in regime:
+        base = "Trading activity is normal with healthy liquidity"
+    elif "STABLE" in regime:
+        base = "The asset is in a calm, low-volatility accumulation phase"
+    elif "DORMANT" in regime:
+        base = "Market participation is minimal; the asset is currently asleep"
+    else:
+        base = "Market conditions are currently being analyzed"
+
+    # Ergänzung basierend auf Trend/Preis (Richtung)
+    if change_val < -2.0:
+        direction = ", accompanied by sharp selling pressure."
+    elif change_val > 2.0:
+        direction = ", driven by strong buying momentum."
+    elif str(trend).upper() == "UP":
+        direction = ", supporting a steady upward trend."
+    elif str(trend).upper() == "DOWN":
+        direction = ", weighing down on price action."
+    else:
+        direction = "."
+
+    return f"{base}{direction}"
+
+
+def render_hero_card(
+    ticker: str,
+    asset_name: str,
+    current_price: str,
+    price_change_24h: str,
+    score: float,
+    regime_raw: str,
+    trend: str = "Unknown"
+) -> None:
+    """
+    Renders the Asset Hero Card (Specimen Label Style) with narrative engine.
+    """
+    # 1) Parse percent text for logic
+    try:
+        pct_val = float(str(price_change_24h).strip('%').replace('+',''))
+    except Exception:
+        pct_val = 0.0
+
+    narrative = generate_market_narrative(regime_raw, trend, score, pct_val)
+
+    # 2) Regime badge color + label
+    regime_upper = str(regime_raw).upper()
+    if "CRITICAL" in regime_upper:
+        badge_color = "#C0392B"; clean_regime = "CRITICAL"
+    elif "HIGH" in regime_upper:
+        badge_color = "#D35400"; clean_regime = "HIGH ENERGY"
+    elif "ACTIVE" in regime_upper:
+        badge_color = "#F1C40F"; clean_regime = "ACTIVE"
+    elif "STABLE" in regime_upper:
+        badge_color = "#27AE60"; clean_regime = "STABLE"
+    else:
+        badge_color = "#95A5A6"; clean_regime = "DORMANT"
+
+    # 3) Trend colors
+    if pct_val > 0:
+        change_color = "#10B981"; change_bg = "#ECFDF5"
+    elif pct_val < 0:
+        change_color = "#EF4444"; change_bg = "#FEF2F2"
+    else:
+        change_color = "#6B7280"; change_bg = "#F3F4F6"
+
+    # 4) Render HTML card
+    with st.container():
+        st.markdown(f"""
+<div style="background-color: white; border: 1px solid #d1d5db; border-radius: 8px; padding: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); margin-bottom: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: start;">
+        <div>
+            <h2 style="margin: 0; font-family: 'Merriweather', serif; color: #111827; font-size: 1.8em;">{asset_name}</h2>
+            <p style="margin: 0; color: #6b7280; font-size: 0.9em; font-weight: 500;">{ticker}</p>
+        </div>
+        <div style="text-align: center;">
+             <div style="background-color: {badge_color}; color: white; border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.2em;">
+                {int(score)}
+            </div>
+            <div style="font-size: 0.7em; color: #6b7280; margin-top: 4px;">Criticality</div>
+        </div>
+    </div>
+    <div style="margin-top: 15px; background-color: {badge_color}20; color: {badge_color}; padding: 4px 12px; border-radius: 4px; display: inline-block; font-weight: bold; font-size: 0.8em; letter-spacing: 0.05em;">
+        {clean_regime} REGIME
+    </div>
+    <div style="margin-top: 20px; display: flex; align-items: baseline; gap: 10px;">
+        <span style="font-size: 2.5em; font-weight: bold; color: #1f2937;">{current_price}</span>
+        <span style="font-size: 1em; font-weight: 600; color: {change_color}; background-color: {change_bg}; padding: 2px 6px; border-radius: 4px;">
+            {price_change_24h} <span style="font-size:0.8em; color:#6b7280; font-weight:normal;">24h</span>
+        </span>
+    </div>
+    <div style="margin-top: 20px; padding: 15px; background-color: #f9fafb; border-left: 4px solid {badge_color}; border-radius: 0 4px 4px 0; color: #374151;">
+        <div style="font-size: 1.05em; font-family: 'Merriweather', serif; line-height: 1.5; font-style: italic;">
+            "{narrative}"
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 
 # =============================================================================
@@ -58,6 +183,8 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         return
     
     regime_emojis = {'DORMANT': '⚪', 'STABLE': '🟢', 'ACTIVE': '🟡', 'HIGH_ENERGY': '🟠', 'CRITICAL': '🔴'}
+    severity_order = ['DORMANT', 'STABLE', 'ACTIVE', 'HIGH_ENERGY', 'CRITICAL']
+    severity_rank = {name: idx for idx, name in enumerate(severity_order)}
     
     # Prepare dataframe for engine
     df_work = df.copy()
@@ -77,6 +204,16 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     # Ensure Close column exists
     if 'Close' not in df_work.columns and 'close' in df_work.columns:
         df_work['Close'] = df_work['close']
+
+    # Normalize regime labels for robust matching (strip emojis/whitespace, uppercase)
+    if 'Regime' in df_work.columns:
+        df_work['Regime_Clean'] = (
+            df_work['Regime']
+            .astype(str)
+            .str.replace('[^\\w\\s]', '', regex=True)
+            .str.strip()
+            .str.upper()
+        )
     
     # Call engine
     regime_stats = MarketForensics.get_regime_stats(df_work)
@@ -84,10 +221,40 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
     
     # Build display table (directly from engine output)
     regime_table = regime_stats.copy()
-    regime_table.index = [f"{regime_emojis.get(r, '⚪')} {r}" for r in regime_table.index]
+    # Drop missing or literal "nan" regime labels plus rows with missing metrics
+    regime_table = regime_table.loc[regime_table.index.notna()]
+    regime_table = regime_table.loc[~regime_table.index.to_series().astype(str).str.lower().eq('nan')]
+    regime_table = regime_table.dropna(how='any')
+    regime_table = regime_table.loc[
+        sorted(
+            regime_table.index,
+            key=lambda r: severity_rank.get(str(r).upper(), len(severity_rank))
+        )
+    ]
+
+    # Case-insensitive selection of desired columns
+    desired_order = ['frequency_pct', 'avg_duration_days', 'median_duration_days', 'max_duration_days']
+    col_lookup = {c.lower(): c for c in regime_table.columns}
+    selected_cols = [col_lookup[k] for k in desired_order if k in col_lookup]
+    regime_table = regime_table[selected_cols]
+
+    rename_map = {
+        col_lookup.get('frequency_pct', 'frequency_pct'): 'Freq (%)',
+        col_lookup.get('avg_duration_days', 'avg_duration_days'): 'Ø Duration',
+        col_lookup.get('median_duration_days', 'median_duration_days'): 'Median',
+        col_lookup.get('max_duration_days', 'max_duration_days'): 'Max Days'
+    }
+    regime_table = regime_table.rename(columns=rename_map)
+
+    regime_table.index = [f"{regime_emojis.get(str(r).upper(), '⚪')} {str(r).upper()}" for r in regime_table.index]
     
     # Display expander
-    with st.expander("📚 Statistical Report & Signal Audit", expanded=False):
+    with st.expander("Statistical Report & Signal Audit", expanded=False):
+        # Slightly reduce metric value font size to avoid truncation
+        st.markdown(
+            "<style>div[data-testid='stMetricValue'] { font-size: 1.05rem !important; }</style>",
+            unsafe_allow_html=True
+        )
         col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
         
         with col1:
@@ -97,16 +264,93 @@ def render_advanced_analytics(df: pd.DataFrame, is_dark: bool = False) -> None:
         with col2:
             st.markdown("### 🛡️ Protection")
             st.metric("True Crashes", crash_metrics['total_crashes_5y'], delta=f"{crash_metrics['detected_count']} detected")
-            st.metric("Detection Rate", f"{crash_metrics['detection_rate']:.0f}%")
+            st.metric(
+                "Detection Rate",
+                f"{crash_metrics['detection_rate']:.0f}%",
+                help="Percentage of crashes (>20% drop) successfully flagged in advance."
+            )
         
         with col3:
             st.markdown("### 🎯 Quality")
-            st.metric("False Alarms", f"{crash_metrics['false_alarm_rate']:.0f}%")
-            st.metric("Justified", f"{crash_metrics['justified_signals']}/{crash_metrics['total_signals']}")
+            false_alarms = crash_metrics.get('false_alarms', 0)
+            total_signals = crash_metrics.get('total_signals', 0)
+            detected = crash_metrics.get('detected_count', 0)
+            hit_rate_value = f"{detected}/{total_signals}" if total_signals else "0/0"
+            ratio = (total_signals / detected) if detected else None
+            delta_text = f"1 crash per {ratio:.0f} alerts" if ratio else "No detections yet"
+
+            st.metric(
+                "False Alarms",
+                f"{false_alarms}",
+                help="Signals followed by market recovery (Insurance Cost)"
+            )
+            st.metric(
+                "Hit Rate",
+                hit_rate_value,
+                delta=delta_text,
+                help="Detected crashes versus total defensive alerts"
+            )
         
         with col4:
             st.markdown("### ⏱️ Timing")
-            st.metric("Ø Lead Time", f"{crash_metrics['avg_lead_time_days']:.1f} Days")
+            avg_lead = crash_metrics.get('avg_lead_time_days', 0) or 0
+            if avg_lead >= 1.0:
+                lead_display = f"{avg_lead:.1f} Days"
+            elif 0 < avg_lead < 1:
+                lead_display = "< 1 Day"
+            else:
+                lead_display = "Same Day (Reaction)"
+            st.metric(
+                "Ø Lead Time",
+                lead_display,
+                help="Average number of days the signal turned Red/Orange before the crash peak. 'Same Day' indicates the model reacted instantly to a sudden shock event."
+            )
+
+        crash_list = crash_metrics.get('crash_list_full') or crash_metrics.get('crash_list_preview', [])
+        if crash_list:
+            warning_signals = {'CRITICAL', 'HIGH_ENERGY', 'HIGH ENERGY'}
+            index_is_datetime = pd.api.types.is_datetime64_any_dtype(df_work.index)
+            crash_rows = []
+            for crash in crash_list:
+                start_date = crash.get('start_date')
+                drawdown = crash.get('max_loss')
+                duration = crash.get('duration')
+
+                detected = False
+                found_signal = None
+                if start_date is not None and index_is_datetime:
+                    try:
+                        crash_start = pd.to_datetime(start_date)
+                        lookback_start = crash_start - pd.Timedelta(days=21)
+                        lookahead_end = crash_start + pd.Timedelta(days=7)
+                        window = df_work.loc[lookback_start: lookahead_end]
+                        if 'Regime_Clean' in window.columns:
+                            mask = window['Regime_Clean'].isin(warning_signals)
+                            if mask.any():
+                                detected = True
+                                first_idx = window[mask].index[0]
+                                found_signal = window.loc[first_idx, 'Regime_Clean']
+                    except Exception:
+                        detected = False
+
+                signal_label = "Found: None"
+                if found_signal:
+                    found_clean = str(found_signal).upper()
+                    signal_label = f"Found: {regime_emojis.get(found_clean, '⚪')} {found_clean}"
+
+                crash_rows.append({
+                    'Date': start_date.date() if hasattr(start_date, 'date') else start_date,
+                    'Drawdown': f"{drawdown * 100:.1f}%" if pd.notna(drawdown) else "-",
+                    'Duration': f"{duration} days" if pd.notna(duration) else "-",
+                    'Detected?': "✅" if detected else "❌",
+                    'Signal Found?': signal_label
+                })
+
+            crash_log_df = pd.DataFrame(crash_rows)
+            st.markdown("### 🔎 Event Log: Detected vs. Missed Crashes")
+            st.dataframe(crash_log_df, use_container_width=True)
+        else:
+            st.info("No crash events identified in the selected window.")
 
 
 # =============================================================================
@@ -673,6 +917,33 @@ def show_imprint_dialog():
         st.rerun()
 
 
+@st.dialog("🚨 News & Updates", width="large")
+def show_news_dialog():
+    """Show news & updates in a modal dialog with heritage styling."""
+    # Read news from file
+    try:
+        with open("news.txt", "r") as f:
+            news_content = f.read()
+        # Remove excessive blank lines
+        import re
+        news_content = re.sub(r'\n\s*\n\s*\n+', '\n\n', news_content)
+        news_content = news_content.strip()
+    except:
+        news_content = "Welcome to TECTONIQ! Stay tuned for updates."
+    
+    # Display with heritage styling
+    st.markdown(f"""
+<div style="background-color: #F9F7F1; padding: 1.5rem; border-radius: 8px; border: 1px solid #D1C4E9;">
+    <div style="font-size: 1rem; line-height: 1.6; white-space: pre-wrap; color: #333; font-family: 'Merriweather', serif;">
+{news_content}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+    
+    if st.button("Close", key="close_news", use_container_width=True):
+        st.rerun()
+
+
 # =============================================================================
 # MAIN APPLICATION
 # =============================================================================
@@ -718,8 +989,16 @@ def main():
         render_auth_page()
         return
     
-    # === STICKY COCKPIT HEADER (with User Menu) ===
-    render_sticky_cockpit_header(validate_ticker, search_ticker, run_analysis)
+    # === SCIENTIFIC MASTHEAD (Journal-style Header) ===
+    render_scientific_masthead(validate_ticker, search_ticker, run_analysis)
+    
+    # === NEWS & UPDATES BUTTON (centered) ===
+    col_news_spacer1, col_news_center, col_news_spacer2 = st.columns([2, 1, 2])
+    with col_news_center:
+        if st.button("🚨 News & Updates", key="btn_news_updates", use_container_width=True):
+            show_news_dialog()
+    
+    st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
     
     # === PORTFOLIO VIEW (if toggled on) ===
     if st.session_state.get('show_portfolio', False):
@@ -969,7 +1248,7 @@ def main():
             if results:
                 selected = results[st.session_state.selected_asset]
                 
-                # === SPECIMEN HERO CARD (Condensed) ===
+                # === SPECIMEN HERO CARD (Narrative Engine) ===
                 symbol = selected.get('symbol', '')
                 name = selected.get('name', symbol)
                 full_name = selected.get('info', {}).get('longName', name)
@@ -978,101 +1257,49 @@ def main():
                 trend = selected.get('trend', 'Unknown')
                 criticality = int(selected.get('criticality_score', 0))
                 signal = selected.get('signal', 'Unknown')
-                vol_pct = selected.get('vol_percentile', 0)
-                
-                # Simple regime strip color mapping
-                sig_lower = signal.lower()
-                if "critical" in sig_lower:
-                    regime_color = "#C0392B"; regime_label = "CRITICAL REGIME"
-                elif "high" in sig_lower:
-                    regime_color = "#D35400"; regime_label = "HIGH ENERGY REGIME"
-                elif "active" in sig_lower:
-                    regime_color = "#F1C40F"; regime_label = "ACTIVE REGIME"
-                elif "stable" in sig_lower:
-                    regime_color = "#27AE60"; regime_label = "STABLE REGIME"
-                else:
-                    regime_color = "#95A5A6"; regime_label = signal.upper()
-                
-                # Criticality badge color
-                if criticality > 80:
-                    crit_color = "#C0392B"
-                elif criticality > 60:
-                    crit_color = "#D35400"
-                elif criticality > 40:
-                    crit_color = "#F1C40F"
-                else:
-                    crit_color = "#27AE60"
-                
-                # Basic persistence and win rate (with safer fallbacks)
-                persistence = (
-                    selected.get('current_streak_days')
-                    or selected.get('current_streak')
-                    or selected.get('streak')
-                    or "N/A"
-                )
-                win_rate_raw = (
-                    selected.get('win_rate')
-                    or selected.get('probability')
-                    or selected.get('historical_probability')
-                )
-                win_rate = f"{win_rate_raw:.0f}%" if isinstance(win_rate_raw, (int, float)) else "N/A"
-                context_text = selected.get('context') or f"Regime: {regime_label}."
-                # Normalize strings for formatting
-                if isinstance(persistence, str):
-                    persistence_display = persistence
-                else:
-                    persistence_display = f"{persistence}"
-                win_rate_display = win_rate if isinstance(win_rate, str) else f"{win_rate}"
-                
-                # Center the card at 50% width
-                col_left_card, col_center_card, col_right_card = st.columns([1, 2, 1])
-                with col_center_card:
-                    card_html = f"""
-<div style="border:1px double #333; border-radius:8px; background:#FFFFFF; padding:16px 18px; margin-bottom:12px; box-shadow:2px 2px 6px rgba(0,0,0,0.05); font-family:'Merriweather', serif; width:100%;">
-  <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px;">
-    <div>
-      <div style="font-size:1.4rem; font-weight:700; color:#2C3E50;">{name}</div>
-      <div style="font-size:1rem; color:#555;">{full_name}</div>
-    </div>
-    <div style="min-width:64px; text-align:center;">
-      <div style="width:64px; height:64px; border-radius:50%; background:{crit_color}; color:#fff; display:flex; align-items:center; justify-content:center; font-size:1.4rem; font-weight:800; box-shadow:0 2px 6px rgba(0,0,0,0.15);">{criticality}</div>
-      <div style="font-size:0.75rem; color:#555; margin-top:4px;">Criticality</div>
-    </div>
-  </div>
 
-  <div style="margin:12px 0; padding:6px 10px; background:{regime_color}; color:#fff; font-weight:700; letter-spacing:0.5px; border-radius:4px; text-transform:uppercase;">{regime_label}</div>
-
-  <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:8px;">
-    <div>
-      <div style="font-size:2rem; font-weight:800; color:#2C3E50;">${price:,.2f}</div>
-      <div style="font-size:0.95rem; color:{'#27AE60' if change >=0 else '#C0392B'};">{change:+.2f}%</div>
-    </div>
-  </div>
-
-  <div style="margin-top:12px; padding:10px 12px; background:#F9F7F1; border:1px solid #D1C4E9; border-radius:6px; font-size:0.95rem; line-height:1.5; color:#333; font-family:'Merriweather', serif;">
-    Persistence: {persistence_display} days. Historical Probability: {win_rate_display}.
-    Context: {context_text}
-  </div>
-
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:0.95rem; color:#333;">
-    <div>Trend: <strong>{trend}</strong></div>
-    <div>Volatility: <strong>{vol_pct:.0f}th %ile</strong></div>
-  </div>
-</div>
-"""
-                    st.markdown(card_html, unsafe_allow_html=True)
-                
-                # === SOC Chart (Plotly) ===
                 is_dark = st.session_state.get('dark_mode', False)
                 fetcher = DataFetcher(cache_enabled=True)
-                df = fetcher.fetch_data(symbol)
-                if not df.empty:
-                    analyzer = SOCAnalyzer(df, symbol, selected.get('info'))
+                full_history = st.session_state.get('data')
+                cached_symbol = st.session_state.get('data_symbol')
+                if cached_symbol != symbol or full_history is None or full_history.empty:
+                    full_history = fetcher.fetch_data(symbol)
+                    st.session_state['data'] = full_history
+                    st.session_state['data_symbol'] = symbol
+
+                # Prefer latest regime from history if available for narrative
+                regime_for_card = signal or "Unknown"
+                if full_history is not None and not full_history.empty:
+                    regime_col = next((c for c in ['Regime', 'regime'] if c in full_history.columns), None)
+                    if regime_col:
+                        reg_series = full_history[regime_col].astype(str)
+                        if len(reg_series):
+                            regime_for_card = reg_series.iloc[-1]
+
+                # Render hero card with narrative engine (centered at 50% width)
+                price_display = f"${price:,.2f}"
+                change_display = f"{change:+.2f}%"
+                
+                col_hero_left, col_hero_center, col_hero_right = st.columns([1, 2, 1])
+                with col_hero_center:
+                    render_hero_card(
+                        ticker=symbol,
+                        asset_name=full_name,
+                        current_price=price_display,
+                        price_change_24h=change_display,
+                        score=criticality,
+                        regime_raw=regime_for_card,
+                        trend=trend
+                    )
+
+                # === SOC Chart (Plotly) ===
+                if not full_history.empty:
+                    analyzer = SOCAnalyzer(full_history, symbol, selected.get('info'))
                     figs = analyzer.get_plotly_figures(dark_mode=is_dark)
                     st.plotly_chart(figs['chart3'], width="stretch")
                     
                     # Advanced analytics (event-based)
-                    render_advanced_analytics(df, is_dark=is_dark)
+                    render_advanced_analytics(full_history, is_dark=is_dark)
                 else:
                     st.warning("No data available for this asset.")
         else:

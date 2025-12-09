@@ -66,11 +66,25 @@ class MarketForensics:
                 'false_alarm_rate': 0,
                 'avg_lead_time_days': 0,
                 'crash_list_preview': [],
+                'crash_list_full': [],
                 'total_signals': 0,
                 'justified_signals': 0,
                 'false_alarms': 0,
                 'lead_times': []
             }
+
+        # Normalize regime labels (strip emojis/whitespace, uppercase)
+        if 'Regime' in work_df.columns:
+            work_df['Regime_Clean'] = (
+                work_df['Regime']
+                .astype(str)
+                .str.replace('[^\\w\\s]', '', regex=True)
+                .str.strip()
+                .str.upper()
+            )
+        else:
+            work_df['Regime'] = 'UNKNOWN'
+            work_df['Regime_Clean'] = 'UNKNOWN'
 
         # --- SCHRITT 1: DEFINITION "ECHTER CRASH" (GROUND TRUTH) ---
         
@@ -92,18 +106,38 @@ class MarketForensics:
         true_crashes = []
         for _, block in crash_groups:
             start_date = block.index[0]
+            end_date = block.index[-1]
             max_loss = block['drawdown'].min()
-            duration = (block.index[-1] - start_date).days
+            duration = (end_date - start_date).days
             
             # De-Bouncing: Ignoriere Mini-Dips unter 5 Tagen Dauer (Rauschen)
             if duration >= 5:
                 true_crashes.append({
                     'start_date': start_date,
+                    'end_date': end_date,
                     'max_loss': max_loss,
                     'duration': duration
                 })
 
-        total_crashes = len(true_crashes)
+        # Merge crashes that occur within 90 days of each other (single bear market event)
+        MERGE_GAP_DAYS = 90
+        merged_crashes = []
+        for crash in sorted(true_crashes, key=lambda c: c['start_date']):
+            if not merged_crashes:
+                merged_crashes.append(crash)
+                continue
+            
+            prev = merged_crashes[-1]
+            gap_days = (crash['start_date'] - prev['end_date']).days
+            if gap_days <= MERGE_GAP_DAYS:
+                prev['end_date'] = max(prev['end_date'], crash['end_date'])
+                prev['max_loss'] = min(prev['max_loss'], crash['max_loss'])
+                prev['duration'] = (prev['end_date'] - prev['start_date']).days
+            else:
+                merged_crashes.append(crash)
+
+        crashes = merged_crashes
+        total_crashes = len(crashes)
 
         # --- SCHRITT 2: ERKENNUNGSPRÜFUNG (RECALL) ---
         
@@ -111,23 +145,24 @@ class MarketForensics:
         lead_times = []
 
         # Wir suchen nach Warnsignalen: "Critical" oder "High Energy"
-        WARNING_SIGNALS = ['CRITICAL', 'HIGH_ENERGY', 'High Energy', 'Critical']
+        WARNING_SIGNALS = {'CRITICAL', 'HIGH_ENERGY', 'HIGH ENERGY'}
 
-        for crash in true_crashes:
+        for crash in crashes:
             c_start = crash['start_date']
             
-            # Analyse-Fenster: 14 Tage VOR dem Crash-Start
-            lookback_start = c_start - pd.Timedelta(days=14)
-            window = work_df.loc[lookback_start : c_start]
+            # Analyse-Fenster: 21 Tage VOR bis 7 Tage NACH dem Crash-Start
+            lookback_start = c_start - pd.Timedelta(days=21)
+            lookahead_end = c_start + pd.Timedelta(days=7)
+            window = work_df.loc[lookback_start : lookahead_end]
             
             # Gab es IRGENDEIN Warnsignal in diesem Fenster?
-            has_warning = window['Regime'].isin(WARNING_SIGNALS).any()
+            has_warning = window['Regime_Clean'].isin(WARNING_SIGNALS).any()
             
             if has_warning:
                 detected_count += 1
                 # Lead Time berechnen: Tage vom ersten Warnsignal bis zum Crash
-                first_warning_date = window[window['Regime'].isin(WARNING_SIGNALS)].index[0]
-                lead_time = (c_start - first_warning_date).days
+                first_warning_date = window[window['Regime_Clean'].isin(WARNING_SIGNALS)].index[0]
+                lead_time = max((c_start - first_warning_date).days, 0)
                 lead_times.append(lead_time)
 
         avg_lead_time = np.mean(lead_times) if lead_times else 0
@@ -135,7 +170,7 @@ class MarketForensics:
         # --- SCHRITT 3: FALSE ALARMS (PRECISION) ---
         
         # Identifiziere Signal-Blöcke (Warnung > 3 Tage am Stück)
-        work_df['is_signal'] = work_df['Regime'].isin(WARNING_SIGNALS)
+        work_df['is_signal'] = work_df['Regime_Clean'].isin(WARNING_SIGNALS)
         work_df['signal_block'] = (work_df['is_signal'] != work_df['is_signal'].shift(1)).cumsum()
         
         signal_groups = work_df[work_df['is_signal']].groupby('signal_block')
@@ -155,7 +190,7 @@ class MarketForensics:
             lookahead_end = sig_start + pd.Timedelta(days=30)
             
             crash_followed = False
-            for crash in true_crashes:
+            for crash in crashes:
                 # Liegt ein Crash-Start in diesem Fenster?
                 if sig_start <= crash['start_date'] <= lookahead_end:
                     crash_followed = True
@@ -164,18 +199,21 @@ class MarketForensics:
             if not crash_followed:
                 false_alarms += 1
 
+        # Simplified mapping: each detected crash corresponds to one justified signal event
+        justified_signals = detected_count
+        false_alarms = max(total_signals - justified_signals, 0)
         false_alarm_rate = (false_alarms / total_signals * 100) if total_signals > 0 else 0
-        justified_signals = total_signals - false_alarms
 
         return {
             'total_crashes_5y': total_crashes,
-            'avg_crash_depth': np.mean([c['max_loss'] for c in true_crashes]) if true_crashes else 0,
+            'avg_crash_depth': np.mean([c['max_loss'] for c in crashes]) if crashes else 0,
             'detected_count': detected_count,
             'detection_rate': (detected_count / total_crashes * 100) if total_crashes > 0 else 0,
             'false_alarm_rate': false_alarm_rate,
             'avg_lead_time_days': avg_lead_time,
             'lead_times': lead_times,
-            'crash_list_preview': true_crashes[-3:],
+            'crash_list_preview': crashes[-3:],
+            'crash_list_full': crashes,
             'total_signals': total_signals,
             'justified_signals': justified_signals,
             'false_alarms': false_alarms
