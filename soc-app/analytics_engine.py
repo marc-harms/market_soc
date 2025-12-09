@@ -165,6 +165,7 @@ class MarketForensics:
                 false_alarms += 1
 
         false_alarm_rate = (false_alarms / total_signals * 100) if total_signals > 0 else 0
+        justified_signals = total_signals - false_alarms
 
         return {
             'total_crashes_5y': total_crashes,
@@ -173,7 +174,11 @@ class MarketForensics:
             'detection_rate': (detected_count / total_crashes * 100) if total_crashes > 0 else 0,
             'false_alarm_rate': false_alarm_rate,
             'avg_lead_time_days': avg_lead_time,
-            'crash_list_preview': true_crashes[-3:] # Zeige die letzten 3 Crashs zur Kontrolle
+            'lead_times': lead_times,
+            'crash_list_preview': true_crashes[-3:],
+            'total_signals': total_signals,
+            'justified_signals': justified_signals,
+            'false_alarms': false_alarms
         }
 
 # --- TEST BEREICH (Wird nur im Terminal ausgeführt) ---
